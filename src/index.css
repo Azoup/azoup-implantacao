@@ -842,6 +842,30 @@ body {
 .auth__footer-link a:hover {
   text-decoration: underline;
 }
+.auth__sub-links {
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.1rem;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+.auth__sub-links a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+.auth__sub-links a:hover {
+  text-decoration: underline;
+}
+.auth__version {
+  margin: 0.65rem 0 0;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
 
 /* KPI */
 .kpi-row {

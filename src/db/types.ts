@@ -68,7 +68,8 @@ export interface DbUser {
   id: string
   name: string
   email: string
-  passwordHash: string
+  /** Ausente quando o usuário vem só do Supabase Auth (senha não fica no app). */
+  passwordHash?: string
   role: UserRole
   /** Scopes preparado para futura migração para Auth externo (ex.: Supabase). */
   permissions?: PermissionScope[] | null

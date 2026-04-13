@@ -2,11 +2,12 @@ import { FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { VyntaskLogo } from '../components/VyntaskLogo'
+import { APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 export function LoginPage() {
-  const { ready, user, login } = useAuth()
+  const { ready, authMode, user, login } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@azoup.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -14,7 +15,9 @@ export function LoginPage() {
   if (!ready) {
     return (
       <div className="boot">
-        <div className="boot__inner">Inicializando banco local…</div>
+        <div className="boot__inner">
+          {authMode === 'supabase' ? 'Carregando…' : 'Inicializando banco local…'}
+        </div>
       </div>
     )
   }
@@ -35,6 +38,11 @@ export function LoginPage() {
     }
   }
 
+  const subtitle =
+    authMode === 'supabase'
+      ? 'Acesse sua conta'
+      : 'Central operacional de implantação — sessão local'
+
   return (
     <div className="auth">
       <div className="auth__card">
@@ -46,7 +54,7 @@ export function LoginPage() {
             <h1 className="auth__title">
               <span className="auth__title-accent">Vyn</span>Task
             </h1>
-            <p className="auth__subtitle">Central operacional de implantação — sessão local</p>
+            <p className="auth__subtitle">{subtitle}</p>
           </div>
         </div>
         <form className="auth__form" onSubmit={onSubmit}>
@@ -75,9 +83,20 @@ export function LoginPage() {
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
-        <p className="auth__hint">Admin padrão: admin@azoup.com / Azoup@2026</p>
+        {authMode === 'supabase' ? (
+          <nav className="auth__sub-links" aria-label="Outras opções de acesso">
+            <Link to="/cadastro">Criar conta</Link>
+            <Link to="/recuperar-senha">Esqueci minha senha</Link>
+          </nav>
+        ) : null}
+        {authMode === 'dexie' && import.meta.env.DEV ? (
+          <p className="auth__hint">Admin padrão: admin@azoup.com / Azoup@2026</p>
+        ) : null}
         <p className="auth__footer-link">
           <Link to="/apresentacoes">Apresentações dos planos (clientes)</Link>
+        </p>
+        <p className="auth__version" aria-label={`Versão ${APP_VERSION_DISPLAY}`}>
+          {APP_VERSION_DISPLAY}
         </p>
       </div>
     </div>

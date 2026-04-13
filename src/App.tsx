@@ -5,6 +5,9 @@ import { hasScope } from './auth/permissions'
 import { ROUTE_SCOPE_MAP } from './auth/routeScopes'
 import { AppShell } from './layout/AppShell'
 import { LoginPage } from './pages/LoginPage'
+import { RegisterPage } from './pages/RegisterPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { OverviewPage } from './pages/OverviewPage'
 import { ProjectsPage } from './pages/ProjectsPage'
@@ -44,6 +47,9 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/cadastro" element={<RegisterPage />} />
+      <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
+      <Route path="/auth/redefinir-senha" element={<ResetPasswordPage />} />
       <Route path="/apresentacoes" element={<PlanPresentationsPage />} />
       <Route
         element={

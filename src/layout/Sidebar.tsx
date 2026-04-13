@@ -22,6 +22,7 @@ import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { useTheme } from '../theme/ThemeContext'
 import { VyntaskLogo } from '../components/VyntaskLogo'
+import { APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 type NavItem = { to: string; label: string; icon: LucideIcon; scope: Parameters<typeof hasScope>[1] }
 
@@ -71,7 +72,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           <div className="sidebar__title">
             <span className="sidebar__title-accent">Vyn</span>Task
           </div>
-          <div className="sidebar__version">v2.0</div>
+          <div className="sidebar__version">{APP_VERSION_DISPLAY}</div>
         </div>
       </div>
 
