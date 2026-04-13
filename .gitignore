@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# Segredos (Supabase, etc.) — nunca enviar para o GitHub
+.env
+.env.local
+.env.*.local

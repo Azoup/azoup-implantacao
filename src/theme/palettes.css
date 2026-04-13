@@ -1,0 +1,319 @@
+/**
+ * Paletas VynTask: combinações harmoniosas com contraste reforçado no modo claro.
+ * O padrão `white_orange` está também em index.css até o data-palette hidratar.
+ */
+
+/* ——— Preto + amarelo ——— */
+:root[data-theme='light'][data-palette='black_yellow'] {
+  --bg: #fafaf9;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f0efea;
+  --border: #d6d3cd;
+  --text: #0a0a0a;
+  --text-muted: #525252;
+  --accent: #b45309;
+  --accent-dim: rgba(180, 83, 9, 0.14);
+  --accent-deep: #92400e;
+  --on-accent: #ffffff;
+  --accent-glow-strong: rgba(180, 83, 9, 0.32);
+  --accent-ring: rgba(202, 138, 4, 0.45);
+  --accent-ring-soft: rgba(202, 138, 4, 0.12);
+  --sidebar-cta-shadow: rgba(202, 138, 4, 0.35);
+  --danger: #b91c1c;
+  --success: #047857;
+  --warning: #a16207;
+  --info: #0369a1;
+  --sidebar: #0a0a0a;
+  --sidebar-text: #fafafa;
+  --sidebar-muted: #a3a3a3;
+  --sidebar-active-bg: rgba(250, 204, 21, 0.14);
+  --shadow: 0 10px 32px rgba(10, 10, 10, 0.08);
+  --shadow-sm: 0 2px 10px rgba(10, 10, 10, 0.05);
+  --cal-event-default: rgba(202, 138, 4, 0.22);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(0, 0, 0, 0.07);
+}
+
+:root[data-theme='dark'][data-palette='black_yellow'] {
+  --bg: #0c0c0c;
+  --bg-elevated: #141414;
+  --surface: #1a1a1a;
+  --surface-2: #262626;
+  --border: #404040;
+  --text: #fafafa;
+  --text-muted: #a3a3a3;
+  --accent: #facc15;
+  --accent-dim: rgba(250, 204, 21, 0.14);
+  --accent-deep: #eab308;
+  --on-accent: #171717;
+  --accent-glow-strong: rgba(250, 204, 21, 0.38);
+  --accent-ring: rgba(253, 224, 71, 0.45);
+  --accent-ring-soft: rgba(250, 204, 21, 0.12);
+  --sidebar-cta-shadow: rgba(250, 204, 21, 0.32);
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fde047;
+  --info: #38bdf8;
+  --sidebar: #050505;
+  --sidebar-text: #fafafa;
+  --sidebar-muted: #8c8c8c;
+  --sidebar-active-bg: rgba(250, 204, 21, 0.12);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --cal-event-default: rgba(250, 204, 21, 0.25);
+  --agenda-event-bg: #1a1a1a;
+  --agenda-grid-line: rgba(255, 255, 255, 0.07);
+}
+
+/* ——— Preto + laranja ——— */
+:root[data-theme='light'][data-palette='black_orange'] {
+  --bg: #f4f6fa;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e8ecf2;
+  --border: #d1d8e5;
+  --text: #0f1419;
+  --text-muted: #5c6578;
+  --accent: #ea580c;
+  --accent-dim: rgba(234, 88, 12, 0.12);
+  --accent-deep: #c2410c;
+  --on-accent: #fff7ed;
+  --accent-glow-strong: rgba(234, 88, 12, 0.28);
+  --accent-ring: rgba(249, 115, 22, 0.4);
+  --accent-ring-soft: rgba(249, 115, 22, 0.09);
+  --sidebar-cta-shadow: rgba(234, 88, 12, 0.28);
+  --danger: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+  --info: #0284c7;
+  --sidebar: #111827;
+  --sidebar-text: #f1f5f9;
+  --sidebar-muted: #94a3b8;
+  --sidebar-active-bg: rgba(249, 115, 22, 0.14);
+  --shadow: 0 10px 32px rgba(15, 23, 42, 0.08);
+  --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.05);
+  --cal-event-default: rgba(234, 88, 12, 0.18);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(0, 0, 0, 0.07);
+}
+
+:root[data-theme='dark'][data-palette='black_orange'] {
+  --bg: #10151c;
+  --bg-elevated: #161c26;
+  --surface: #1e2532;
+  --surface-2: #2a3242;
+  --border: #3d4759;
+  --text: #eef2f8;
+  --text-muted: #8e99ad;
+  --accent: #ff9f43;
+  --accent-dim: rgba(255, 159, 67, 0.14);
+  --accent-deep: #f97316;
+  --on-accent: #0c0d10;
+  --accent-glow-strong: rgba(255, 159, 67, 0.34);
+  --accent-ring: rgba(255, 159, 67, 0.44);
+  --accent-ring-soft: rgba(255, 159, 67, 0.11);
+  --sidebar-cta-shadow: rgba(255, 159, 67, 0.3);
+  --danger: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --sidebar: #0c1017;
+  --sidebar-text: #eef2f8;
+  --sidebar-muted: #8e99ad;
+  --sidebar-active-bg: rgba(255, 159, 67, 0.12);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.48);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.34);
+  --cal-event-default: rgba(255, 159, 67, 0.22);
+  --agenda-event-bg: #1e2532;
+  --agenda-grid-line: rgba(255, 255, 255, 0.06);
+}
+
+/* ——— Preto + azul ——— */
+:root[data-theme='light'][data-palette='black_blue'] {
+  --bg: #f8fafc;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e8eef4;
+  --border: #cbd5e1;
+  --text: #020617;
+  --text-muted: #475569;
+  --accent: #1d4ed8;
+  --accent-dim: rgba(29, 78, 216, 0.12);
+  --accent-deep: #1e40af;
+  --on-accent: #ffffff;
+  --accent-glow-strong: rgba(29, 78, 216, 0.3);
+  --accent-ring: rgba(59, 130, 246, 0.45);
+  --accent-ring-soft: rgba(59, 130, 246, 0.1);
+  --sidebar-cta-shadow: rgba(37, 99, 235, 0.35);
+  --danger: #b91c1c;
+  --success: #047857;
+  --warning: #b45309;
+  --info: #0369a1;
+  --sidebar: #020617;
+  --sidebar-text: #f8fafc;
+  --sidebar-muted: #94a3b8;
+  --sidebar-active-bg: rgba(59, 130, 246, 0.16);
+  --shadow: 0 10px 32px rgba(2, 6, 23, 0.08);
+  --shadow-sm: 0 2px 10px rgba(2, 6, 23, 0.05);
+  --cal-event-default: rgba(59, 130, 246, 0.2);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(0, 0, 0, 0.07);
+}
+
+:root[data-theme='dark'][data-palette='black_blue'] {
+  --bg: #020617;
+  --bg-elevated: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #334155;
+  --border: #475569;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #60a5fa;
+  --accent-dim: rgba(96, 165, 250, 0.16);
+  --accent-deep: #3b82f6;
+  --on-accent: #020617;
+  --accent-glow-strong: rgba(96, 165, 250, 0.38);
+  --accent-ring: rgba(96, 165, 250, 0.5);
+  --accent-ring-soft: rgba(96, 165, 250, 0.12);
+  --sidebar-cta-shadow: rgba(59, 130, 246, 0.38);
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --sidebar: #020617;
+  --sidebar-text: #e2e8f0;
+  --sidebar-muted: #7c8aa0;
+  --sidebar-active-bg: rgba(96, 165, 250, 0.14);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --cal-event-default: rgba(96, 165, 250, 0.25);
+  --agenda-event-bg: #1e293b;
+  --agenda-grid-line: rgba(255, 255, 255, 0.07);
+}
+
+/* ——— Branco + azul (sidebar clara) ——— */
+:root[data-theme='light'][data-palette='white_blue'] {
+  --bg: #ffffff;
+  --bg-elevated: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: #cbd5e1;
+  --text: #0f172a;
+  --text-muted: #475569;
+  --accent: #1d4ed8;
+  --accent-dim: rgba(29, 78, 216, 0.1);
+  --accent-deep: #1e3a8a;
+  --on-accent: #ffffff;
+  --accent-glow-strong: rgba(29, 78, 216, 0.28);
+  --accent-ring: rgba(37, 99, 235, 0.4);
+  --accent-ring-soft: rgba(37, 99, 235, 0.08);
+  --sidebar-cta-shadow: rgba(29, 78, 216, 0.28);
+  --danger: #b91c1c;
+  --success: #047857;
+  --warning: #b45309;
+  --info: #0369a1;
+  --sidebar: #e8eef7;
+  --sidebar-text: #0f172a;
+  --sidebar-muted: #64748b;
+  --sidebar-active-bg: rgba(37, 99, 235, 0.12);
+  --shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --cal-event-default: rgba(37, 99, 235, 0.18);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'][data-palette='white_blue'] {
+  --bg: #0f172a;
+  --bg-elevated: #1e293b;
+  --surface: #1e293b;
+  --surface-2: #334155;
+  --border: #475569;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent: #60a5fa;
+  --accent-dim: rgba(96, 165, 250, 0.14);
+  --accent-deep: #3b82f6;
+  --on-accent: #020617;
+  --accent-glow-strong: rgba(96, 165, 250, 0.35);
+  --accent-ring: rgba(96, 165, 250, 0.45);
+  --accent-ring-soft: rgba(96, 165, 250, 0.1);
+  --sidebar-cta-shadow: rgba(59, 130, 246, 0.32);
+  --danger: #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --sidebar: #1e293b;
+  --sidebar-text: #f1f5f9;
+  --sidebar-muted: #94a3b8;
+  --sidebar-active-bg: rgba(96, 165, 250, 0.12);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.35);
+  --cal-event-default: rgba(96, 165, 250, 0.22);
+  --agenda-event-bg: #1e293b;
+  --agenda-grid-line: rgba(255, 255, 255, 0.07);
+}
+
+/* ——— Branco + laranja (sidebar clara) ——— */
+:root[data-theme='light'][data-palette='white_orange'] {
+  --bg: #f4f6fa;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e8ecf2;
+  --border: #d1d8e5;
+  --text: #0f1419;
+  --text-muted: #5c6578;
+  --accent: #ea580c;
+  --accent-dim: rgba(234, 88, 12, 0.12);
+  --accent-deep: #c2410c;
+  --on-accent: #fff7ed;
+  --accent-glow-strong: rgba(234, 88, 12, 0.26);
+  --accent-ring: rgba(249, 115, 22, 0.38);
+  --accent-ring-soft: rgba(249, 115, 22, 0.08);
+  --sidebar-cta-shadow: rgba(234, 88, 12, 0.26);
+  --danger: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+  --info: #0284c7;
+  --sidebar: #eef1f7;
+  --sidebar-text: #111827;
+  --sidebar-muted: #64748b;
+  --sidebar-active-bg: rgba(234, 88, 12, 0.11);
+  --shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+  --cal-event-default: rgba(234, 88, 12, 0.16);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme='dark'][data-palette='white_orange'] {
+  --bg: #11151c;
+  --bg-elevated: #171c25;
+  --surface: #1e2430;
+  --surface-2: #2a3140;
+  --border: #3d4759;
+  --text: #eef2f8;
+  --text-muted: #8e99ad;
+  --accent: #ff9f43;
+  --accent-dim: rgba(255, 159, 67, 0.14);
+  --accent-deep: #f97316;
+  --on-accent: #0c0d10;
+  --accent-glow-strong: rgba(255, 159, 67, 0.32);
+  --accent-ring: rgba(255, 159, 67, 0.42);
+  --accent-ring-soft: rgba(255, 159, 67, 0.1);
+  --sidebar-cta-shadow: rgba(255, 159, 67, 0.28);
+  --danger: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --sidebar: #161b24;
+  --sidebar-text: #eef2f8;
+  --sidebar-muted: #8e99ad;
+  --sidebar-active-bg: rgba(255, 159, 67, 0.12);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.42);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.32);
+  --cal-event-default: rgba(255, 159, 67, 0.2);
+  --agenda-event-bg: #1e2430;
+  --agenda-grid-line: rgba(255, 255, 255, 0.06);
+}
