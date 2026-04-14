@@ -1,15 +1,15 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Check, Moon, Palette, Shield, Sun, Users } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
-import { hashPassword } from '../lib/password'
-import { uuid } from '../lib/uuid'
-import type { PermissionScope, UserRole } from '../db/types'
+import type { PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
+import { supabase } from '../lib/supabaseClient'
+import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 
 type SettingsTab = 'geral' | 'aparencia'
 
@@ -25,10 +25,6 @@ export function SettingsPage() {
   )
   const [tab, setTab] = useState<SettingsTab>('geral')
   const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState<UserRole>('user')
   const [err, setErr] = useState<string | null>(null)
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null)
@@ -36,34 +32,6 @@ export function SettingsPage() {
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
   const editingPermissionUser = permissionsUserId ? users.find((u) => u.id === permissionsUserId) ?? null : null
-
-  async function onAdd(e: FormEvent) {
-    e.preventDefault()
-    if (!canManageUsers) return
-    setErr(null)
-    const em = email.trim().toLowerCase()
-    const clash = await db.users.where('email').equals(em).first()
-    if (clash) {
-      setErr('E-mail já cadastrado.')
-      return
-    }
-    const passwordHash = await hashPassword(em, password)
-    await db.users.add({
-      id: uuid(),
-      name: name.trim(),
-      email: em,
-      passwordHash,
-      role,
-      permissions: defaultScopesForRole(role),
-      status: 'active',
-      createdAt: new Date().toISOString(),
-      lastLogin: null,
-    })
-    setOpen(false)
-    setName('')
-    setEmail('')
-    setPassword('')
-  }
 
   function openPermissions(userId: string) {
     const target = users.find((u) => u.id === userId)
@@ -81,7 +49,19 @@ export function SettingsPage() {
 
   async function savePermissions() {
     if (!permissionsUserId || !canManageUsers) return
-    await db.users.update(permissionsUserId, { permissions: permissionDraft })
+    if (!supabase) {
+      setErr('Supabase não configurado.')
+      return
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update({ permissions: permissionDraft })
+      .eq('id', permissionsUserId)
+    if (error) {
+      setErr(error.message || 'Não foi possível salvar permissões.')
+      return
+    }
+    await refreshSupabaseDexieCache()
     closePermissions()
   }
 
@@ -103,7 +83,7 @@ export function SettingsPage() {
         </div>
         {canManageUsers ? (
           <button type="button" className="btn btn--primary" onClick={() => setOpen(true)}>
-            + Novo Usuário
+            Como criar usuário
           </button>
         ) : null}
       </header>
@@ -283,6 +263,7 @@ export function SettingsPage() {
             {!canManageUsers ? (
               <p className="muted panel__foot">Somente admin pode criar usuários e alterar permissões.</p>
             ) : null}
+            {err ? <p className="auth__error">{err}</p> : null}
           </section>
         </>
       ) : null}
@@ -290,37 +271,24 @@ export function SettingsPage() {
       {open && canManageUsers ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
           <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__title">Novo usuário</h2>
-            <form className="stack" onSubmit={onAdd}>
-              <label className="field">
-                <span>Nome</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} required />
-              </label>
-              <label className="field">
-                <span>E-mail</span>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-              </label>
-              <label className="field">
-                <span>Senha</span>
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-              </label>
-              <label className="field">
-                <span>Perfil</span>
-                <select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-                  <option value="user">Usuário</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </label>
-              {err ? <p className="auth__error">{err}</p> : null}
+            <h2 className="modal__title">Criação de usuários (modo nuvem)</h2>
+            <div className="stack">
+              <p className="muted" style={{ margin: 0 }}>
+                Para evitar usuários locais, a criação agora é pelo fluxo oficial do Supabase:
+              </p>
+              <ol className="muted" style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                <li>Usuário se cadastra em <strong>/cadastro</strong>, ou</li>
+                <li>Admin cria em Authentication → Users (painel Supabase).</li>
+              </ol>
+              <p className="muted" style={{ margin: 0 }}>
+                Depois ajuste permissões nesta tela (botão <strong>Permissões</strong>).
+              </p>
               <div className="modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={() => setOpen(false)}>
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn--primary">
-                  Salvar
+                <button type="button" className="btn btn--primary" onClick={() => setOpen(false)}>
+                  Entendi
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       ) : null}
