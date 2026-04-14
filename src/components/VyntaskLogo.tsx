@@ -1,7 +1,7 @@
 import { useId } from 'react'
 
 type Props = {
-  /** Tamanho em px (viewBox 48×48). */
+  /** Tamanho em px (viewBox 56×56). */
   size?: number
   /** `inverse`: marca clara sobre fundo escuro (sidebar). `brand`: acento do tema. */
   variant?: 'inverse' | 'brand'
@@ -9,9 +9,7 @@ type Props = {
   'aria-hidden'?: boolean
 }
 
-/**
- * Marca VynTask — minimalista: folha de tarefas + check (implantação concluída / organização).
- */
+/** Marca VynTask — bloco sólido + check em "V" com presença visual. */
 export function VyntaskLogo({
   size = 40,
   variant = 'brand',
@@ -19,44 +17,44 @@ export function VyntaskLogo({
   'aria-hidden': ariaHidden = true,
 }: Props) {
   const uid = useId().replace(/:/g, '')
-  const gradId = `vt-check-${uid}`
+  const bgGradId = `vt-bg-${uid}`
+  const checkGradId = `vt-check-${uid}`
 
   if (variant === 'inverse') {
     return (
       <svg
         width={size}
         height={size}
-        viewBox="0 0 48 48"
+        viewBox="0 0 56 56"
         className={`vyntask-logo ${className}`}
         aria-hidden={ariaHidden}
         role="img"
       >
         <rect
           className="vyntask-logo__sheet"
-          x="10"
-          y="11.5"
-          width="28"
-          height="29"
-          rx="7.5"
-          ry="7.5"
-          fill="none"
-          stroke="rgba(255,255,255,0.9)"
-          strokeWidth="2"
+          x="6"
+          y="6"
+          width="44"
+          height="44"
+          rx="14"
+          fill="rgba(255,255,255,0.14)"
+          stroke="rgba(255,255,255,0.52)"
+          strokeWidth="1.8"
         />
-        <circle className="vyntask-logo__bind vyntask-logo__bind--a" cx="18.5" cy="17" r="2.15" fill="#ffffff" />
-        <circle className="vyntask-logo__bind vyntask-logo__bind--b" cx="29.5" cy="17" r="2.15" fill="#ffffff" />
+        <circle className="vyntask-logo__bind vyntask-logo__bind--a" cx="19" cy="18" r="2.45" fill="#ffffff" />
+        <circle className="vyntask-logo__bind vyntask-logo__bind--b" cx="37" cy="18" r="2.45" fill="#ffffff" />
         <path
           className="vyntask-logo__check"
-          d="M17.2 24.8 L23.2 30.8 L33.4 19.2"
+          d="M16 31 L24 39 L41 21"
           fill="none"
           stroke="#ffffff"
-          strokeWidth="3.2"
+          strokeWidth="4.6"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <circle className="vyntask-logo__dot" cx="18" cy="36.5" r="1.35" fill="rgba(255,255,255,0.42)" />
-        <circle className="vyntask-logo__dot" cx="24" cy="36.5" r="1.35" fill="rgba(255,255,255,0.42)" />
-        <circle className="vyntask-logo__dot" cx="30" cy="36.5" r="1.35" fill="rgba(255,255,255,0.42)" />
+        <circle className="vyntask-logo__dot" cx="19" cy="45" r="1.6" fill="rgba(255,255,255,0.5)" />
+        <circle className="vyntask-logo__dot" cx="28" cy="45" r="1.6" fill="rgba(255,255,255,0.38)" />
+        <circle className="vyntask-logo__dot" cx="37" cy="45" r="1.6" fill="rgba(255,255,255,0.5)" />
       </svg>
     )
   }
@@ -65,44 +63,47 @@ export function VyntaskLogo({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 56 56"
       className={`vyntask-logo ${className}`}
       aria-hidden={ariaHidden}
       role="img"
     >
       <defs>
-        <linearGradient id={gradId} x1="16" y1="19" x2="34" y2="32" gradientUnits="userSpaceOnUse">
+        <linearGradient id={bgGradId} x1="10" y1="8" x2="44" y2="48" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="var(--accent)" />
           <stop offset="100%" stopColor="var(--accent-deep)" />
+        </linearGradient>
+        <linearGradient id={checkGradId} x1="16" y1="31" x2="41" y2="22" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#ffe8d6" />
         </linearGradient>
       </defs>
       <rect
         className="vyntask-logo__sheet"
-        x="10"
-        y="11.5"
-        width="28"
-        height="29"
-        rx="7.5"
-        ry="7.5"
-        fill="none"
-        stroke="var(--accent)"
-        strokeOpacity={0.42}
-        strokeWidth="2"
+        x="6"
+        y="6"
+        width="44"
+        height="44"
+        rx="14"
+        fill={`url(#${bgGradId})`}
+        stroke="color-mix(in srgb, var(--accent-deep) 65%, #000)"
+        strokeOpacity={0.38}
+        strokeWidth="1.8"
       />
-      <circle className="vyntask-logo__bind vyntask-logo__bind--a" cx="18.5" cy="17" r="2.15" fill="var(--accent)" />
-      <circle className="vyntask-logo__bind vyntask-logo__bind--b" cx="29.5" cy="17" r="2.15" fill="var(--accent)" />
+      <circle className="vyntask-logo__bind vyntask-logo__bind--a" cx="19" cy="18" r="2.45" fill="#ffffff" />
+      <circle className="vyntask-logo__bind vyntask-logo__bind--b" cx="37" cy="18" r="2.45" fill="#ffffff" />
       <path
         className="vyntask-logo__check"
-        d="M17.2 24.8 L23.2 30.8 L33.4 19.2"
+        d="M16 31 L24 39 L41 21"
         fill="none"
-        stroke={`url(#${gradId})`}
-        strokeWidth="3.2"
+        stroke={`url(#${checkGradId})`}
+        strokeWidth="4.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle className="vyntask-logo__dot" cx="18" cy="36.5" r="1.35" fill="var(--accent)" fillOpacity={0.35} />
-      <circle className="vyntask-logo__dot" cx="24" cy="36.5" r="1.35" fill="var(--accent)" fillOpacity={0.35} />
-      <circle className="vyntask-logo__dot" cx="30" cy="36.5" r="1.35" fill="var(--accent)" fillOpacity={0.35} />
+      <circle className="vyntask-logo__dot" cx="19" cy="45" r="1.6" fill="#ffffff" fillOpacity={0.78} />
+      <circle className="vyntask-logo__dot" cx="28" cy="45" r="1.6" fill="#ffffff" fillOpacity={0.6} />
+      <circle className="vyntask-logo__dot" cx="37" cy="45" r="1.6" fill="#ffffff" fillOpacity={0.78} />
     </svg>
   )
 }

@@ -66,7 +66,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
     <aside className={'sidebar' + (collapsed ? ' sidebar--collapsed' : '')}>
       <div className="sidebar__brand sidebar__brand--interactive">
         <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-          <VyntaskLogo variant="brand" size={26} />
+          <VyntaskLogo variant="brand" size={32} />
         </span>
         <div className="sidebar__brand-text">
           <div className="sidebar__title">
