@@ -62,7 +62,7 @@ export function LoginPage() {
       <div className="auth__card">
         <div className="auth__brand">
           <span className="auth__brand-mark vyntask-logo-wrap">
-            <VyntaskLogo variant="brand" size={56} aria-hidden />
+            <VyntaskLogo variant="brand" size={52} aria-hidden />
           </span>
           <div>
             <h1 className="auth__title">
