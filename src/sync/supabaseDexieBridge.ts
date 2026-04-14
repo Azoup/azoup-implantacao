@@ -15,7 +15,9 @@ import type {
   DbTimeLog,
   DbTimeSession,
   DbUser,
+  PermissionScope,
 } from '../db/types'
+import { ALL_PERMISSION_SCOPES } from '../auth/permissions'
 
 type BridgeDef<TLocal> = {
   localTable: keyof typeof db
@@ -499,12 +501,14 @@ function installHooks() {
 
 async function hydrateUsersFromProfiles() {
   const rows = await fetchAll('profiles')
+  const validScopes = new Set<string>(ALL_PERMISSION_SCOPES as string[])
   const users: DbUser[] = rows.map((r) => ({
     id: String(r.id),
     name: String(r.name ?? ''),
     email: String(r.email ?? ''),
     role: String(r.role ?? 'user') === 'admin' ? 'admin' : 'user',
-    permissions: toStringArrayOrNull(r.permissions),
+    permissions:
+      toStringArrayOrNull(r.permissions)?.filter((s): s is PermissionScope => validScopes.has(s)) ?? null,
     status: String(r.status ?? 'active') === 'inactive' ? 'inactive' : 'active',
     createdAt: String(r.created_at ?? new Date().toISOString()),
     lastLogin: toStringOrNull(r.last_login_at),
@@ -518,48 +522,29 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
   installHooks()
   syncingMuted = true
   try {
-    await db.transaction(
-      'rw',
-      db.analysts,
-      db.planModels,
-      db.planPhases,
-      db.planTasks,
-      db.projects,
-      db.projectContacts,
-      db.phases,
-      db.tasks,
-      db.events,
-      db.timeLogs,
-      db.timeSessions,
-      db.comments,
-      db.labels,
-      db.users,
-      async () => {
-        await db.analysts.clear()
-        await db.planModels.clear()
-        await db.planPhases.clear()
-        await db.planTasks.clear()
-        await db.projects.clear()
-        await db.projectContacts.clear()
-        await db.phases.clear()
-        await db.tasks.clear()
-        await db.events.clear()
-        await db.timeLogs.clear()
-        await db.timeSessions.clear()
-        await db.comments.clear()
-        await db.labels.clear()
-        await db.users.clear()
+    await db.analysts.clear()
+    await db.planModels.clear()
+    await db.planPhases.clear()
+    await db.planTasks.clear()
+    await db.projects.clear()
+    await db.projectContacts.clear()
+    await db.phases.clear()
+    await db.tasks.clear()
+    await db.events.clear()
+    await db.timeLogs.clear()
+    await db.timeSessions.clear()
+    await db.comments.clear()
+    await db.labels.clear()
+    await db.users.clear()
 
-        for (const def of defs) {
-          const rows = await fetchAll(def.remoteTable)
-          if (rows.length === 0) continue
-          const mapped = rows.map(def.fromRemote)
-          const table = (db as Record<string, any>)[def.localTable]
-          await table.bulkPut(mapped)
-        }
-        await hydrateUsersFromProfiles()
-      },
-    )
+    for (const def of defs) {
+      const rows = await fetchAll(def.remoteTable)
+      if (rows.length === 0) continue
+      const mapped = rows.map(def.fromRemote)
+      const table = (db as Record<string, any>)[def.localTable]
+      await table.bulkPut(mapped)
+    }
+    await hydrateUsersFromProfiles()
   } finally {
     syncingMuted = false
   }
