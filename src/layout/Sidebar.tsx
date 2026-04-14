@@ -95,8 +95,6 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           ))}
         </nav>
 
-        <div className="sidebar__spacer" />
-
         <nav className="sidebar__nav sidebar__nav--bottom" aria-label="Sistema">
           {visibleBottomNav.map(({ to, label, icon: Icon }) => (
             <NavLink
