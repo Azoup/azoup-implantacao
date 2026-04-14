@@ -13,6 +13,7 @@ import { ensureDatabase } from '../db/init'
 import type { DbUser } from '../db/types'
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { mapProfileToUser, type ProfileRow } from './mapProfileToUser'
+import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 
 const SESSION_KEY = 'vyntask_session_v1'
 
@@ -99,7 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           const u = await fetchProfileUser(session.user.id)
           if (cancelled) return
-          if (u) setUser(u)
+          if (u) {
+            setUser(u)
+            await refreshSupabaseDexieCache()
+          }
           else {
             await client.auth.signOut()
             setUser(null)
@@ -119,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (cancelled) return
           if (u) {
             setUser(u)
+            await refreshSupabaseDexieCache()
           } else {
             await client.auth.signOut()
             setUser(null)
@@ -155,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await touchLastLogin(session.user.id)
         setUser({ ...u, lastLogin: new Date().toISOString() })
+        await refreshSupabaseDexieCache()
         return
       }
 
