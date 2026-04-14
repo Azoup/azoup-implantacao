@@ -120,7 +120,7 @@ create policy "profiles_update_own"
 -- ---------------------------------------------------------------------------
 revoke update on table public.profiles from authenticated;
 grant select on table public.profiles to authenticated;
-grant update (name, last_login_at) on table public.profiles to authenticated;
+grant update (name, permissions, last_login_at) on table public.profiles to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Opcional: backfill — usuários em auth.users sem linha em profiles
