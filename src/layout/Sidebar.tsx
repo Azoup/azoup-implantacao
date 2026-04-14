@@ -78,6 +78,17 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
 
       <div className="sidebar__divider" aria-hidden />
 
+      <button
+        type="button"
+        className="sidebar__rail-toggle"
+        onClick={onToggleCollapse}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+        title={collapsed ? 'Expandir (Ctrl+B)' : 'Recolher (Ctrl+B)'}
+      >
+        {collapsed ? <ChevronRight size={18} strokeWidth={2} /> : <ChevronLeft size={18} strokeWidth={2} />}
+      </button>
+
       <div className="sidebar__scroll">
         <nav className="sidebar__nav" aria-label="Principal">
           {visibleMainNav.map(({ to, label, icon: Icon }) => (
@@ -139,45 +150,34 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             <span className="sidebar__label">Sair</span>
           </button>
         </nav>
+
+        <div className="sidebar__footer">
+          {user?.name ? (
+            <div className="sidebar__user">
+              <span className="sidebar__user-name">{user.name}</span>
+            </div>
+          ) : null}
+
+          {canCreateProjects ? (
+            <button
+              type="button"
+              className={'btn btn--primary sidebar__cta' + (collapsed ? ' sidebar__cta--icon-only' : '')}
+              onClick={() => {
+                onNavigate?.()
+                navigate('/projetos', { state: { openNew: true } })
+              }}
+              title={collapsed ? 'Novo projeto' : undefined}
+              aria-label={collapsed ? 'Novo projeto' : undefined}
+            >
+              {collapsed ? (
+                <Plus size={22} strokeWidth={2.25} absoluteStrokeWidth />
+              ) : (
+                '+ Novo projeto'
+              )}
+            </button>
+          ) : null}
+        </div>
       </div>
-
-      <div className="sidebar__footer">
-        {user?.name ? (
-          <div className="sidebar__user">
-            <span className="sidebar__user-name">{user.name}</span>
-          </div>
-        ) : null}
-
-        {canCreateProjects ? (
-          <button
-            type="button"
-            className={'btn btn--primary sidebar__cta' + (collapsed ? ' sidebar__cta--icon-only' : '')}
-            onClick={() => {
-              onNavigate?.()
-              navigate('/projetos', { state: { openNew: true } })
-            }}
-            title={collapsed ? 'Novo projeto' : undefined}
-            aria-label={collapsed ? 'Novo projeto' : undefined}
-          >
-            {collapsed ? (
-              <Plus size={22} strokeWidth={2.25} absoluteStrokeWidth />
-            ) : (
-              '+ Novo projeto'
-            )}
-          </button>
-        ) : null}
-      </div>
-
-      <button
-        type="button"
-        className="sidebar__rail-toggle"
-        onClick={onToggleCollapse}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-        title={collapsed ? 'Expandir (Ctrl+B)' : 'Recolher (Ctrl+B)'}
-      >
-        {collapsed ? <ChevronRight size={18} strokeWidth={2} /> : <ChevronLeft size={18} strokeWidth={2} />}
-      </button>
     </aside>
   )
 }
