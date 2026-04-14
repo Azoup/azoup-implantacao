@@ -27,6 +27,12 @@ import type { DbEvent, DbTask } from '../db/types'
 import { updateEventValidated } from '../services/events'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import {
+  readProjectStartDateSortOrder,
+  sortProjectsByStartDate,
+  writeProjectStartDateSortOrder,
+  type ProjectStartDateSortOrder,
+} from '../lib/projectSort'
 
 const iconSm = { size: 20, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
 
@@ -78,6 +84,7 @@ export function DashboardPage() {
   const [editMeetingLink, setEditMeetingLink] = useState('')
   const [editAnalystId, setEditAnalystId] = useState('')
   const [agendaLinkFilter, setAgendaLinkFilter] = useState<'all' | 'with_link'>('all')
+  const [startDateSort, setStartDateSort] = useState<ProjectStartDateSortOrder>(() => readProjectStartDateSortOrder())
   const [now, setNow] = useState(() => new Date())
   const meetingInputRef = useRef<HTMLInputElement | null>(null)
   const { toast, toastError, requestConfirm } = useUiFeedback()
@@ -132,14 +139,14 @@ export function DashboardPage() {
   }, [tasks])
 
   const ongoingList = useMemo(() => {
-    return projects
-      .filter((p) => {
-        if (p.status !== 'ativo') return false
-        const col = deriveKanbanColumnFromPlanState(p, phases, tasks)
-        return col !== 'finalizados' && col !== 'cancelados'
-      })
-      .slice(0, 12)
-  }, [projects, phases, tasks])
+    const filtered = projects.filter((p) => {
+      if (p.status !== 'ativo') return false
+      const col = deriveKanbanColumnFromPlanState(p, phases, tasks)
+      return col !== 'finalizados' && col !== 'cancelados'
+    })
+    const ordered = sortProjectsByStartDate(filtered, startDateSort)
+    return ordered.slice(0, 12)
+  }, [projects, phases, tasks, startDateSort])
 
   function planLabel(key: string) {
     const m = planModels.find((x) => x.key === key)
@@ -294,6 +301,32 @@ export function DashboardPage() {
             </span>
             Projetos em andamento
           </h2>
+          <div
+            className="dashboard-agenda-filter"
+            role="group"
+            aria-label="Ordenar projetos por data de início"
+          >
+            <button
+              type="button"
+              className={'dashboard-agenda-filter__btn' + (startDateSort === 'desc' ? ' is-active' : '')}
+              onClick={() => {
+                setStartDateSort('desc')
+                writeProjectStartDateSortOrder('desc')
+              }}
+            >
+              Início Z→A (recentes)
+            </button>
+            <button
+              type="button"
+              className={'dashboard-agenda-filter__btn' + (startDateSort === 'asc' ? ' is-active' : '')}
+              onClick={() => {
+                setStartDateSort('asc')
+                writeProjectStartDateSortOrder('asc')
+              }}
+            >
+              Início A→Z (antigas)
+            </button>
+          </div>
           <div className="dashboard-proj-list">
             {ongoingList.length === 0 ? (
               <p className="dashboard-empty">Nenhum projeto ativo. Crie um em Projetos.</p>

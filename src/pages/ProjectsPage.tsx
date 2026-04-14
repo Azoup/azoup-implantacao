@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
 import { Clock, Plus, TrendingUp } from 'lucide-react'
@@ -14,6 +14,12 @@ import { PlanLabelPill, PlanLabelRow } from '../components/PlanLabelChips'
 import type { DbProject, KanbanColumn } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import {
+  readProjectStartDateSortOrder,
+  sortProjectsByStartDate,
+  writeProjectStartDateSortOrder,
+  type ProjectStartDateSortOrder,
+} from '../lib/projectSort'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -31,6 +37,9 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false)
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
+  const [startDateSort, setStartDateSort] = useState<ProjectStartDateSortOrder>(() => readProjectStartDateSortOrder())
+
+  const sortedProjects = useMemo(() => sortProjectsByStartDate(projects, startDateSort), [projects, startDateSort])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -88,8 +97,35 @@ export function ProjectsPage() {
         </button>
       </header>
 
+      <div
+        className="dashboard-agenda-filter projects-page__start-sort"
+        role="group"
+        aria-label="Ordenar projetos por data de início"
+      >
+        <button
+          type="button"
+          className={'dashboard-agenda-filter__btn' + (startDateSort === 'desc' ? ' is-active' : '')}
+          onClick={() => {
+            setStartDateSort('desc')
+            writeProjectStartDateSortOrder('desc')
+          }}
+        >
+          Início Z→A (recentes)
+        </button>
+        <button
+          type="button"
+          className={'dashboard-agenda-filter__btn' + (startDateSort === 'asc' ? ' is-active' : '')}
+          onClick={() => {
+            setStartDateSort('asc')
+            writeProjectStartDateSortOrder('asc')
+          }}
+        >
+          Início A→Z (antigas)
+        </button>
+      </div>
+
       <div className="project-grid">
-        {projects.map((p) => {
+        {sortedProjects.map((p) => {
           const pct = projectProgressPercent(tasks, p.id)
           const projectTasks = tasks.filter((t) => t.projectId === p.id)
           const done = projectTasks.filter((t) => t.status === 'concluida').length
