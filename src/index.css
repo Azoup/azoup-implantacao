@@ -819,6 +819,43 @@ body {
   flex-direction: column;
   gap: 0.85rem;
 }
+.auth__password-wrap {
+  position: relative;
+}
+.auth__password-wrap input {
+  padding-right: 2.35rem;
+}
+.auth__password-toggle {
+  position: absolute;
+  right: 0.42rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  width: 1.85rem;
+  height: 1.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.auth__password-toggle:hover {
+  background: color-mix(in srgb, var(--surface-2) 80%, var(--accent) 20%);
+  color: var(--text);
+}
+.auth__remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  user-select: none;
+}
+.auth__remember input {
+  accent-color: var(--accent);
+}
 .auth__error {
   color: var(--danger);
   font-size: 0.85rem;

@@ -1,16 +1,28 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { VyntaskLogo } from '../components/VyntaskLogo'
 import { APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 export function LoginPage() {
+  const REMEMBER_EMAIL_KEY = 'vyntask_remember_email'
   const { ready, authMode, user, login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const remembered = localStorage.getItem(REMEMBER_EMAIL_KEY)
+    if (remembered) {
+      setEmail(remembered)
+      setRememberMe(true)
+    }
+  }, [])
 
   if (!ready) {
     return (
@@ -30,6 +42,8 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
+      if (rememberMe) localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim().toLowerCase())
+      else localStorage.removeItem(REMEMBER_EMAIL_KEY)
       navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha no login.')
@@ -70,27 +84,44 @@ export function LoginPage() {
           </label>
           <label className="field">
             <span>Senha</span>
+            <div className="auth__password-wrap">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="auth__password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </label>
+          <label className="auth__remember">
             <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
             />
+            <span>Lembrar-me neste navegador</span>
           </label>
           {error ? <p className="auth__error">{error}</p> : null}
           <button type="submit" className="btn btn--primary btn--block" disabled={loading || !ready}>
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
-        {authMode === 'supabase' ? (
-          <nav className="auth__sub-links" aria-label="Outras opções de acesso">
-            <Link to="/cadastro">Criar conta</Link>
-            <Link to="/recuperar-senha">Esqueci minha senha</Link>
-          </nav>
-        ) : null}
-        {authMode === 'dexie' && import.meta.env.DEV ? (
-          <p className="auth__hint">Admin padrão: admin@azoup.com / Azoup@2026</p>
+        <nav className="auth__sub-links" aria-label="Outras opções de acesso">
+          <Link to="/cadastro">Criar conta</Link>
+          <Link to="/recuperar-senha">Esqueci minha senha</Link>
+        </nav>
+        {authMode !== 'supabase' ? (
+          <p className="auth__hint">Modo local ativo. Cadastro e recuperação exigem Supabase configurado.</p>
         ) : null}
         <p className="auth__footer-link">
           <Link to="/apresentacoes">Apresentações dos planos (clientes)</Link>

@@ -20,6 +20,9 @@ export function ResetPasswordPage() {
       return
     }
     let cancelled = false
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!cancelled) setSessionOk(!!session)
+    })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return
       if (
