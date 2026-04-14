@@ -12,6 +12,7 @@ import {
   stopTimer,
   updateSessionDurationSeconds,
 } from '../services/timeSessions'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const icSm = { size: 14, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -29,6 +30,7 @@ type Props = {
 }
 
 export function TaskTimesheet({ task, user }: Props) {
+  const { toast, toastError, requestConfirm } = useUiFeedback()
   const [tick, setTick] = useState(0)
   const [manualHours, setManualHours] = useState('')
   const [manualNotes, setManualNotes] = useState('')
@@ -68,7 +70,7 @@ export function TaskTimesheet({ task, user }: Props) {
     try {
       await startTimer(task.id, user.id)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível iniciar o cronômetro')
+      toastError(e instanceof Error ? e.message : 'Não foi possível iniciar o cronômetro')
     } finally {
       setBusy(false)
     }
@@ -80,7 +82,7 @@ export function TaskTimesheet({ task, user }: Props) {
     try {
       await stopTimer(runningHere.id, user.id)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível parar o cronômetro')
+      toastError(e instanceof Error ? e.message : 'Não foi possível parar o cronômetro')
     } finally {
       setBusy(false)
     }
@@ -90,7 +92,7 @@ export function TaskTimesheet({ task, user }: Props) {
     e.preventDefault()
     const h = parseFloat(manualHours.replace(',', '.'))
     if (!Number.isFinite(h) || h <= 0) {
-      alert('Informe as horas em decimal (ex.: 1,5 para 1h30).')
+      toast('Informe as horas em decimal (ex.: 1,5 para 1h30).', 'warn')
       return
     }
     setBusy(true)
@@ -104,7 +106,7 @@ export function TaskTimesheet({ task, user }: Props) {
       setManualHours('')
       setManualNotes('')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível adicionar o tempo')
+      toastError(e instanceof Error ? e.message : 'Não foi possível adicionar o tempo')
     } finally {
       setBusy(false)
     }
@@ -120,7 +122,7 @@ export function TaskTimesheet({ task, user }: Props) {
   async function saveEdit(sessionId: string) {
     const h = parseFloat(editHoursDraft.replace(',', '.'))
     if (!Number.isFinite(h) || h < 0) {
-      alert('Horas inválidas.')
+      toast('Horas inválidas.', 'warn')
       return
     }
     setBusy(true)
@@ -128,19 +130,26 @@ export function TaskTimesheet({ task, user }: Props) {
       await updateSessionDurationSeconds(sessionId, user.id, Math.round(h * 3600))
       setEditingId(null)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível salvar')
+      toastError(e instanceof Error ? e.message : 'Não foi possível salvar')
     } finally {
       setBusy(false)
     }
   }
 
   async function onDelete(sessionId: string) {
-    if (!confirm('Remover este registro de tempo?')) return
+    const ok = await requestConfirm({
+      title: 'Registro de tempo',
+      message: 'Remover este registro de tempo?',
+      confirmLabel: 'Remover',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
     setBusy(true)
     try {
       await deleteTimeSession(sessionId, user.id)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível excluir')
+      toastError(e instanceof Error ? e.message : 'Não foi possível excluir')
     } finally {
       setBusy(false)
     }

@@ -6389,3 +6389,172 @@ body {
   margin: 0.25rem 0 0;
   padding-top: 0.25rem;
 }
+
+/* —— Feedback global (toast + confirmação) —— */
+.ui-toast-stack {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(420px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.ui-toast {
+  pointer-events: auto;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  animation: ui-toast-in 0.22s ease;
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-toast--info {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.ui-toast--warn {
+  border-color: color-mix(in srgb, var(--accent-deep) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-dim) 22%, var(--surface));
+}
+
+.ui-toast--error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.ui-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, #0f172a 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.ui-confirm {
+  width: 100%;
+  max-width: 400px;
+  padding: 1.35rem 1.4rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--accent) 12%);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.ui-confirm__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+}
+
+.ui-confirm__message {
+  margin: 0 0 1.15rem;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ui-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}
+
+/* Modal: escolha de substituto (analistas) */
+.analyst-replace-modal__desc {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.analyst-replace-modal__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.analyst-replace-modal__fieldset {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.analyst-replace-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.analyst-replace-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.analyst-replace-option:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.analyst-replace-option input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.analyst-replace-option__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.analyst-replace-option__hint {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.analyst-replace-modal__actions {
+  margin-top: 0.25rem;
+}

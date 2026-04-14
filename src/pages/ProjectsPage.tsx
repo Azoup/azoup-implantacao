@@ -13,10 +13,12 @@ import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } fro
 import { PlanLabelPill, PlanLabelRow } from '../components/PlanLabelChips'
 import type { DbProject, KanbanColumn } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 export function ProjectsPage() {
+  const { requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const location = useLocation()
   const openedRef = useRef(false)
@@ -48,7 +50,13 @@ export function ProjectsPage() {
     if (!p) return
     const ok =
       user.role === 'admin' || p.createdBy === user.id
-        ? confirm('Excluir projeto e todos os dados vinculados?')
+        ? await requestConfirm({
+            title: 'Excluir projeto',
+            message: 'Excluir projeto e todos os dados vinculados?',
+            confirmLabel: 'Excluir',
+            cancelLabel: 'Cancelar',
+            danger: true,
+          })
         : false
     if (!ok) return
     await deleteProjectCascade(id)

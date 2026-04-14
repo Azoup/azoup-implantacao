@@ -6,6 +6,7 @@ import './theme/palettes.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthContext'
 import { ThemeProvider } from './theme/ThemeContext'
+import { UiFeedbackProvider } from './ui/UiFeedbackContext'
 import { isSupabaseConfigured } from './lib/supabaseClient'
 
 if (import.meta.env.DEV) {
@@ -20,11 +21,13 @@ if (import.meta.env.DEV) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </AuthProvider>
+      <UiFeedbackProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </AuthProvider>
+      </UiFeedbackProvider>
     </ThemeProvider>
   </StrictMode>,
 )

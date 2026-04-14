@@ -8,10 +8,9 @@ import {
   type DueBucket,
 } from '../lib/taskDueBucket'
 import { compareTaskCode } from '../lib/taskCode'
+import { TASK_STATUS_OPTIONS } from '../constants/tasks'
 import type { DbPhase, DbProject, DbTask, TaskStatus } from '../db/types'
 import { AnalystAvatar } from '../components/AnalystAvatar'
-
-const STATUS_OPTS: TaskStatus[] = ['pendente', 'em_andamento', 'concluida', 'cancelado']
 
 type TarefasPrazoViewProps = {
   tasks: DbTask[]
@@ -31,6 +30,9 @@ const BUCKET_ACCENT: Record<DueBucket, string> = {
 }
 
 export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, canEdit }: TarefasPrazoViewProps) {
+  const projectNameById = useMemo(() => new Map(projects.map((p) => [p.id, p.projectName])), [projects])
+  const analystById = useMemo(() => new Map(analysts.map((a) => [a.id, a])), [analysts])
+
   const byBucket = useMemo(() => {
     const m = new Map<DueBucket, DbTask[]>()
     for (const b of DUE_BUCKET_ORDER) m.set(b, [])
@@ -40,14 +42,14 @@ export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, ca
     }
     for (const arr of m.values()) {
       arr.sort((a, b) => {
-        const pa = projects.find((p) => p.id === a.projectId)?.projectName ?? ''
-        const pb = projects.find((p) => p.id === b.projectId)?.projectName ?? ''
+        const pa = projectNameById.get(a.projectId) ?? ''
+        const pb = projectNameById.get(b.projectId) ?? ''
         if (pa !== pb) return pa.localeCompare(pb, 'pt-BR')
         return compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder
       })
     }
     return m
-  }, [tasks, projects])
+  }, [tasks, projectNameById])
 
   return (
     <div className="task-prazo-board" role="region" aria-label="Tarefas por prazo">
@@ -68,14 +70,14 @@ export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, ca
                   <p className="task-prazo-col__empty muted">Nenhuma</p>
                 ) : (
                   list.map((t) => {
-                    const proj = projects.find((p) => p.id === t.projectId)
-                    const an = t.assignedTo ? analysts.find((x) => x.id === t.assignedTo) : null
+                    const projectName = projectNameById.get(t.projectId)
+                    const an = t.assignedTo ? analystById.get(t.assignedTo) : null
                     return (
                       <article key={t.id} className="task-prazo-card">
                         <div className="task-prazo-card__title">
                           <span className="task-prazo-card__code">{t.code}</span> {t.title}
                         </div>
-                        <div className="task-prazo-card__proj">{proj?.projectName ?? '—'}</div>
+                        <div className="task-prazo-card__proj">{projectName ?? '—'}</div>
                         <div className="task-prazo-card__row">
                           <span className="task-prazo-card__due">
                             {t.dueDate ? formatDatePt(t.dueDate) : '—'}
@@ -88,7 +90,7 @@ export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, ca
                           disabled={!canEdit}
                           onChange={(e) => onStatusChange(t.id, e.target.value as TaskStatus)}
                         >
-                          {STATUS_OPTS.map((s) => (
+                          {TASK_STATUS_OPTIONS.map((s) => (
                             <option key={s} value={s}>
                               {s.replace('_', ' ')}
                             </option>
@@ -118,11 +120,28 @@ type TarefasFaseViewProps = {
 
 export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusChange, canEdit }: TarefasFaseViewProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const analystById = useMemo(() => new Map(analysts.map((a) => [a.id, a])), [analysts])
 
   const groups = useMemo(() => {
     const projectById = new Map(projects.map((p) => [p.id, p]))
+    const phasesByProjectId = new Map<string, DbPhase[]>()
+    for (const ph of phases) {
+      const list = phasesByProjectId.get(ph.projectId)
+      if (list) list.push(ph)
+      else phasesByProjectId.set(ph.projectId, [ph])
+    }
+    for (const list of phasesByProjectId.values()) {
+      list.sort((a, b) => a.orderIndex - b.orderIndex)
+    }
 
-    const projs = [...new Set(tasks.map((t) => t.projectId))]
+    const tasksByProjectId = new Map<string, DbTask[]>()
+    for (const t of tasks) {
+      const list = tasksByProjectId.get(t.projectId)
+      if (list) list.push(t)
+      else tasksByProjectId.set(t.projectId, [t])
+    }
+
+    const projs = [...tasksByProjectId.keys()]
       .map((id) => projectById.get(id))
       .filter(Boolean) as DbProject[]
     projs.sort((a, b) => a.projectName.localeCompare(b.projectName, 'pt-BR'))
@@ -133,17 +152,26 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
     }[] = []
 
     for (const proj of projs) {
-      const projPhases = phases.filter((ph) => ph.projectId === proj.id).sort((a, b) => a.orderIndex - b.orderIndex)
-      const phaseIds = new Set(projPhases.map((ph) => ph.id))
+      const projPhases = phasesByProjectId.get(proj.id) ?? []
+      const projTasks = tasksByProjectId.get(proj.id) ?? []
+      const tasksByPhaseId = new Map<string, DbTask[]>()
+      for (const t of projTasks) {
+        const list = tasksByPhaseId.get(t.phaseId)
+        if (list) list.push(t)
+        else tasksByPhaseId.set(t.phaseId, [t])
+      }
+
       const phaseGroups: { phase: DbPhase; tasks: DbTask[] }[] = []
       for (const ph of projPhases) {
-        const ts = tasks
-          .filter((t) => t.projectId === proj.id && t.phaseId === ph.id)
-          .sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
+        const ts = [...(tasksByPhaseId.get(ph.id) ?? [])].sort(
+          (a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder,
+        )
         if (ts.length > 0) phaseGroups.push({ phase: ph, tasks: ts })
+        tasksByPhaseId.delete(ph.id)
       }
-      const realOrphans = tasks
-        .filter((t) => t.projectId === proj.id && !phaseIds.has(t.phaseId))
+
+      const realOrphans = [...tasksByPhaseId.values()]
+        .flat()
         .sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
       if (phaseGroups.length > 0 || realOrphans.length > 0) {
         const row: { project: DbProject; phases: { phase: DbPhase; tasks: DbTask[] }[] } = {
@@ -224,7 +252,7 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
                           </thead>
                           <tbody>
                             {ts.map((t) => {
-                              const an = t.assignedTo ? analysts.find((x) => x.id === t.assignedTo) : null
+                              const an = t.assignedTo ? analystById.get(t.assignedTo) : null
                               return (
                                 <tr key={t.id}>
                                   <td>
@@ -244,7 +272,7 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
                                       disabled={!canEdit}
                                       onChange={(e) => onStatusChange(t.id, e.target.value as TaskStatus)}
                                     >
-                                      {STATUS_OPTS.map((s) => (
+                                      {TASK_STATUS_OPTIONS.map((s) => (
                                         <option key={s} value={s}>
                                           {s.replace('_', ' ')}
                                         </option>

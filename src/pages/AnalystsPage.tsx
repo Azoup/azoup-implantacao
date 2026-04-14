@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, Edit3, Trash2, UserCheck, UserX } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
@@ -9,7 +9,9 @@ import { formatDatePt } from '../lib/dates'
 import type { DbAnalyst } from '../db/types'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { AnalystAvatarCropper } from '../components/AnalystAvatarCropper'
+import { AnalystReplacementPickModal } from '../components/AnalystReplacementPickModal'
 import { reassignAnalystReferences } from '../services/analystAssignments'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const ANALYST_COLORS = ['#FF8B17', '#0EA5E9', '#8B5CF6', '#22C55E', '#EF4444', '#EC4899', '#14B8A6', '#6366F1']
 
@@ -20,7 +22,13 @@ type AnalystDraft = {
   avatarUrl: string | null
 }
 
+type ReplacementFlowState =
+  | null
+  | { mode: 'inactivate'; subjectId: string; candidates: DbAnalyst[] }
+  | { mode: 'remove'; subjectId: string; candidates: DbAnalyst[] }
+
 export function AnalystsPage() {
+  const { toastWarn, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const canEditAnalysts = hasScope(user, 'analysts.edit')
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
@@ -32,8 +40,33 @@ export function AnalystsPage() {
     avatarUrl: null,
   })
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [replacementFlow, setReplacementFlow] = useState<ReplacementFlowState>(null)
 
   const activeCount = useMemo(() => analysts.filter((a) => a.active).length, [analysts])
+
+  const closeReplacementModal = useCallback(() => setReplacementFlow(null), [])
+
+  async function handleReplacementContinue(replacementId: string | null) {
+    const flow = replacementFlow
+    if (!flow) return
+    setReplacementFlow(null)
+    if (flow.mode === 'inactivate') {
+      await reassignAnalystReferences(flow.subjectId, replacementId)
+      await db.analysts.update(flow.subjectId, { active: false })
+      return
+    }
+    const ok = await requestConfirm({
+      title: 'Remover analista',
+      message:
+        'Remover este analista definitivamente? As referências ativas passam a usar o substituto escolhido (ou ficam sem responsável).',
+      confirmLabel: 'Remover',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
+    await reassignAnalystReferences(flow.subjectId, replacementId)
+    await db.analysts.delete(flow.subjectId)
+  }
 
   function openNew() {
     setDraft({
@@ -65,11 +98,11 @@ export function AnalystsPage() {
   async function onAvatarFile(file: File) {
     const max = 2 * 1024 * 1024
     if (!file.type.startsWith('image/')) {
-      alert('Selecione uma imagem (jpg, png, webp, etc).')
+      toastWarn('Selecione uma imagem (jpg, png, webp, etc).')
       return
     }
     if (file.size > max) {
-      alert('A imagem deve ter no máximo 2MB.')
+      toastWarn('A imagem deve ter no máximo 2MB.')
       return
     }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -105,28 +138,17 @@ export function AnalystsPage() {
     closeModal()
   }
 
-  async function toggleActive(id: string, active: boolean) {
+  /** `currentlyActive`: estado atual do analista no card (true = está ativo; botão Inativar). */
+  async function toggleActive(id: string, currentlyActive: boolean) {
     if (!canEditAnalysts) return
-    if (active) {
+    if (currentlyActive) {
       const others = analysts.filter((a) => a.active && a.id !== id)
-      let replacementId: string | null = null
-      if (others.length > 0) {
-        const options = others.map((a, i) => `${i + 1}. ${a.name}`).join('\n')
-        const ans = prompt(
-          `Inativar analista.\n\nEscolha substituto para projetos/tarefas/agenda/sessões:\n${options}\n\nDigite o número ou deixe vazio para remover vínculo.`,
-          '',
-        )
-        if (ans?.trim()) {
-          const idx = Number(ans.trim())
-          if (Number.isFinite(idx) && idx >= 1 && idx <= others.length) replacementId = others[idx - 1].id
-          else {
-            alert('Opção inválida. Operação cancelada.')
-            return
-          }
-        }
+      if (others.length === 0) {
+        await reassignAnalystReferences(id, null)
+        await db.analysts.update(id, { active: false })
+        return
       }
-      await reassignAnalystReferences(id, replacementId)
-      await db.analysts.update(id, { active: false })
+      setReplacementFlow({ mode: 'inactivate', subjectId: id, candidates: others })
       return
     }
     await db.analysts.update(id, { active: true })
@@ -135,25 +157,20 @@ export function AnalystsPage() {
   async function remove(id: string) {
     if (!canEditAnalysts) return
     const others = analysts.filter((a) => a.active && a.id !== id)
-    let replacementId: string | null = null
-    if (others.length > 0) {
-      const options = others.map((a, i) => `${i + 1}. ${a.name}`).join('\n')
-      const ans = prompt(
-        `Remover analista.\n\nEscolha substituto para projetos/tarefas/agenda/sessões:\n${options}\n\nDigite o número ou deixe vazio para remover vínculo.`,
-        '',
-      )
-      if (ans?.trim()) {
-        const idx = Number(ans.trim())
-        if (Number.isFinite(idx) && idx >= 1 && idx <= others.length) replacementId = others[idx - 1].id
-        else {
-          alert('Opção inválida. Operação cancelada.')
-          return
-        }
-      }
+    if (others.length === 0) {
+      const ok = await requestConfirm({
+        title: 'Remover analista',
+        message: 'Remover analista definitivamente? Não há outros analistas ativos para assumir vínculos.',
+        confirmLabel: 'Remover',
+        cancelLabel: 'Cancelar',
+        danger: true,
+      })
+      if (!ok) return
+      await reassignAnalystReferences(id, null)
+      await db.analysts.delete(id)
+      return
     }
-    if (!confirm('Remover analista definitivamente?')) return
-    await reassignAnalystReferences(id, replacementId)
-    await db.analysts.delete(id)
+    setReplacementFlow({ mode: 'remove', subjectId: id, candidates: others })
   }
 
   return (
@@ -204,11 +221,11 @@ export function AnalystsPage() {
                     <Edit3 size={14} strokeWidth={2} />
                     Editar
                   </button>
-                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => toggleActive(a.id, a.active)} disabled={!canEditAnalysts}>
+                  <button type="button" className="btn btn--ghost btn--sm" onClick={() => void toggleActive(a.id, a.active)} disabled={!canEditAnalysts}>
                     {a.active ? <UserX size={14} strokeWidth={2} /> : <UserCheck size={14} strokeWidth={2} />}
                     {a.active ? 'Inativar' : 'Ativar'}
                   </button>
-                  <button type="button" className="btn btn--danger btn--sm" onClick={() => remove(a.id)} disabled={!canEditAnalysts}>
+                  <button type="button" className="btn btn--danger btn--sm" onClick={() => void remove(a.id)} disabled={!canEditAnalysts}>
                     <Trash2 size={14} strokeWidth={2} />
                     Excluir
                   </button>
@@ -218,6 +235,20 @@ export function AnalystsPage() {
           </div>
         )}
       </section>
+
+      <AnalystReplacementPickModal
+        open={replacementFlow !== null}
+        title={replacementFlow?.mode === 'inactivate' ? 'Inativar analista' : 'Substituto antes de excluir'}
+        description={
+          replacementFlow?.mode === 'inactivate'
+            ? 'Escolha quem recebe projetos, tarefas, agenda e sessões deste analista. Você também pode remover os vínculos.'
+            : 'Escolha o analista que assume as referências ativas. Em seguida confirme a exclusão definitiva.'
+        }
+        candidates={replacementFlow?.candidates ?? []}
+        confirmLabel={replacementFlow?.mode === 'inactivate' ? 'Inativar' : 'Continuar'}
+        onCancel={closeReplacementModal}
+        onContinue={(rid) => void handleReplacementContinue(rid)}
+      />
 
       {open && canEditAnalysts ? (
         <div className="modal-backdrop" role="presentation" onClick={closeModal}>

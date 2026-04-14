@@ -29,11 +29,13 @@ import {
   updatePlanPhase,
   updatePlanTask,
 } from '../services/planStructure'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const BUILTIN_ORDER: PlanTypeKey[] = ['basic', 'pro', 'master']
 const EMPTY_TEMPLATE = '__empty__'
 
 export function PlanModelsPage() {
+  const { toastError, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const canEditPlanModels = hasScope(user, 'planModels.edit')
   const plans = useLiveQuery(() => db.planModels.toArray(), []) ?? []
@@ -302,24 +304,45 @@ export function PlanModelsPage() {
   async function onDelete() {
     if (!canEditPlanModels) return
     if (!selected) return
-    if (!confirm(`Excluir o plano "${selected.name}"? Esta ação não pode ser desfeita.`)) return
+    const ok = await requestConfirm({
+      title: 'Excluir plano',
+      message: `Excluir o plano "${selected.name}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
     try {
       await deletePlanModel(selected.id)
       setSelectedId(plans.find((p) => p.id !== selected.id)?.id ?? null)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Não foi possível excluir')
+      toastError(err instanceof Error ? err.message : 'Não foi possível excluir')
     }
   }
 
   async function onDeletePhase(ph: DbPlanPhase) {
     if (!canEditPlanModels) return
-    if (!confirm(`Excluir a fase "${ph.name}" e todas as tarefas dentro dela?`)) return
+    const ok = await requestConfirm({
+      title: 'Excluir fase',
+      message: `Excluir a fase "${ph.name}" e todas as tarefas dentro dela?`,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
     await deletePlanPhase(ph.id)
   }
 
   async function onDeleteTask(t: DbPlanTask) {
     if (!canEditPlanModels) return
-    if (!confirm(`Excluir a tarefa "${t.code} ${t.title}"?`)) return
+    const ok = await requestConfirm({
+      title: 'Excluir tarefa modelo',
+      message: `Excluir a tarefa "${t.code} ${t.title}"?`,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Cancelar',
+      danger: true,
+    })
+    if (!ok) return
     await deletePlanTask(t.id)
   }
 

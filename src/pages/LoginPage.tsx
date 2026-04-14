@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { VyntaskLogo } from '../components/VyntaskLogo'
+import { AuthCardShell } from '../components/auth/AuthCardShell'
 import { APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 export function LoginPage() {
@@ -58,78 +58,65 @@ export function LoginPage() {
       : 'Central operacional de implantação — sessão local'
 
   return (
-    <div className="auth">
-      <div className="auth__card">
-        <div className="auth__brand">
-          <span className="auth__brand-mark vyntask-logo-wrap">
-            <VyntaskLogo variant="brand" size={52} aria-hidden />
-          </span>
-          <div>
-            <h1 className="auth__title">
-              <span className="auth__title-accent">Vyn</span>Task
-            </h1>
-            <p className="auth__subtitle">{subtitle}</p>
-          </div>
-        </div>
-        <form className="auth__form" onSubmit={onSubmit}>
-          <label className="field">
-            <span>E-mail</span>
+    <AuthCardShell subtitle={subtitle}>
+      <form className="auth__form" onSubmit={onSubmit}>
+        <label className="field">
+          <span>E-mail</span>
+          <input
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label className="field">
+          <span>Senha</span>
+          <div className="auth__password-wrap">
             <input
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
-          </label>
-          <label className="field">
-            <span>Senha</span>
-            <div className="auth__password-wrap">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <button
-                type="button"
-                className="auth__password-toggle"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </label>
-          <label className="auth__remember">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-            <span>Lembrar-me neste navegador</span>
-          </label>
-          {error ? <p className="auth__error">{error}</p> : null}
-          <button type="submit" className="btn btn--primary btn--block" disabled={loading || !ready}>
-            {loading ? 'Entrando…' : 'Entrar'}
-          </button>
-        </form>
-        <nav className="auth__sub-links" aria-label="Outras opções de acesso">
-          <Link to="/cadastro">Criar conta</Link>
-          <Link to="/recuperar-senha">Esqueci minha senha</Link>
-        </nav>
-        {authMode !== 'supabase' ? (
-          <p className="auth__hint">Modo local ativo. Cadastro e recuperação exigem Supabase configurado.</p>
-        ) : null}
-        <p className="auth__footer-link">
-          <Link to="/apresentacoes">Apresentações dos planos (clientes)</Link>
-        </p>
-        <p className="auth__version" aria-label={`Versão ${APP_VERSION_DISPLAY}`}>
-          {APP_VERSION_DISPLAY}
-        </p>
-      </div>
-    </div>
+            <button
+              type="button"
+              className="auth__password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              title={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+          </div>
+        </label>
+        <label className="auth__remember">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+          />
+          <span>Lembrar-me neste navegador</span>
+        </label>
+        {error ? <p className="auth__error">{error}</p> : null}
+        <button type="submit" className="btn btn--primary btn--block" disabled={loading || !ready}>
+          {loading ? 'Entrando…' : 'Entrar'}
+        </button>
+      </form>
+      <nav className="auth__sub-links" aria-label="Outras opções de acesso">
+        <Link to="/cadastro">Criar conta</Link>
+        <Link to="/recuperar-senha">Esqueci minha senha</Link>
+      </nav>
+      {authMode !== 'supabase' ? (
+        <p className="auth__hint">Modo local ativo. Cadastro e recuperação exigem Supabase configurado.</p>
+      ) : null}
+      <p className="auth__footer-link">
+        <Link to="/apresentacoes">Apresentações dos planos (clientes)</Link>
+      </p>
+      <p className="auth__version" aria-label={`Versão ${APP_VERSION_DISPLAY}`}>
+        {APP_VERSION_DISPLAY}
+      </p>
+    </AuthCardShell>
   )
 }

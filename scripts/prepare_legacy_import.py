@@ -1,3 +1,11 @@
+"""
+Fluxo alternativo/manual para preparar CSVs normalizados de legado.
+
+Uso recomendado no projeto atual:
+- Preferir os SQLs versionados em `supabase/import/` para migração padrão.
+- Usar este script quando for necessário regenerar insumos CSV intermediários.
+"""
+
 from __future__ import annotations
 
 import csv

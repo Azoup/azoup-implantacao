@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { Check, Clock, X } from 'lucide-react'
 import type { DbTask, DbUser, TimeLogType } from '../db/types'
 import { addTaskTimeLog } from '../services/timeLogs'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 type Props = {
   open: boolean
@@ -14,6 +15,7 @@ type Props = {
 const iconSm = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 export function RegisterHoursModal({ open, task, user, onClose }: Props) {
+  const { toast, toastError } = useUiFeedback()
   const [logType, setLogType] = useState<TimeLogType>('executado')
   const [hours, setHours] = useState('')
   const [executionDate, setExecutionDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
@@ -36,7 +38,7 @@ export function RegisterHoursModal({ open, task, user, onClose }: Props) {
     if (!task) return
     const h = parseFloat(hours.replace(',', '.'))
     if (logType !== 'cancelado_sem_horas' && (Number.isNaN(h) || h < 0)) {
-      alert('Informe horas válidas.')
+      toast('Informe horas válidas.', 'warn')
       return
     }
     const effective = logType === 'cancelado_sem_horas' ? 0 : h
@@ -52,7 +54,7 @@ export function RegisterHoursModal({ open, task, user, onClose }: Props) {
       })
       onClose()
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Não foi possível registrar')
+      toastError(err instanceof Error ? err.message : 'Não foi possível registrar')
     } finally {
       setBusy(false)
     }

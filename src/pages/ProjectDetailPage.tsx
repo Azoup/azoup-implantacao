@@ -44,6 +44,7 @@ import { addProjectContact, deleteProjectContact } from '../services/projectCont
 import { deleteProjectCascade } from '../services/projectDelete'
 import { addProjectDocumentation, addTaskChecklistItem } from '../services/taskComments'
 import { setTaskStatus } from '../services/tasks'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 import type {
   DbComment,
   DbDocAttachment,
@@ -194,6 +195,7 @@ export function ProjectDetailPage() {
   }, [planBlueprint, sortedPhases, tasks, projectId])
 
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
+  const { toast, toastError, toastWarn, requestConfirm } = useUiFeedback()
 
   if (!user) return null
   const me: DbUser = user
@@ -220,7 +222,14 @@ export function ProjectDetailPage() {
 
   async function onCancelProject() {
     if (!canEditProjects) return
-    if (!confirm('Marcar este projeto como cancelado?')) return
+    const ok = await requestConfirm({
+      title: 'Cancelar projeto',
+      message: 'Marcar este projeto como cancelado?',
+      confirmLabel: 'Marcar como cancelado',
+      cancelLabel: 'Voltar',
+      danger: true,
+    })
+    if (!ok) return
     await db.projects.update(proj.id, { status: 'cancelado', kanbanColumn: 'cancelados' as KanbanColumn })
     navigate('/projetos', { replace: true })
   }
@@ -229,7 +238,13 @@ export function ProjectDetailPage() {
     if (!canEditProjects) return
     const ok =
       me.role === 'admin' || proj.createdBy === me.id
-        ? confirm('Excluir projeto e todos os dados vinculados?')
+        ? await requestConfirm({
+            title: 'Excluir projeto',
+            message: 'Excluir projeto e todos os dados vinculados?',
+            confirmLabel: 'Excluir',
+            cancelLabel: 'Cancelar',
+            danger: true,
+          })
         : false
     if (!ok) return
     await deleteProjectCascade(proj.id)
@@ -241,7 +256,7 @@ export function ProjectDetailPage() {
     try {
       await setTaskStatus(id, next)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa')
+      toastError(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa')
     }
   }
 
@@ -259,7 +274,7 @@ export function ProjectDetailPage() {
       })
       setDraftItem((d) => ({ ...d, [task.id]: '' }))
     } catch {
-      alert('Não foi possível adicionar o item')
+      toastError('Não foi possível adicionar o item')
     }
   }
 
@@ -278,7 +293,7 @@ export function ProjectDetailPage() {
       setContactPhone('')
       setContactRole('')
     } catch {
-      alert('Não foi possível adicionar o contato')
+      toastError('Não foi possível adicionar o contato')
     }
   }
 
@@ -288,11 +303,11 @@ export function ProjectDetailPage() {
       const next = [...prev]
       for (const file of incoming) {
         if (file.size > MAX_DOC_FILE_BYTES) {
-          alert(`Arquivo muito grande (máx. ${MAX_DOC_FILE_BYTES / 1024 / 1024} MB): ${file.name}`)
+          toastWarn(`Arquivo muito grande (máx. ${MAX_DOC_FILE_BYTES / 1024 / 1024} MB): ${file.name}`)
           continue
         }
         if (next.length >= MAX_DOC_FILES) {
-          alert(`No máximo ${MAX_DOC_FILES} anexos por nota.`)
+          toastWarn(`No máximo ${MAX_DOC_FILES} anexos por nota.`)
           break
         }
         next.push({ localId: uuid(), file })
@@ -345,7 +360,7 @@ export function ProjectDetailPage() {
   function onAddPendingDocLink() {
     const normalized = normalizeDocLinkUrl(docLinkUrlDraft)
     if (!normalized) {
-      alert('Digite uma URL válida (ex.: https://…)')
+      toast('Digite uma URL válida (ex.: https://…)', 'warn')
       return
     }
     setDocPendingLinks((prev) => [
@@ -385,7 +400,7 @@ export function ProjectDetailPage() {
       setDocPendingFiles([])
       setDocPendingLinks([])
     } catch {
-      alert('Não foi possível salvar a documentação')
+      toastError('Não foi possível salvar a documentação')
     } finally {
       setDocBusy(false)
     }
@@ -402,12 +417,18 @@ export function ProjectDetailPage() {
         t.status !== 'cancelado',
     )
     if (subset.length === 0) return
-    if (!confirm(`Confirmar conclusão das tarefas do item ${code} (${subset.length})?`)) return
+    const ok = await requestConfirm({
+      title: 'Concluir tarefas',
+      message: `Confirmar conclusão das tarefas do item ${code} (${subset.length})?`,
+      confirmLabel: 'Concluir',
+      cancelLabel: 'Cancelar',
+    })
+    if (!ok) return
     for (const t of subset) {
       try {
         await setTaskStatus(t.id, 'concluida')
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Erro ao concluir tarefa')
+        toastError(err instanceof Error ? err.message : 'Erro ao concluir tarefa')
         break
       }
     }

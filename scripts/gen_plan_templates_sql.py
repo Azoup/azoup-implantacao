@@ -87,7 +87,7 @@ w(
     "-- Gerado por: scripts/gen_plan_templates_sql.py",
     "-- Fonte: dados reais do projeto antigo (Lovable)",
     "-- Pré-requisito: 005_seed_builtin_plan_models.sql já rodado",
-    "-- Seguro rodar novamente: ON CONFLICT DO NOTHING",
+    "-- Reexecução segura: ON CONFLICT (id) DO UPDATE (idempotente)",
     "-- ============================================================",
     "",
     "-- Quantidades esperadas:",

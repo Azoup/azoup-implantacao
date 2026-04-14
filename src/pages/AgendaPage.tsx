@@ -12,8 +12,10 @@ import { hasScope } from '../auth/permissions'
 import { db } from '../db/database'
 import { eventColorsFromAnalyst } from '../lib/analystColors'
 import { buildGoogleCalendarTemplateUrl } from '../lib/googleCalendarUrl'
+import { brDateTimeToIso, normalizeBrDateInput, normalizeTimeInput } from '../lib/dateTimeInput'
 import type { DbEvent } from '../db/types'
 import { createEventValidated } from '../services/events'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   assignLanes,
   CAL_TZ,
@@ -45,36 +47,6 @@ function toTimeInput(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function normalizeBrDateInput(v: string): string {
-  const digits = v.replace(/\D/g, '').slice(0, 8)
-  if (digits.length <= 2) return digits
-  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`
-}
-
-function normalizeTimeInput(v: string): string {
-  const digits = v.replace(/\D/g, '').slice(0, 4)
-  if (digits.length <= 2) return digits
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`
-}
-
-function brDateTimeToIso(dateBr: string, time: string): string | null {
-  const m = dateBr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!m) return null
-  const tm = time.match(/^(\d{2}):(\d{2})$/)
-  if (!tm) return null
-  const dd = Number(m[1])
-  const mm = Number(m[2])
-  const yyyy = Number(m[3])
-  const hh = Number(tm[1])
-  const mi = Number(tm[2])
-  if (mm < 1 || mm > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59) return null
-  const dt = new Date(yyyy, mm - 1, dd, hh, mi, 0, 0)
-  if (Number.isNaN(dt.getTime())) return null
-  if (dt.getDate() !== dd || dt.getMonth() !== mm - 1 || dt.getFullYear() !== yyyy) return null
-  return dt.toISOString()
-}
-
 function clipSegment(ev: DbEvent): Segment | null {
   const gridStart = GRID_START_HOUR * 60
   const gridEnd = GRID_END_HOUR * 60
@@ -98,6 +70,7 @@ export function AgendaPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const prefillConsumedKey = useRef<string | null>(null)
+  const { toast, toastError } = useUiFeedback()
 
   const events = useLiveQuery(() => db.events.orderBy('startTime').toArray(), []) ?? []
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
@@ -273,7 +246,7 @@ export function AgendaPage() {
     const startIso = brDateTimeToIso(startDate, startTime)
     const endIso = brDateTimeToIso(endDate, endTime)
     if (!startIso || !endIso) {
-      alert('Use o formato BR: data dd/MM/aaaa e hora HH:mm.')
+      toast('Use o formato BR: data dd/MM/aaaa e hora HH:mm.', 'warn')
       return
     }
     try {
@@ -289,7 +262,7 @@ export function AgendaPage() {
         meetingLink: meetingLink.trim() || null,
       })
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Não foi possível salvar o evento.')
+      toastError(err instanceof Error ? err.message : 'Não foi possível salvar o evento.')
       return
     }
     setTitle('')

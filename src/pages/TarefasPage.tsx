@@ -7,12 +7,11 @@ import { db } from '../db/database'
 import { compareTaskCode } from '../lib/taskCode'
 import { isTaskActiveForPrazoBoard } from '../lib/taskDueBucket'
 import { formatDatePt } from '../lib/dates'
+import { TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../constants/tasks'
 import { setTaskStatus } from '../services/tasks'
 import type { TaskPriority, TaskStatus } from '../db/types'
 import { TarefasFaseView, TarefasPrazoView } from './TarefasViews'
-
-const STATUS_OPTS: TaskStatus[] = ['pendente', 'em_andamento', 'concluida', 'cancelado']
-const PRIORITY_OPTS: TaskPriority[] = ['baixa', 'media', 'alta']
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 type TarefaTab = 'lista' | 'prazo' | 'fase'
 
@@ -25,6 +24,7 @@ export function TarefasPage() {
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const { toastError } = useUiFeedback()
 
   const [tab, setTab] = useState<TarefaTab>('lista')
   const [q, setQ] = useState('')
@@ -69,7 +69,7 @@ export function TarefasPage() {
     try {
       await setTaskStatus(id, next)
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Não foi possível atualizar')
+      toastError(e instanceof Error ? e.message : 'Não foi possível atualizar')
     }
   }
 
@@ -127,7 +127,7 @@ export function TarefasPage() {
         />
         <select className="input input--sm" value={st} onChange={(e) => setSt(e.target.value as typeof st)}>
           <option value="all">Todos status</option>
-          {STATUS_OPTS.map((s) => (
+          {TASK_STATUS_OPTIONS.map((s) => (
             <option key={s} value={s}>
               {s.replace('_', ' ')}
             </option>
@@ -135,7 +135,7 @@ export function TarefasPage() {
         </select>
         <select className="input input--sm" value={pr} onChange={(e) => setPr(e.target.value as typeof pr)}>
           <option value="all">Todas prioridades</option>
-          {PRIORITY_OPTS.map((s) => (
+          {TASK_PRIORITY_OPTIONS.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
@@ -188,7 +188,7 @@ export function TarefasPage() {
                         value={t.status}
                         onChange={(e) => changeStatus(t.id, e.target.value as TaskStatus)}
                       >
-                        {STATUS_OPTS.map((s) => (
+                        {TASK_STATUS_OPTIONS.map((s) => (
                           <option key={s} value={s}>
                             {s.replace('_', ' ')}
                           </option>

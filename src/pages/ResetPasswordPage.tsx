@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
-import { VyntaskLogo } from '../components/VyntaskLogo'
+import { AuthCardShell } from '../components/auth/AuthCardShell'
 
 export function ResetPasswordPage() {
   const { ready, authMode, updatePassword } = useAuth()
@@ -49,29 +49,16 @@ export function ResetPasswordPage() {
 
   if (authMode !== 'supabase' || !sessionOk) {
     return (
-      <div className="auth">
-        <div className="auth__card">
-          <div className="auth__brand">
-            <span className="auth__brand-mark vyntask-logo-wrap">
-              <VyntaskLogo variant="brand" size={52} aria-hidden />
-            </span>
-            <div>
-              <h1 className="auth__title">
-                <span className="auth__title-accent">Vyn</span>Task
-              </h1>
-              <p className="auth__subtitle">Redefinir senha</p>
-            </div>
-          </div>
-          <p className="auth__error" style={{ margin: 0 }}>
-            Link inválido, expirado ou sessão ausente. Solicite um novo e-mail em &quot;Esqueci minha senha&quot;.
-          </p>
-          <p className="auth__footer-link">
-            <Link to="/recuperar-senha">Pedir novo link</Link>
-            {' · '}
-            <Link to="/login">Login</Link>
-          </p>
-        </div>
-      </div>
+      <AuthCardShell subtitle="Redefinir senha">
+        <p className="auth__error" style={{ margin: 0 }}>
+          Link inválido, expirado ou sessão ausente. Solicite um novo e-mail em &quot;Esqueci minha senha&quot;.
+        </p>
+        <p className="auth__footer-link">
+          <Link to="/recuperar-senha">Pedir novo link</Link>
+          {' · '}
+          <Link to="/login">Login</Link>
+        </p>
+      </AuthCardShell>
     )
   }
 
@@ -98,51 +85,38 @@ export function ResetPasswordPage() {
   }
 
   return (
-    <div className="auth">
-      <div className="auth__card">
-        <div className="auth__brand">
-          <span className="auth__brand-mark vyntask-logo-wrap">
-            <VyntaskLogo variant="brand" size={52} aria-hidden />
-          </span>
-          <div>
-            <h1 className="auth__title">
-              <span className="auth__title-accent">Vyn</span>Task
-            </h1>
-            <p className="auth__subtitle">Nova senha</p>
-          </div>
-        </div>
-        <form className="auth__form" onSubmit={onSubmit}>
-          <label className="field">
-            <span>Nova senha</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-            />
-          </label>
-          <label className="field">
-            <span>Confirmar senha</span>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={password2}
-              onChange={(e) => setPassword2(e.target.value)}
-              required
-              minLength={6}
-            />
-          </label>
-          {error ? <p className="auth__error">{error}</p> : null}
-          <button type="submit" className="btn btn--primary btn--block" disabled={loading}>
-            {loading ? 'Salvando…' : 'Salvar senha'}
-          </button>
-        </form>
-        <p className="auth__footer-link">
-          <Link to="/login">Cancelar</Link>
-        </p>
-      </div>
-    </div>
+    <AuthCardShell subtitle="Nova senha">
+      <form className="auth__form" onSubmit={onSubmit}>
+        <label className="field">
+          <span>Nova senha</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+          />
+        </label>
+        <label className="field">
+          <span>Confirmar senha</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={password2}
+            onChange={(e) => setPassword2(e.target.value)}
+            required
+            minLength={6}
+          />
+        </label>
+        {error ? <p className="auth__error">{error}</p> : null}
+        <button type="submit" className="btn btn--primary btn--block" disabled={loading}>
+          {loading ? 'Salvando…' : 'Salvar senha'}
+        </button>
+      </form>
+      <p className="auth__footer-link">
+        <Link to="/login">Cancelar</Link>
+      </p>
+    </AuthCardShell>
   )
 }

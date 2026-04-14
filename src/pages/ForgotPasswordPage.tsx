@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
-import { VyntaskLogo } from '../components/VyntaskLogo'
+import { AuthCardShell } from '../components/auth/AuthCardShell'
 
 export function ForgotPasswordPage() {
   const { ready, authMode, user, requestPasswordReset } = useAuth()
@@ -22,28 +22,15 @@ export function ForgotPasswordPage() {
 
   if (authMode !== 'supabase') {
     return (
-      <div className="auth">
-        <div className="auth__card">
-          <div className="auth__brand">
-            <span className="auth__brand-mark vyntask-logo-wrap">
-              <VyntaskLogo variant="brand" size={52} aria-hidden />
-            </span>
-            <div>
-              <h1 className="auth__title">
-                <span className="auth__title-accent">Vyn</span>Task
-              </h1>
-              <p className="auth__subtitle">Recuperação de senha</p>
-            </div>
-          </div>
-          <p className="muted" style={{ margin: 0 }}>
-            Neste ambiente o acesso é local. Peça a um administrador para redefinir sua senha em Configurações ou
-            configure Supabase para envio de e-mail de recuperação.
-          </p>
-          <p className="auth__footer-link">
-            <Link to="/login">Voltar ao login</Link>
-          </p>
-        </div>
-      </div>
+      <AuthCardShell subtitle="Recuperação de senha">
+        <p className="muted" style={{ margin: 0 }}>
+          Neste ambiente o acesso é local. Peça a um administrador para redefinir sua senha em Configurações ou
+          configure Supabase para envio de e-mail de recuperação.
+        </p>
+        <p className="auth__footer-link">
+          <Link to="/login">Voltar ao login</Link>
+        </p>
+      </AuthCardShell>
     )
   }
 
@@ -63,65 +50,39 @@ export function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="auth">
-        <div className="auth__card">
-          <div className="auth__brand">
-            <span className="auth__brand-mark vyntask-logo-wrap">
-              <VyntaskLogo variant="brand" size={52} aria-hidden />
-            </span>
-            <div>
-              <h1 className="auth__title">
-                <span className="auth__title-accent">Vyn</span>Task
-              </h1>
-              <p className="auth__subtitle">E-mail enviado</p>
-            </div>
-          </div>
-          <p className="muted" style={{ margin: 0 }}>
-            Se existir uma conta para este e-mail, você receberá instruções para redefinir a senha. Verifique também a
-            pasta de spam.
-          </p>
-          <p className="auth__footer-link">
-            <Link to="/login">Voltar ao login</Link>
-          </p>
-        </div>
-      </div>
+      <AuthCardShell subtitle="E-mail enviado">
+        <p className="muted" style={{ margin: 0 }}>
+          Se existir uma conta para este e-mail, você receberá instruções para redefinir a senha. Verifique também a
+          pasta de spam.
+        </p>
+        <p className="auth__footer-link">
+          <Link to="/login">Voltar ao login</Link>
+        </p>
+      </AuthCardShell>
     )
   }
 
   return (
-    <div className="auth">
-      <div className="auth__card">
-        <div className="auth__brand">
-          <span className="auth__brand-mark vyntask-logo-wrap">
-            <VyntaskLogo variant="brand" size={52} aria-hidden />
-          </span>
-          <div>
-            <h1 className="auth__title">
-              <span className="auth__title-accent">Vyn</span>Task
-            </h1>
-            <p className="auth__subtitle">Esqueci minha senha</p>
-          </div>
-        </div>
-        <form className="auth__form" onSubmit={onSubmit}>
-          <label className="field">
-            <span>E-mail</span>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-          {error ? <p className="auth__error">{error}</p> : null}
-          <button type="submit" className="btn btn--primary btn--block" disabled={loading}>
-            {loading ? 'Enviando…' : 'Enviar link'}
-          </button>
-        </form>
-        <p className="auth__footer-link">
-          <Link to="/login">Voltar ao login</Link>
-        </p>
-      </div>
-    </div>
+    <AuthCardShell subtitle="Esqueci minha senha">
+      <form className="auth__form" onSubmit={onSubmit}>
+        <label className="field">
+          <span>E-mail</span>
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </label>
+        {error ? <p className="auth__error">{error}</p> : null}
+        <button type="submit" className="btn btn--primary btn--block" disabled={loading}>
+          {loading ? 'Enviando…' : 'Enviar link'}
+        </button>
+      </form>
+      <p className="auth__footer-link">
+        <Link to="/login">Voltar ao login</Link>
+      </p>
+    </AuthCardShell>
   )
 }
