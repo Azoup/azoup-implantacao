@@ -4,13 +4,14 @@ import { Check, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users } fr
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
-import type { PermissionScope } from '../db/types'
+import type { DbUser, PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { supabase } from '../lib/supabaseClient'
 import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
+import { mapProfileToUser, type ProfileRow } from '../auth/mapProfileToUser'
 
 type SettingsTab = 'geral' | 'usuarios' | 'aparencia'
 
@@ -19,7 +20,7 @@ const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 export function SettingsPage() {
   const { user: current } = useAuth()
   const { theme, setTheme, palette, setPalette } = useTheme()
-  const users = useLiveQuery(() => db.users.toArray(), []) ?? []
+  const cachedUsers = useLiveQuery(() => db.users.toArray(), []) ?? []
   const modKey = useMemo(
     () => (/Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? '⌘' : 'Ctrl'),
     [],
@@ -31,17 +32,31 @@ export function SettingsPage() {
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null)
   const [permissionDraft, setPermissionDraft] = useState<PermissionScope[]>([])
   const [usersBusy, setUsersBusy] = useState<string | null>(null)
+  const [remoteUsers, setRemoteUsers] = useState<DbUser[] | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
+  const users = remoteUsers ?? cachedUsers
   const editingPermissionUser = permissionsUserId ? users.find((u) => u.id === permissionsUserId) ?? null : null
   const { requestConfirm, toast, toastError } = useUiFeedback()
+
+  async function loadUsersFromSupabase() {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id,email,name,role,permissions,status,created_at,last_login_at')
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    const mapped = ((data ?? []) as ProfileRow[]).map(mapProfileToUser)
+    setRemoteUsers(mapped)
+  }
 
   useEffect(() => {
     if (!canManageUsers || !supabase) return
     let cancelled = false
     ;(async () => {
       try {
-        await refreshSupabaseDexieCache()
+        await loadUsersFromSupabase()
+        void refreshSupabaseDexieCache().catch(() => undefined)
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : 'Falha ao carregar usuários do Supabase.')
       }
@@ -79,7 +94,8 @@ export function SettingsPage() {
       setErr(error.message || 'Não foi possível salvar permissões.')
       return
     }
-    await refreshSupabaseDexieCache()
+    await loadUsersFromSupabase()
+    void refreshSupabaseDexieCache().catch(() => undefined)
     closePermissions()
   }
 
@@ -103,7 +119,8 @@ export function SettingsPage() {
     try {
       const { error } = await supabase.from('profiles').update({ status: nextStatus }).eq('id', userId)
       if (error) throw error
-      await refreshSupabaseDexieCache()
+      await loadUsersFromSupabase()
+      void refreshSupabaseDexieCache().catch(() => undefined)
       toast(nextStatus === 'inactive' ? 'Usuário inativado.' : 'Usuário reativado.')
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Falha ao atualizar status do usuário.')
@@ -129,8 +146,17 @@ export function SettingsPage() {
     setUsersBusy(userId)
     try {
       const { error } = await supabase.from('profiles').delete().eq('id', userId)
-      if (error) throw error
-      await refreshSupabaseDexieCache()
+      if (error) {
+        // Se houver vínculo histórico (FK/RLS), converte exclusão em inativação para manter governança.
+        const fallback = await supabase.from('profiles').update({ status: 'inactive' }).eq('id', userId)
+        if (fallback.error) throw error
+        await loadUsersFromSupabase()
+        void refreshSupabaseDexieCache().catch(() => undefined)
+        toast('Exclusão bloqueada pelo banco. Login inativado com sucesso.')
+        return
+      }
+      await loadUsersFromSupabase()
+      void refreshSupabaseDexieCache().catch(() => undefined)
       toast('Login excluído com sucesso.')
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Falha ao excluir login.')

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowDownAZ, ArrowUpWideNarrow, CalendarDays, Clock, Plus, TrendingUp } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpWideNarrow, CalendarDays, Clock, Plus, Search, TrendingUp, X } from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
@@ -39,10 +39,16 @@ export function ProjectsPage() {
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
+  const [projectNameSearch, setProjectNameSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  const sortedProjects = useMemo(() => sortProjects(projects, projectSort), [projects, projectSort])
+  const visibleProjects = useMemo(() => {
+    const sorted = sortProjects(projects, projectSort)
+    const q = projectNameSearch.trim().toLowerCase()
+    if (!q) return sorted
+    return sorted.filter((p) => p.projectName.toLowerCase().includes(q))
+  }, [projects, projectSort, projectNameSearch])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -110,53 +116,75 @@ export function ProjectsPage() {
         </button>
       </header>
 
-      <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
-        <button
-          type="button"
-          className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
-          onClick={() => {
-            const next: ProjectSortConfig = { ...projectSort, key: 'name' }
-            setProjectSort(next)
-            writeProjectSortConfig(next)
-          }}
-          title="Ordenar por nome"
-        >
-          <ArrowDownAZ size={15} strokeWidth={2} />
-          Nome
-        </button>
-        <button
-          type="button"
-          className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
-          onClick={() => {
-            const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
-            setProjectSort(next)
-            writeProjectSortConfig(next)
-          }}
-          title="Ordenar por início do projeto"
-        >
-          <CalendarDays size={15} strokeWidth={2} />
-          Início
-        </button>
-        <button
-          type="button"
-          className="project-sortbar__btn project-sortbar__btn--dir"
-          onClick={() => {
-            const next: ProjectSortConfig = {
-              ...projectSort,
-              direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
-            }
-            setProjectSort(next)
-            writeProjectSortConfig(next)
-          }}
-          title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
-        >
-          <ArrowUpWideNarrow size={15} strokeWidth={2} />
-          {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
-        </button>
+      <div className="projects-page__toolbar">
+        <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
+          <button
+            type="button"
+            className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
+            onClick={() => {
+              const next: ProjectSortConfig = { ...projectSort, key: 'name' }
+              setProjectSort(next)
+              writeProjectSortConfig(next)
+            }}
+            title="Ordenar por nome"
+          >
+            <ArrowDownAZ size={15} strokeWidth={2} />
+            Nome
+          </button>
+          <button
+            type="button"
+            className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+            onClick={() => {
+              const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
+              setProjectSort(next)
+              writeProjectSortConfig(next)
+            }}
+            title="Ordenar por início do projeto"
+          >
+            <CalendarDays size={15} strokeWidth={2} />
+            Início
+          </button>
+          <button
+            type="button"
+            className="project-sortbar__btn project-sortbar__btn--dir"
+            onClick={() => {
+              const next: ProjectSortConfig = {
+                ...projectSort,
+                direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
+              }
+              setProjectSort(next)
+              writeProjectSortConfig(next)
+            }}
+            title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
+          >
+            <ArrowUpWideNarrow size={15} strokeWidth={2} />
+            {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
+          </button>
+        </div>
+        <label className="projects-page__search" aria-label="Buscar projeto por nome">
+          <Search size={15} strokeWidth={2} />
+          <input
+            className="input input--sm projects-page__search-input"
+            type="text"
+            placeholder="Buscar por nome do projeto..."
+            value={projectNameSearch}
+            onChange={(e) => setProjectNameSearch(e.target.value)}
+          />
+          {projectNameSearch ? (
+            <button
+              type="button"
+              className="projects-page__search-clear"
+              aria-label="Limpar busca"
+              onClick={() => setProjectNameSearch('')}
+            >
+              <X size={13} strokeWidth={2.3} />
+            </button>
+          ) : null}
+        </label>
       </div>
 
       <div className="project-grid">
-        {sortedProjects.map((p) => {
+        {visibleProjects.map((p) => {
           const pct = projectProgressPercent(tasks, p.id)
           const projectTasks = tasks.filter((t) => t.projectId === p.id)
           const done = projectTasks.filter((t) => t.status === 'concluida').length
@@ -188,6 +216,11 @@ export function ProjectsPage() {
                   </Link>
                 </h2>
                 <div className="proj-card__badges">
+                  {p.clientApiId?.trim() ? (
+                    <span className="proj-card__badge proj-card__badge--api" title="API do projeto">
+                      API {p.clientApiId}
+                    </span>
+                  ) : null}
                   <span className="proj-card__badge proj-card__badge--plan" title={p.planType}>
                     {planName}
                   </span>

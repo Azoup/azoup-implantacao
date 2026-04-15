@@ -14,6 +14,7 @@ import type { DbUser } from '../db/types'
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { mapProfileToUser, type ProfileRow } from './mapProfileToUser'
 import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
+import { cleanupLegacyTaskCodePrefixes } from '../services/taskTitleCleanup'
 
 const SESSION_KEY = 'vyntask_session_v1'
 
@@ -105,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(u)
               try {
                 await refreshSupabaseDexieCache()
+                await cleanupLegacyTaskCodePrefixes()
               } catch (err) {
                 console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie no bootstrap.', err)
               }
@@ -129,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(u)
               try {
                 await refreshSupabaseDexieCache()
+                await cleanupLegacyTaskCodePrefixes()
               } catch (err) {
                 console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie após auth change.', err)
               }
@@ -141,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           const s = readSession()
           if (s?.userId) await loadDexieUser(s.userId)
+          await cleanupLegacyTaskCodePrefixes()
           if (!cancelled) setReady(true)
         }
       } catch (err) {
@@ -176,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await touchLastLogin(session.user.id)
         setUser({ ...u, lastLogin: new Date().toISOString() })
         await refreshSupabaseDexieCache()
+        await cleanupLegacyTaskCodePrefixes()
         return
       }
 

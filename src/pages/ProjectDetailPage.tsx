@@ -105,10 +105,17 @@ export function ProjectDetailPage() {
     [projectId],
   ) ?? []
 
-  const allComments = useLiveQuery(
-    () => (projectId ? db.comments.where('projectId').equals(projectId).toArray() : Promise.resolve([] as DbComment[])),
-    [projectId],
-  ) ?? []
+  const allComments = useLiveQuery(async () => {
+    if (!projectId) return [] as DbComment[]
+    const direct = await db.comments.where('projectId').equals(projectId).toArray()
+    const taskIds = await db.tasks.where('projectId').equals(projectId).primaryKeys()
+    if (taskIds.length === 0) return direct
+    const byTask = await db.comments.where('taskId').anyOf(taskIds as string[]).toArray()
+    const merged = new Map<string, DbComment>()
+    for (const c of direct) merged.set(c.id, c)
+    for (const c of byTask) merged.set(c.id, c)
+    return [...merged.values()]
+  }, [projectId]) ?? []
   const taskCommentsOnly = useMemo(() => allComments.filter((c) => c.taskId != null), [allComments])
   const docComments = useMemo(
     () => [...allComments.filter((c) => c.taskId == null)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),

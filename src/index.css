@@ -2475,6 +2475,75 @@ body {
   align-items: center;
   gap: 0.4rem;
 }
+.projects-page__toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0.2rem 0 1rem;
+}
+.projects-page__search {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.38rem 0.5rem 0.38rem 0.62rem;
+  min-height: 40px;
+  width: min(380px, 100%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.projects-page__search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.projects-page__search-input.input {
+  border: 0 !important;
+  outline: 0;
+  box-shadow: none !important;
+  background: transparent !important;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  line-height: 28px;
+  padding: 0 0.18rem;
+  font-size: 0.88rem;
+}
+.projects-page__search-input.input:focus {
+  box-shadow: none !important;
+  border: 0 !important;
+}
+.projects-page__search-input.input::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+}
+.projects-page__search-clear {
+  width: 22px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: color-mix(in srgb, var(--danger) 88%, var(--text));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.projects-page__search-clear:hover {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--border));
+  background: color-mix(in srgb, var(--danger) 18%, var(--surface));
+}
+@media (max-width: 840px) {
+  .projects-page__search {
+    margin-left: 0;
+    width: 100%;
+  }
+}
 
 .proj-delete-modal__lead {
   margin: 0 0 0.8rem;
@@ -2576,6 +2645,11 @@ body {
   border-color: color-mix(in srgb, var(--border) 80%, transparent);
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+.proj-card__badge--api {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
 }
 
 .proj-card__badge--status.is-ativo {

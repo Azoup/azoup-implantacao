@@ -70,7 +70,9 @@ async function fetchAll(table: string): Promise<Record<string, unknown>[]> {
 }
 
 function toStringOrNull(v: unknown): string | null {
-  return typeof v === 'string' ? v : null
+  if (typeof v !== 'string') return null
+  const trimmed = v.trim()
+  return trimmed.length > 0 ? trimmed : null
 }
 
 function toNumber(v: unknown, fallback = 0): number {
@@ -607,31 +609,22 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
   installHooks()
   syncingMuted = true
   try {
-    await db.analysts.clear()
-    await db.auditLogs.clear()
-    await db.planModels.clear()
-    await db.planPhases.clear()
-    await db.planTasks.clear()
-    await db.projects.clear()
-    await db.projectDeletionLogs.clear()
-    await db.projectContacts.clear()
-    await db.phases.clear()
-    await db.tasks.clear()
-    await db.events.clear()
-    await db.timeLogs.clear()
-    await db.timeSessions.clear()
-    await db.comments.clear()
-    await db.labels.clear()
-    await db.users.clear()
-
     for (const def of defs) {
-      const rows = await fetchAll(def.remoteTable)
-      if (rows.length === 0) continue
-      const mapped = rows.map(def.fromRemote)
       const table = (db as Record<string, any>)[def.localTable]
-      await table.bulkPut(mapped)
+      try {
+        const rows = await fetchAll(def.remoteTable)
+        const mapped = rows.map(def.fromRemote)
+        await table.clear()
+        if (mapped.length > 0) await table.bulkPut(mapped)
+      } catch (err) {
+        console.warn(`[Supabase] Falha ao sincronizar tabela ${def.remoteTable}. Mantendo cache local anterior.`, err)
+      }
     }
-    await hydrateUsersFromProfiles()
+    try {
+      await hydrateUsersFromProfiles()
+    } catch (err) {
+      console.warn('[Supabase] Falha ao hidratar usuários do profiles. Mantendo cache local anterior.', err)
+    }
   } finally {
     syncingMuted = false
   }
