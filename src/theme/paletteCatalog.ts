@@ -1,4 +1,11 @@
-export type PaletteId = 'vyntask_brand' | 'black_yellow' | 'black_orange' | 'black_blue' | 'white_blue' | 'white_orange'
+export type PaletteId =
+  | 'tech_graphite_orange'
+  | 'vyntask_brand'
+  | 'black_yellow'
+  | 'black_orange'
+  | 'black_blue'
+  | 'white_blue'
+  | 'white_orange'
 
 export type PaletteMeta = {
   id: PaletteId
@@ -9,6 +16,12 @@ export type PaletteMeta = {
 }
 
 export const PALETTE_PRESETS: PaletteMeta[] = [
+  {
+    id: 'tech_graphite_orange',
+    name: 'VynTask Neo (grafite + laranja)',
+    tagline: 'Estética tecnológica com preto reforçado e destaque laranja premium',
+    swatch: ['#0c0c0c', '#141414', '#ff9f43'],
+  },
   {
     id: 'black_orange',
     name: 'VynTask apresentação',
@@ -49,6 +62,7 @@ export const PALETTE_PRESETS: PaletteMeta[] = [
 
 export function isPaletteId(v: string | null): v is PaletteId {
   return (
+    v === 'tech_graphite_orange' ||
     v === 'vyntask_brand' ||
     v === 'black_yellow' ||
     v === 'black_orange' ||

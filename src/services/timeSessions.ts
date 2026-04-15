@@ -11,6 +11,10 @@ export async function getRunningSessionForUser(userId: string) {
 export async function startTimer(taskId: string, userId: string): Promise<string> {
   const task = await db.tasks.get(taskId)
   if (!task) throw new Error('Tarefa não encontrada')
+  const phase = await db.phases.get(task.phaseId)
+  if (!phase || phase.status !== 'ativa') {
+    throw new Error('Cronômetro permitido apenas na fase ativa do projeto.')
+  }
   const project = await db.projects.get(task.projectId)
   const analystId = task.assignedTo ?? project?.analystId ?? null
 
@@ -83,6 +87,10 @@ export async function addManualTimeSession(opts: {
 }): Promise<string> {
   const task = await db.tasks.get(opts.taskId)
   if (!task) throw new Error('Tarefa não encontrada')
+  const phase = await db.phases.get(task.phaseId)
+  if (!phase || phase.status !== 'ativa') {
+    throw new Error('Lançamento manual permitido apenas na fase ativa do projeto.')
+  }
   const project = await db.projects.get(task.projectId)
   const analystId = task.assignedTo ?? project?.analystId ?? null
   const h = Math.max(0, opts.hours)
