@@ -112,7 +112,7 @@ export function LoginPage() {
         <p className="auth__hint">Modo local ativo. Cadastro e recuperação exigem Supabase configurado.</p>
       ) : null}
       <p className="auth__footer-link">
-        <Link to="/apresentacoes">Apresentações dos planos (clientes)</Link>
+        <Link to="/apresentacoes">Conheça nosso método de implantação</Link>
       </p>
       <p className="auth__version" aria-label={`Versão ${APP_VERSION_DISPLAY}`}>
         {APP_VERSION_DISPLAY}

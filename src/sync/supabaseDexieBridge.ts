@@ -2,6 +2,7 @@ import { db } from '../db/database'
 import { supabase } from '../lib/supabaseClient'
 import type {
   DbAnalyst,
+  DbAuditLog,
   DbComment,
   DbEvent,
   DbLabel,
@@ -10,6 +11,7 @@ import type {
   DbPlanPhase,
   DbPlanTask,
   DbProject,
+  DbProjectDeletionLog,
   DbProjectContact,
   DbTask,
   DbTimeLog,
@@ -28,10 +30,24 @@ type BridgeDef<TLocal> = {
 
 let hooksInstalled = false
 let syncingMuted = false
+const OPTIONAL_REMOTE_TABLES = new Set(['audit_logs', 'project_deletion_logs'])
 
 function assertSupabase() {
   if (!supabase) throw new Error('Supabase não configurado.')
   return supabase
+}
+
+function isOptionalTableError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { code?: string; message?: string }
+  if (e.code === '42P01') return true
+  if (e.code === '42501') return true
+  const msg = (e.message ?? '').toLowerCase()
+  return msg.includes('does not exist') || msg.includes('permission denied')
+}
+
+function shouldIgnoreMissingTable(table: string, err: unknown): boolean {
+  return OPTIONAL_REMOTE_TABLES.has(table) && isOptionalTableError(err)
 }
 
 async function fetchAll(table: string): Promise<Record<string, unknown>[]> {
@@ -41,7 +57,10 @@ async function fetchAll(table: string): Promise<Record<string, unknown>[]> {
   let from = 0
   while (true) {
     const { data, error } = await client.from(table).select('*').range(from, from + pageSize - 1)
-    if (error) throw new Error(`[Supabase] ${table}: ${error.message}`)
+    if (error) {
+      if (shouldIgnoreMissingTable(table, error)) break
+      throw new Error(`[Supabase] ${table}: ${error.message}`)
+    }
     const page = (data ?? []) as Record<string, unknown>[]
     rows.push(...page)
     if (page.length < pageSize) break
@@ -447,6 +466,66 @@ const defs: BridgeDef<unknown>[] = [
     },
   },
   {
+    localTable: 'auditLogs',
+    remoteTable: 'audit_logs',
+    fromRemote: (r): DbAuditLog => ({
+      id: String(r.id),
+      action: String(r.action ?? 'alteracao') as DbAuditLog['action'],
+      entity: String(r.entity ?? 'outro') as DbAuditLog['entity'],
+      entityId: toStringOrNull(r.entity_id),
+      entityLabel: String(r.entity_label ?? ''),
+      userId: String(r.user_id ?? ''),
+      userName: String(r.user_name ?? ''),
+      userEmail: String(r.user_email ?? ''),
+      justification: toStringOrNull(r.justification),
+      details: String(r.details ?? ''),
+      createdAt: String(r.created_at ?? new Date().toISOString()),
+    }),
+    toRemote: (x) => {
+      const v = x as DbAuditLog
+      return {
+        id: v.id,
+        action: v.action,
+        entity: v.entity,
+        entity_id: v.entityId,
+        entity_label: v.entityLabel,
+        user_id: v.userId,
+        user_name: v.userName,
+        user_email: v.userEmail,
+        justification: v.justification,
+        details: v.details,
+        created_at: v.createdAt,
+      }
+    },
+  },
+  {
+    localTable: 'projectDeletionLogs',
+    remoteTable: 'project_deletion_logs',
+    fromRemote: (r): DbProjectDeletionLog => ({
+      id: String(r.id),
+      projectId: String(r.project_id ?? ''),
+      projectName: String(r.project_name ?? ''),
+      deletedByUserId: String(r.deleted_by_user_id ?? ''),
+      deletedByUserName: String(r.deleted_by_user_name ?? ''),
+      deletedByUserEmail: String(r.deleted_by_user_email ?? ''),
+      justification: String(r.justification ?? ''),
+      deletedAt: String(r.deleted_at ?? new Date().toISOString()),
+    }),
+    toRemote: (x) => {
+      const v = x as DbProjectDeletionLog
+      return {
+        id: v.id,
+        project_id: v.projectId,
+        project_name: v.projectName,
+        deleted_by_user_id: v.deletedByUserId,
+        deleted_by_user_name: v.deletedByUserName,
+        deleted_by_user_email: v.deletedByUserEmail,
+        justification: v.justification,
+        deleted_at: v.deletedAt,
+      }
+    },
+  },
+  {
     localTable: 'labels',
     remoteTable: 'labels',
     fromRemote: (r): DbLabel => ({
@@ -467,7 +546,10 @@ async function upsertRemote(def: BridgeDef<unknown>, localRow: unknown): Promise
   const client = assertSupabase()
   const payload = def.toRemote(localRow)
   const { error } = await client.from(def.remoteTable).upsert(payload)
-  if (error) throw new Error(`[Supabase] ${def.remoteTable} upsert: ${error.message}`)
+  if (error) {
+    if (shouldIgnoreMissingTable(def.remoteTable, error)) return
+    throw new Error(`[Supabase] ${def.remoteTable} upsert: ${error.message}`)
+  }
 }
 
 function installHooks() {
@@ -493,7 +575,10 @@ function installHooks() {
         .delete()
         .eq('id', String(primaryKey))
         .then(({ error }) => {
-          if (error) throw new Error(`[Supabase] ${def.remoteTable} delete: ${error.message}`)
+          if (error) {
+            if (shouldIgnoreMissingTable(def.remoteTable, error)) return
+            throw new Error(`[Supabase] ${def.remoteTable} delete: ${error.message}`)
+          }
         })
     })
   }
@@ -523,10 +608,12 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
   syncingMuted = true
   try {
     await db.analysts.clear()
+    await db.auditLogs.clear()
     await db.planModels.clear()
     await db.planPhases.clear()
     await db.planTasks.clear()
     await db.projects.clear()
+    await db.projectDeletionLogs.clear()
     await db.projectContacts.clear()
     await db.phases.clear()
     await db.tasks.clear()

@@ -30,13 +30,15 @@ type Props = {
 }
 
 export function TaskTimesheet({ task, user }: Props) {
-  const { toast, toastError, requestConfirm } = useUiFeedback()
+  const { toast, toastError } = useUiFeedback()
   const [tick, setTick] = useState(0)
   const [manualHours, setManualHours] = useState('')
   const [manualNotes, setManualNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editHoursDraft, setEditHoursDraft] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<DbTimeSession | null>(null)
+  const [deleteJustification, setDeleteJustification] = useState('')
 
   const sessions = useLiveQuery(
     () => db.timeSessions.where('taskId').equals(task.id).toArray(),
@@ -137,17 +139,24 @@ export function TaskTimesheet({ task, user }: Props) {
   }
 
   async function onDelete(sessionId: string) {
-    const ok = await requestConfirm({
-      title: 'Registro de tempo',
-      message: 'Remover este registro de tempo?',
-      confirmLabel: 'Remover',
-      cancelLabel: 'Cancelar',
-      danger: true,
-    })
-    if (!ok) return
+    const target = sortedSessions.find((x) => x.id === sessionId)
+    if (!target) return
+    setDeleteTarget(target)
+    setDeleteJustification('')
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    const reason = deleteJustification.trim()
+    if (reason.length < 8) {
+      toast('Informe uma justificativa com pelo menos 8 caracteres.', 'warn')
+      return
+    }
     setBusy(true)
     try {
-      await deleteTimeSession(sessionId, user.id)
+      await deleteTimeSession(deleteTarget.id, user.id, reason)
+      setDeleteTarget(null)
+      setDeleteJustification('')
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Não foi possível excluir')
     } finally {
@@ -232,17 +241,21 @@ export function TaskTimesheet({ task, user }: Props) {
             const displaySec =
               s.id === runningHere?.id ? liveSeconds : done ? (s.durationSeconds ?? 0) : null
             return (
-              <li key={s.id} className="pd-timesheet__row">
+              <li key={s.id} className={'pd-timesheet__row' + (s.source === 'timer' ? ' is-timer' : ' is-manual')}>
                 <div className="pd-timesheet__row-main">
-                  <span className="pd-timesheet__row-when muted">
-                    {formatDatePt(s.startedAt)} {formatDatePt(s.startedAt, 'HH:mm')}
-                  </span>
-                  <span className="pd-timesheet__row-src">{s.source === 'timer' ? 'Cronômetro' : 'Manual'}</span>
-                  {displaySec != null ? (
-                    <span className="pd-timesheet__row-dur">{formatHMS(displaySec)}</span>
-                  ) : (
-                    <span className="pd-timesheet__row-dur pd-timesheet__row-dur--live">em andamento…</span>
-                  )}
+                  <div className="pd-timesheet__row-top">
+                    <span className="pd-timesheet__row-when muted">
+                      {formatDatePt(s.startedAt)} {formatDatePt(s.startedAt, 'HH:mm')}
+                    </span>
+                    {displaySec != null ? (
+                      <span className="pd-timesheet__row-dur">{formatHMS(displaySec)}</span>
+                    ) : (
+                      <span className="pd-timesheet__row-dur pd-timesheet__row-dur--live">em andamento…</span>
+                    )}
+                  </div>
+                  <div className="pd-timesheet__row-meta">
+                    <span className="pd-timesheet__row-src">{s.source === 'timer' ? 'Cronômetro' : 'Manual'}</span>
+                  </div>
                 </div>
                 {editingId === s.id ? (
                   <div className="pd-timesheet__row-edit">
@@ -286,6 +299,39 @@ export function TaskTimesheet({ task, user }: Props) {
       ) : (
         <p className="pd-timesheet__empty muted">Nenhum bloco de tempo nesta tarefa ainda.</p>
       )}
+      {deleteTarget ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => (busy ? null : setDeleteTarget(null))}>
+          <div className="modal modal--md pd-timesheet__delete-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Excluir registro de tempo</h2>
+            <p className="proj-delete-modal__lead">
+              Confirme a exclusão do bloco {formatDatePt(deleteTarget.startedAt)} às {formatDatePt(deleteTarget.startedAt, 'HH:mm')}{' '}
+              e informe a justificativa.
+            </p>
+            <div className="field">
+              <label className="field__label" htmlFor="timesheet-delete-reason">
+                Justificativa
+              </label>
+              <textarea
+                id="timesheet-delete-reason"
+                className="textarea proj-delete-modal__reason"
+                rows={4}
+                value={deleteJustification}
+                onChange={(e) => setDeleteJustification(e.target.value)}
+                placeholder="Ex.: Lançamento duplicado."
+                disabled={busy}
+              />
+            </div>
+            <div className="modal__actions modal__actions--sticky">
+              <button type="button" className="btn btn--ghost" onClick={() => setDeleteTarget(null)} disabled={busy}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn--danger" onClick={() => void confirmDelete()} disabled={busy}>
+                {busy ? 'Excluindo...' : 'Excluir registro'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }

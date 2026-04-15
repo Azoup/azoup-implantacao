@@ -2,10 +2,12 @@ import { db } from '../db/database'
 import type { TaskStatus } from '../db/types'
 import { syncLabelsForProject } from './labels'
 import { syncProjectKanbanFromPlanState } from './kanbanPhaseSync'
+import { getUserForAudit, writeAuditLog } from './auditLogs'
 
-export async function setTaskStatus(taskId: string, next: TaskStatus): Promise<void> {
+export async function setTaskStatus(taskId: string, next: TaskStatus, actorUserId?: string): Promise<void> {
   const task = await db.tasks.get(taskId)
   if (!task) return
+  const prevStatus = task.status
 
   const phase = await db.phases.get(task.phaseId)
   if (
@@ -21,6 +23,17 @@ export async function setTaskStatus(taskId: string, next: TaskStatus): Promise<v
   if (!project) return
 
   await db.tasks.update(taskId, { status: next })
+  if (actorUserId && prevStatus !== next) {
+    const actor = await getUserForAudit(actorUserId)
+    await writeAuditLog({
+      action: 'alteracao',
+      entity: 'tarefa',
+      entityId: task.id,
+      entityLabel: `${task.code} · ${task.title}`,
+      details: `Status alterado de ${prevStatus} para ${next}.`,
+      user: actor,
+    })
+  }
 
   const tasksInPhase = await db.tasks.where('phaseId').equals(task.phaseId).toArray()
   const phaseComplete =
@@ -28,9 +41,33 @@ export async function setTaskStatus(taskId: string, next: TaskStatus): Promise<v
 
   if (phaseComplete && phase) {
     await db.phases.update(phase.id, { status: 'concluida' })
+    if (actorUserId) {
+      const actor = await getUserForAudit(actorUserId)
+      await writeAuditLog({
+        action: 'alteracao',
+        entity: 'fase',
+        entityId: phase.id,
+        entityLabel: phase.name,
+        details: `Fase marcada como concluída por automação ao concluir tarefas.`,
+        user: actor,
+      })
+    }
     const allPhases = await db.phases.where('projectId').equals(task.projectId).sortBy('orderIndex')
     const nextPh = allPhases.find((p) => p.orderIndex === phase.orderIndex + 1)
-    if (nextPh) await db.phases.update(nextPh.id, { status: 'ativa' })
+    if (nextPh) {
+      await db.phases.update(nextPh.id, { status: 'ativa' })
+      if (actorUserId) {
+        const actor = await getUserForAudit(actorUserId)
+        await writeAuditLog({
+          action: 'alteracao',
+          entity: 'fase',
+          entityId: nextPh.id,
+          entityLabel: nextPh.name,
+          details: `Fase ativada automaticamente após conclusão da fase anterior.`,
+          user: actor,
+        })
+      }
+    }
   }
 
   await syncLabelsForProject(task.projectId)

@@ -67,7 +67,7 @@ export function TarefasPage() {
   async function changeStatus(id: string, next: TaskStatus) {
     if (!canEditTasks) return
     try {
-      await setTaskStatus(id, next)
+      await setTaskStatus(id, next, user?.id)
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Não foi possível atualizar')
     }

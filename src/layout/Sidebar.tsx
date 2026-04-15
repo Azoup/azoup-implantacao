@@ -10,6 +10,7 @@ import {
   Gauge,
   Kanban,
   Library,
+  Logs,
   LogOut,
   Moon,
   Plus,
@@ -33,6 +34,7 @@ const mainNav: NavItem[] = [
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList, scope: 'tasks.view' },
   { to: '/agenda', label: 'Agenda', icon: CalendarRange, scope: 'agenda.view' },
   { to: '/relatorios', label: 'Relatórios', icon: ChartColumnIncreasing, scope: 'reports.view' },
+  { to: '/logs', label: 'Logs', icon: Logs, scope: 'reports.view' },
   { to: '/assistente', label: 'Assistente IA', icon: Sparkles, scope: 'ai.view' },
 ]
 

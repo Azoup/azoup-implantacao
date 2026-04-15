@@ -10,9 +10,15 @@ export type PaletteMeta = {
 
 export const PALETTE_PRESETS: PaletteMeta[] = [
   {
+    id: 'black_orange',
+    name: 'VynTask apresentação',
+    tagline: 'Visual escuro com destaque laranja, igual à vitrine de planos',
+    swatch: ['#10151c', '#1e2532', '#ff9f43'],
+  },
+  {
     id: 'vyntask_brand',
-    name: 'VynTask (azul + laranja)',
-    tagline: 'Azul profundo com destaques em laranja de alto contraste',
+    name: 'VynTask original (azul + laranja)',
+    tagline: 'Paleta anterior com azul profundo e destaques em laranja',
     swatch: ['#030329', '#0b1f8f', '#ff8b17'],
   },
   {
@@ -20,12 +26,6 @@ export const PALETTE_PRESETS: PaletteMeta[] = [
     name: 'Preto + amarelo',
     tagline: 'Barra lateral preta e ouro âmbar — alto contraste no conteúdo',
     swatch: ['#fafaf9', '#ffffff', '#ca8a04'],
-  },
-  {
-    id: 'black_orange',
-    name: 'Preto + laranja',
-    tagline: 'Chrome escuro com laranja intenso — leitura nítida no branco',
-    swatch: ['#f4f6fa', '#ffffff', '#ff9f43'],
   },
   {
     id: 'black_blue',

@@ -87,53 +87,68 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let subscription: { unsubscribe: () => void } | null = null
 
     ;(async () => {
-      await ensureDatabase()
-      if (cancelled) return
-
-      if (useSb && supabase) {
-        const client = supabase
-        writeSession(null)
-        const {
-          data: { session },
-        } = await client.auth.getSession()
+      try {
+        await ensureDatabase()
         if (cancelled) return
-        if (session?.user) {
-          const u = await fetchProfileUser(session.user.id)
-          if (cancelled) return
-          if (u) {
-            setUser(u)
-            await refreshSupabaseDexieCache()
-          }
-          else {
-            await client.auth.signOut()
-            setUser(null)
-          }
-        } else {
-          setUser(null)
-        }
-        if (!cancelled) setReady(true)
 
-        const { data } = client.auth.onAuthStateChange(async (event, session) => {
+        if (useSb && supabase) {
+          const client = supabase
+          writeSession(null)
+          const {
+            data: { session },
+          } = await client.auth.getSession()
           if (cancelled) return
-          if (event === 'SIGNED_OUT' || !session?.user) {
-            setUser(null)
-            return
-          }
-          const u = await fetchProfileUser(session.user.id)
-          if (cancelled) return
-          if (u) {
-            setUser(u)
-            await refreshSupabaseDexieCache()
+          if (session?.user) {
+            const u = await fetchProfileUser(session.user.id)
+            if (cancelled) return
+            if (u) {
+              setUser(u)
+              try {
+                await refreshSupabaseDexieCache()
+              } catch (err) {
+                console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie no bootstrap.', err)
+              }
+            } else {
+              await client.auth.signOut()
+              setUser(null)
+            }
           } else {
-            await client.auth.signOut()
             setUser(null)
           }
-        })
-        subscription = data.subscription
-      } else {
-        const s = readSession()
-        if (s?.userId) await loadDexieUser(s.userId)
-        if (!cancelled) setReady(true)
+          if (!cancelled) setReady(true)
+
+          const { data } = client.auth.onAuthStateChange(async (event, session) => {
+            if (cancelled) return
+            if (event === 'SIGNED_OUT' || !session?.user) {
+              setUser(null)
+              return
+            }
+            const u = await fetchProfileUser(session.user.id)
+            if (cancelled) return
+            if (u) {
+              setUser(u)
+              try {
+                await refreshSupabaseDexieCache()
+              } catch (err) {
+                console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie após auth change.', err)
+              }
+            } else {
+              await client.auth.signOut()
+              setUser(null)
+            }
+          })
+          subscription = data.subscription
+        } else {
+          const s = readSession()
+          if (s?.userId) await loadDexieUser(s.userId)
+          if (!cancelled) setReady(true)
+        }
+      } catch (err) {
+        console.error('[Auth] Falha no bootstrap de autenticação.', err)
+        if (!cancelled) {
+          setUser(null)
+          setReady(true)
+        }
       }
     })()
 

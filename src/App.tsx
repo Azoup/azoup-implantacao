@@ -21,6 +21,7 @@ import { PlanModelsPage } from './pages/PlanModelsPage'
 import { PlanPresentationsPage } from './pages/PlanPresentationsPage'
 import { AnalystsPage } from './pages/AnalystsPage'
 import { AccessDeniedPage } from './pages/AccessDeniedPage'
+import { LogsPage } from './pages/LogsPage'
 import type { PermissionScope } from './db/types'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -113,6 +114,14 @@ export default function App() {
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/relatorios']}>
               <ReportsPage />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/logs"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/logs']}>
+              <LogsPage />
             </RequireScope>
           }
         />

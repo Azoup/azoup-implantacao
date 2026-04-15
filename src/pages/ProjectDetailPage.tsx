@@ -27,6 +27,7 @@ import { DocCommentBody } from '../components/DocCommentBody'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { TaskTimesheet } from '../components/TaskTimesheet'
+import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
@@ -41,7 +42,7 @@ import { normalizeDocLinkUrl } from '../lib/docUrls'
 import { compareTaskCode } from '../lib/taskCode'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
-import { deleteProjectCascade } from '../services/projectDelete'
+import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
 import { addProjectDocumentation, addTaskChecklistItem } from '../services/taskComments'
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -157,6 +158,8 @@ export function ProjectDetailPage() {
   const [docPendingLinks, setDocPendingLinks] = useState<{ id: string; url: string; label: string }[]>([])
   const [docLinkUrlDraft, setDocLinkUrlDraft] = useState('')
   const [docLinkLabelDraft, setDocLinkLabelDraft] = useState('')
+  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false)
+  const [deleteProjectBusy, setDeleteProjectBusy] = useState(false)
 
   const sortedPhases = useMemo(
     () => [...phases].sort((a, b) => a.orderIndex - b.orderIndex),
@@ -236,25 +239,33 @@ export function ProjectDetailPage() {
 
   async function onDeleteProject() {
     if (!canEditProjects) return
-    const ok =
-      me.role === 'admin' || proj.createdBy === me.id
-        ? await requestConfirm({
-            title: 'Excluir projeto',
-            message: 'Excluir projeto e todos os dados vinculados?',
-            confirmLabel: 'Excluir',
-            cancelLabel: 'Cancelar',
-            danger: true,
-          })
-        : false
-    if (!ok) return
-    await deleteProjectCascade(proj.id)
-    navigate('/projetos', { replace: true })
+    if (!(me.role === 'admin' || proj.createdBy === me.id)) return
+    setDeleteProjectOpen(true)
+  }
+
+  async function confirmDeleteProject(justification: string) {
+    if (deleteProjectBusy) return
+    setDeleteProjectBusy(true)
+    try {
+      await recordProjectDeletionLog({
+        projectId: proj.id,
+        projectName: proj.projectName,
+        user: me,
+        justification,
+      })
+      await deleteProjectCascade(proj.id)
+      navigate('/projetos', { replace: true })
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Não foi possível excluir o projeto.')
+    } finally {
+      setDeleteProjectBusy(false)
+    }
   }
 
   async function onTaskStatus(id: string, next: TaskStatus) {
     if (!canEditProjects) return
     try {
-      await setTaskStatus(id, next)
+      await setTaskStatus(id, next, me.id)
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa')
     }
@@ -426,7 +437,7 @@ export function ProjectDetailPage() {
     if (!ok) return
     for (const t of subset) {
       try {
-        await setTaskStatus(t.id, 'concluida')
+        await setTaskStatus(t.id, 'concluida', me.id)
       } catch (err) {
         toastError(err instanceof Error ? err.message : 'Erro ao concluir tarefa')
         break
@@ -1083,6 +1094,13 @@ export function ProjectDetailPage() {
       />
 
       <RegisterHoursModal open={!!hoursTask} task={hoursTask} user={me} onClose={() => setHoursTask(null)} />
+      <ConfirmProjectDeleteModal
+        open={deleteProjectOpen}
+        projectName={proj.projectName}
+        busy={deleteProjectBusy}
+        onCancel={() => setDeleteProjectOpen(false)}
+        onConfirm={confirmDeleteProject}
+      />
     </div>
   )
 }

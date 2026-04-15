@@ -6,11 +6,12 @@ import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
-import { deleteProjectCascade } from '../services/projectDelete'
+import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { getOpenTaskCodeBadges, getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { PlanLabelPill, PlanLabelRow } from '../components/PlanLabelChips'
+import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import type { DbProject, KanbanColumn } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -24,7 +25,7 @@ import {
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 export function ProjectsPage() {
-  const { requestConfirm } = useUiFeedback()
+  const { toast, toastError } = useUiFeedback()
   const { user } = useAuth()
   const location = useLocation()
   const openedRef = useRef(false)
@@ -38,6 +39,8 @@ export function ProjectsPage() {
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
   const [startDateSort, setStartDateSort] = useState<ProjectStartDateSortOrder>(() => readProjectStartDateSortOrder())
+  const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   const sortedProjects = useMemo(() => sortProjectsByStartDate(projects, startDateSort), [projects, startDateSort])
 
@@ -57,18 +60,28 @@ export function ProjectsPage() {
     if (!hasScope(user, 'projects.edit')) return
     const p = await db.projects.get(id)
     if (!p) return
-    const ok =
-      user.role === 'admin' || p.createdBy === user.id
-        ? await requestConfirm({
-            title: 'Excluir projeto',
-            message: 'Excluir projeto e todos os dados vinculados?',
-            confirmLabel: 'Excluir',
-            cancelLabel: 'Cancelar',
-            danger: true,
-          })
-        : false
-    if (!ok) return
-    await deleteProjectCascade(id)
+    if (!(user.role === 'admin' || p.createdBy === user.id)) return
+    setDeleteTarget(p)
+  }
+
+  async function confirmDeleteTarget(reason: string) {
+    if (!user || !deleteTarget || deleteSubmitting) return
+    setDeleteSubmitting(true)
+    try {
+      await recordProjectDeletionLog({
+        projectId: deleteTarget.id,
+        projectName: deleteTarget.projectName,
+        user,
+        justification: reason,
+      })
+      await deleteProjectCascade(deleteTarget.id)
+      setDeleteTarget(null)
+      toast('Projeto excluído com sucesso.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível excluir o projeto.')
+    } finally {
+      setDeleteSubmitting(false)
+    }
   }
 
   if (!user) return null
@@ -282,6 +295,14 @@ export function ProjectsPage() {
         analysts={analysts}
         initialKanbanColumn={createKanbanColumn}
         projectToEdit={editingProject}
+      />
+
+      <ConfirmProjectDeleteModal
+        open={!!deleteTarget}
+        projectName={deleteTarget?.projectName ?? ''}
+        busy={deleteSubmitting}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteTarget}
       />
     </div>
   )

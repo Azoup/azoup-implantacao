@@ -259,6 +259,34 @@ export interface DbComment {
   docAttachments?: DbDocAttachment[] | null
 }
 
+export interface DbProjectDeletionLog {
+  id: string
+  projectId: string
+  projectName: string
+  deletedByUserId: string
+  deletedByUserName: string
+  deletedByUserEmail: string
+  justification: string
+  deletedAt: string
+}
+
+export type AuditAction = 'inclusao' | 'alteracao' | 'exclusao'
+export type AuditEntity = 'projeto' | 'timer' | 'fase' | 'tarefa' | 'contato' | 'comentario' | 'outro'
+
+export interface DbAuditLog {
+  id: string
+  action: AuditAction
+  entity: AuditEntity
+  entityId: string | null
+  entityLabel: string
+  userId: string
+  userName: string
+  userEmail: string
+  justification: string | null
+  details: string
+  createdAt: string
+}
+
 export interface DbLabel {
   id: string
   projectId: string
