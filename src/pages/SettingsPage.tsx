@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Moon, Palette, Shield, Sun, Users } from 'lucide-react'
+import { Check, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
@@ -8,10 +8,11 @@ import type { PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { supabase } from '../lib/supabaseClient'
 import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 
-type SettingsTab = 'geral' | 'aparencia'
+type SettingsTab = 'geral' | 'usuarios' | 'aparencia'
 
 const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -29,9 +30,26 @@ export function SettingsPage() {
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null)
   const [permissionDraft, setPermissionDraft] = useState<PermissionScope[]>([])
+  const [usersBusy, setUsersBusy] = useState<string | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
   const editingPermissionUser = permissionsUserId ? users.find((u) => u.id === permissionsUserId) ?? null : null
+  const { requestConfirm, toast, toastError } = useUiFeedback()
+
+  useEffect(() => {
+    if (!canManageUsers || !supabase) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        await refreshSupabaseDexieCache()
+      } catch (e) {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Falha ao carregar usuários do Supabase.')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [canManageUsers])
 
   function openPermissions(userId: string) {
     const target = users.find((u) => u.id === userId)
@@ -74,6 +92,53 @@ export function SettingsPage() {
     })
   }
 
+  async function updateUserStatus(userId: string, nextStatus: 'active' | 'inactive') {
+    if (!canManageUsers || !supabase) return
+    if (current?.id === userId && nextStatus === 'inactive') {
+      setErr('Você não pode inativar o próprio acesso.')
+      return
+    }
+    setErr(null)
+    setUsersBusy(userId)
+    try {
+      const { error } = await supabase.from('profiles').update({ status: nextStatus }).eq('id', userId)
+      if (error) throw error
+      await refreshSupabaseDexieCache()
+      toast(nextStatus === 'inactive' ? 'Usuário inativado.' : 'Usuário reativado.')
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Falha ao atualizar status do usuário.')
+    } finally {
+      setUsersBusy(null)
+    }
+  }
+
+  async function deleteUserLogin(userId: string, userName: string) {
+    if (!canManageUsers || !supabase) return
+    if (current?.id === userId) {
+      setErr('Você não pode excluir o próprio login.')
+      return
+    }
+    const ok = await requestConfirm({
+      title: 'Excluir login',
+      message: `Tem certeza que deseja excluir "${userName}"?`,
+      confirmLabel: 'Excluir login',
+      cancelLabel: 'Cancelar',
+    })
+    if (!ok) return
+    setErr(null)
+    setUsersBusy(userId)
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', userId)
+      if (error) throw error
+      await refreshSupabaseDexieCache()
+      toast('Login excluído com sucesso.')
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Falha ao excluir login.')
+    } finally {
+      setUsersBusy(null)
+    }
+  }
+
   return (
     <div className="page page--wide">
       <header className="page__header page__header--split">
@@ -99,6 +164,18 @@ export function SettingsPage() {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
             <Users {...icTab} aria-hidden />
             Geral
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'usuarios'}
+          className={'settings-tabs__btn' + (tab === 'usuarios' ? ' is-active' : '')}
+          onClick={() => setTab('usuarios')}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Shield {...icTab} aria-hidden />
+            Usuários
           </span>
         </button>
         <button
@@ -221,51 +298,97 @@ export function SettingsPage() {
               </li>
             </ul>
           </section>
+        </>
+      ) : null}
 
-          <section className="panel">
-            <h2 className="panel__title">Usuários</h2>
-            <p className="muted">{users.length} usuário(s) cadastrado(s)</p>
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Nome</th>
-                    <th>E-mail</th>
-                    <th>Perfil</th>
-                    <th>Criado em</th>
-                    <th>Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u.id}>
-                      <td>{u.name}</td>
-                      <td>{u.email}</td>
-                      <td>
-                        <span className={'pill' + (u.role === 'admin' ? ' pill--accent' : '')}>{u.role}</span>
-                      </td>
-                      <td>{formatDatePt(u.createdAt)}</td>
-                      <td>
-                        {canManageUsers ? (
+      {tab === 'usuarios' ? (
+        <section className="panel panel--stack">
+          <div className="page__header page__header--split" style={{ padding: 0, border: 0 }}>
+            <div>
+              <h2 className="panel__title">Controle de usuários</h2>
+              <p className="muted panel__lead">{users.length} usuário(s) carregado(s) automaticamente do Supabase.</p>
+            </div>
+          </div>
+
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>E-mail</th>
+                  <th>Perfil</th>
+                  <th>Status</th>
+                  <th>Criado em</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.name}</td>
+                    <td>{u.email}</td>
+                    <td>
+                      <span className={'pill' + (u.role === 'admin' ? ' pill--accent' : '')}>{u.role}</span>
+                    </td>
+                    <td>
+                      <span className={'pill' + (u.status === 'active' ? ' pill--ok' : '')}>
+                        {u.status === 'active' ? 'ativo' : 'inativo'}
+                      </span>
+                    </td>
+                    <td>{formatDatePt(u.createdAt)}</td>
+                    <td>
+                      {canManageUsers ? (
+                        <div className="settings-user-actions">
                           <button type="button" className="btn btn--ghost btn--sm" onClick={() => openPermissions(u.id)}>
                             <Shield size={14} strokeWidth={2} />
                             Permissões
                           </button>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!canManageUsers ? (
-              <p className="muted panel__foot">Somente admin pode criar usuários e alterar permissões.</p>
-            ) : null}
-            {err ? <p className="auth__error">{err}</p> : null}
-          </section>
-        </>
+                          {u.status === 'active' ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => void updateUserStatus(u.id, 'inactive')}
+                              disabled={usersBusy === u.id}
+                            >
+                              <UserX size={14} strokeWidth={2} />
+                              Inativar
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => void updateUserStatus(u.id, 'active')}
+                              disabled={usersBusy === u.id}
+                            >
+                              <UserCheck size={14} strokeWidth={2} />
+                              Reativar
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            onClick={() => void deleteUserLogin(u.id, u.name)}
+                            disabled={usersBusy === u.id}
+                          >
+                            <Trash2 size={14} strokeWidth={2} />
+                            Excluir login
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {!canManageUsers ? (
+            <p className="muted panel__foot">Somente admin pode criar usuários e alterar permissões.</p>
+          ) : null}
+          {err ? <p className="auth__error">{err}</p> : null}
+        </section>
       ) : null}
 
       {open && canManageUsers ? (

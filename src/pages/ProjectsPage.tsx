@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { Clock, Plus, TrendingUp } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpWideNarrow, CalendarDays, Clock, Plus, TrendingUp } from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
@@ -16,10 +16,10 @@ import type { DbProject, KanbanColumn } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
-  readProjectStartDateSortOrder,
-  sortProjectsByStartDate,
-  writeProjectStartDateSortOrder,
-  type ProjectStartDateSortOrder,
+  readProjectSortConfig,
+  sortProjects,
+  writeProjectSortConfig,
+  type ProjectSortConfig,
 } from '../lib/projectSort'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
@@ -38,11 +38,11 @@ export function ProjectsPage() {
   const [open, setOpen] = useState(false)
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
-  const [startDateSort, setStartDateSort] = useState<ProjectStartDateSortOrder>(() => readProjectStartDateSortOrder())
+  const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
-  const sortedProjects = useMemo(() => sortProjectsByStartDate(projects, startDateSort), [projects, startDateSort])
+  const sortedProjects = useMemo(() => sortProjects(projects, projectSort), [projects, projectSort])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -110,30 +110,48 @@ export function ProjectsPage() {
         </button>
       </header>
 
-      <div
-        className="dashboard-agenda-filter projects-page__start-sort"
-        role="group"
-        aria-label="Ordenar projetos por data de início"
-      >
+      <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
         <button
           type="button"
-          className={'dashboard-agenda-filter__btn' + (startDateSort === 'desc' ? ' is-active' : '')}
+          className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
           onClick={() => {
-            setStartDateSort('desc')
-            writeProjectStartDateSortOrder('desc')
+            const next: ProjectSortConfig = { ...projectSort, key: 'name' }
+            setProjectSort(next)
+            writeProjectSortConfig(next)
           }}
+          title="Ordenar por nome"
         >
-          Início Z→A (recentes)
+          <ArrowDownAZ size={15} strokeWidth={2} />
+          Nome
         </button>
         <button
           type="button"
-          className={'dashboard-agenda-filter__btn' + (startDateSort === 'asc' ? ' is-active' : '')}
+          className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
           onClick={() => {
-            setStartDateSort('asc')
-            writeProjectStartDateSortOrder('asc')
+            const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
+            setProjectSort(next)
+            writeProjectSortConfig(next)
           }}
+          title="Ordenar por início do projeto"
         >
-          Início A→Z (antigas)
+          <CalendarDays size={15} strokeWidth={2} />
+          Início
+        </button>
+        <button
+          type="button"
+          className="project-sortbar__btn project-sortbar__btn--dir"
+          onClick={() => {
+            const next: ProjectSortConfig = {
+              ...projectSort,
+              direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
+            }
+            setProjectSort(next)
+            writeProjectSortConfig(next)
+          }}
+          title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
+        >
+          <ArrowUpWideNarrow size={15} strokeWidth={2} />
+          {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
         </button>
       </div>
 

@@ -3,6 +3,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowDownAZ,
+  ArrowUpWideNarrow,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -28,10 +30,10 @@ import { updateEventValidated } from '../services/events'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
-  readProjectStartDateSortOrder,
-  sortProjectsByStartDate,
-  writeProjectStartDateSortOrder,
-  type ProjectStartDateSortOrder,
+  readProjectSortConfig,
+  sortProjects,
+  writeProjectSortConfig,
+  type ProjectSortConfig,
 } from '../lib/projectSort'
 
 const iconSm = { size: 20, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
@@ -84,7 +86,7 @@ export function DashboardPage() {
   const [editMeetingLink, setEditMeetingLink] = useState('')
   const [editAnalystId, setEditAnalystId] = useState('')
   const [agendaLinkFilter, setAgendaLinkFilter] = useState<'all' | 'with_link'>('all')
-  const [startDateSort, setStartDateSort] = useState<ProjectStartDateSortOrder>(() => readProjectStartDateSortOrder())
+  const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [now, setNow] = useState(() => new Date())
   const meetingInputRef = useRef<HTMLInputElement | null>(null)
   const { toast, toastError, requestConfirm } = useUiFeedback()
@@ -144,9 +146,9 @@ export function DashboardPage() {
       const col = deriveKanbanColumnFromPlanState(p, phases, tasks)
       return col !== 'finalizados' && col !== 'cancelados'
     })
-    const ordered = sortProjectsByStartDate(filtered, startDateSort)
+    const ordered = sortProjects(filtered, projectSort)
     return ordered.slice(0, 12)
-  }, [projects, phases, tasks, startDateSort])
+  }, [projects, phases, tasks, projectSort])
 
   function planLabel(key: string) {
     const m = planModels.find((x) => x.key === key)
@@ -301,30 +303,48 @@ export function DashboardPage() {
             </span>
             Projetos em andamento
           </h2>
-          <div
-            className="dashboard-agenda-filter"
-            role="group"
-            aria-label="Ordenar projetos por data de início"
-          >
+          <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
             <button
               type="button"
-              className={'dashboard-agenda-filter__btn' + (startDateSort === 'desc' ? ' is-active' : '')}
+              className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
               onClick={() => {
-                setStartDateSort('desc')
-                writeProjectStartDateSortOrder('desc')
+                const next: ProjectSortConfig = { ...projectSort, key: 'name' }
+                setProjectSort(next)
+                writeProjectSortConfig(next)
               }}
+              title="Ordenar por nome"
             >
-              Início Z→A (recentes)
+              <ArrowDownAZ size={15} strokeWidth={2} />
+              Nome
             </button>
             <button
               type="button"
-              className={'dashboard-agenda-filter__btn' + (startDateSort === 'asc' ? ' is-active' : '')}
+              className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
               onClick={() => {
-                setStartDateSort('asc')
-                writeProjectStartDateSortOrder('asc')
+                const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
+                setProjectSort(next)
+                writeProjectSortConfig(next)
               }}
+              title="Ordenar por início do projeto"
             >
-              Início A→Z (antigas)
+              <CalendarDays size={15} strokeWidth={2} />
+              Início
+            </button>
+            <button
+              type="button"
+              className="project-sortbar__btn project-sortbar__btn--dir"
+              onClick={() => {
+                const next: ProjectSortConfig = {
+                  ...projectSort,
+                  direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
+                }
+                setProjectSort(next)
+                writeProjectSortConfig(next)
+              }}
+              title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
+            >
+              <ArrowUpWideNarrow size={15} strokeWidth={2} />
+              {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
             </button>
           </div>
           <div className="dashboard-proj-list">

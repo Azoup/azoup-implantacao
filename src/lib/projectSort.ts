@@ -1,8 +1,10 @@
 import type { DbProject } from '../db/types'
 
-export type ProjectStartDateSortOrder = 'desc' | 'asc'
+export type ProjectSortKey = 'startDate' | 'name'
+export type ProjectSortDirection = 'asc' | 'desc'
+export type ProjectSortConfig = { key: ProjectSortKey; direction: ProjectSortDirection }
 
-const STORAGE_KEY = 'vyntask:projectStartSortOrder'
+const STORAGE_KEY = 'vyntask:projectSortConfig'
 
 function startMs(p: Pick<DbProject, 'startDate'>, nullSentinel: 'min' | 'max'): number {
   const raw = p.startDate?.trim()
@@ -12,29 +14,44 @@ function startMs(p: Pick<DbProject, 'startDate'>, nullSentinel: 'min' | 'max'): 
   return t
 }
 
-/** Ordena por data de início. `desc` = mais novas primeiro; `asc` = mais antigas primeiro. Sem data vai para o fim. */
-export function sortProjectsByStartDate<T extends Pick<DbProject, 'startDate'>>(projects: T[], order: ProjectStartDateSortOrder): T[] {
+function nameCmp(a: Pick<DbProject, 'projectName'>, b: Pick<DbProject, 'projectName'>): number {
+  return a.projectName.localeCompare(b.projectName, 'pt-BR', { sensitivity: 'base' })
+}
+
+export function sortProjects<T extends Pick<DbProject, 'projectName' | 'startDate'>>(
+  projects: T[],
+  config: ProjectSortConfig,
+): T[] {
   return [...projects].sort((a, b) => {
-    if (order === 'desc') {
-      return startMs(b, 'min') - startMs(a, 'min')
-    }
-    return startMs(a, 'max') - startMs(b, 'max')
+    const base =
+      config.key === 'name'
+        ? nameCmp(a, b)
+        : config.direction === 'desc'
+          ? startMs(b, 'min') - startMs(a, 'min')
+          : startMs(a, 'max') - startMs(b, 'max')
+    if (base !== 0) return base
+    return nameCmp(a, b)
   })
 }
 
-export function readProjectStartDateSortOrder(): ProjectStartDateSortOrder {
+export function readProjectSortConfig(): ProjectSortConfig {
   try {
     const v = localStorage.getItem(STORAGE_KEY)
-    if (v === 'asc' || v === 'desc') return v
+    if (v) {
+      const parsed = JSON.parse(v) as Partial<ProjectSortConfig>
+      const key = parsed.key === 'name' ? 'name' : 'startDate'
+      const direction = parsed.direction === 'asc' ? 'asc' : 'desc'
+      return { key, direction }
+    }
   } catch {
     /* ignore */
   }
-  return 'desc'
+  return { key: 'startDate', direction: 'desc' }
 }
 
-export function writeProjectStartDateSortOrder(order: ProjectStartDateSortOrder): void {
+export function writeProjectSortConfig(config: ProjectSortConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY, order)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
   } catch {
     /* ignore */
   }
