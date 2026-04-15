@@ -35,7 +35,7 @@ function readTheme(): ThemeMode {
   return 'light'
 }
 
-const DEFAULT_PALETTE: PaletteId = 'white_orange'
+const DEFAULT_PALETTE: PaletteId = 'vyntask_brand'
 
 function readPalette(): PaletteId {
   try {

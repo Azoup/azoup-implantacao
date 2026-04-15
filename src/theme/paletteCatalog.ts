@@ -1,4 +1,4 @@
-export type PaletteId = 'black_yellow' | 'black_orange' | 'black_blue' | 'white_blue' | 'white_orange'
+export type PaletteId = 'vyntask_brand' | 'black_yellow' | 'black_orange' | 'black_blue' | 'white_blue' | 'white_orange'
 
 export type PaletteMeta = {
   id: PaletteId
@@ -9,6 +9,12 @@ export type PaletteMeta = {
 }
 
 export const PALETTE_PRESETS: PaletteMeta[] = [
+  {
+    id: 'vyntask_brand',
+    name: 'VynTask (azul + laranja)',
+    tagline: 'Azul profundo com destaques em laranja de alto contraste',
+    swatch: ['#030329', '#0b1f8f', '#ff8b17'],
+  },
   {
     id: 'black_yellow',
     name: 'Preto + amarelo',
@@ -43,6 +49,7 @@ export const PALETTE_PRESETS: PaletteMeta[] = [
 
 export function isPaletteId(v: string | null): v is PaletteId {
   return (
+    v === 'vyntask_brand' ||
     v === 'black_yellow' ||
     v === 'black_orange' ||
     v === 'black_blue' ||

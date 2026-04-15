@@ -1,7 +1,70 @@
 /**
  * Paletas VynTask: combinações harmoniosas com contraste reforçado no modo claro.
- * O padrão `white_orange` está também em index.css até o data-palette hidratar.
+ * O padrão `vyntask_brand` está também em index.css até o data-palette hidratar.
  */
+
+/* ——— VynTask brand (azul + laranja) ——— */
+:root[data-theme='light'][data-palette='vyntask_brand'] {
+  --bg: #f3f7ff;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #e7edff;
+  --border: #c8d4ff;
+  --text: #0a1b66;
+  --text-muted: #44508a;
+  --accent: #ff8b17;
+  --accent-dim: rgba(255, 139, 23, 0.16);
+  --accent-deep: #d46d00;
+  --on-accent: #1a1200;
+  --accent-glow-strong: rgba(255, 139, 23, 0.34);
+  --accent-ring: rgba(255, 139, 23, 0.45);
+  --accent-ring-soft: rgba(255, 139, 23, 0.12);
+  --sidebar-cta-shadow: rgba(255, 139, 23, 0.3);
+  --danger: #c1121f;
+  --success: #0f8f6f;
+  --warning: #b96a00;
+  --info: #1d4ed8;
+  --sidebar: #0b1f8f;
+  --sidebar-text: #f3f6ff;
+  --sidebar-muted: #b8c4ff;
+  --sidebar-active-bg: rgba(255, 139, 23, 0.18);
+  --shadow: 0 10px 32px rgba(3, 3, 41, 0.12);
+  --shadow-sm: 0 2px 10px rgba(3, 3, 41, 0.08);
+  --cal-event-default: rgba(255, 139, 23, 0.2);
+  --agenda-event-bg: #ffffff;
+  --agenda-grid-line: rgba(10, 27, 102, 0.08);
+}
+
+:root[data-theme='dark'][data-palette='vyntask_brand'] {
+  --bg: #030329;
+  --bg-elevated: #06104a;
+  --surface: #0b1f8f;
+  --surface-2: #1630b4;
+  --border: #3452d4;
+  --text: #edf1ff;
+  --text-muted: #b8c4ff;
+  --accent: #ff8b17;
+  --accent-dim: rgba(255, 139, 23, 0.2);
+  --accent-deep: #ff7a00;
+  --on-accent: #1c1200;
+  --accent-glow-strong: rgba(255, 139, 23, 0.4);
+  --accent-ring: rgba(255, 139, 23, 0.52);
+  --accent-ring-soft: rgba(255, 139, 23, 0.16);
+  --sidebar-cta-shadow: rgba(255, 139, 23, 0.36);
+  --danger: #ff7b87;
+  --success: #52dbb7;
+  --warning: #ffc266;
+  --info: #8cb2ff;
+  --sidebar: #020226;
+  --sidebar-text: #edf1ff;
+  --sidebar-muted: #9fb2ff;
+  --sidebar-active-bg: rgba(255, 139, 23, 0.2);
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --cal-event-default: rgba(255, 139, 23, 0.26);
+  --agenda-event-bg: #0b1f8f;
+  --agenda-grid-line: rgba(237, 241, 255, 0.1);
+}
 
 /* ——— Preto + amarelo ——— */
 :root[data-theme='light'][data-palette='black_yellow'] {
