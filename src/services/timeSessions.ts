@@ -2,6 +2,7 @@ import { uuid } from '../lib/uuid'
 import { db } from '../db/database'
 import { recalculateTaskActualHours } from './hoursAccounting'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
+import { setTaskStatus } from './tasks'
 
 export async function getRunningSessionForUser(userId: string) {
   const all = await db.timeSessions.where('userId').equals(userId).toArray()
@@ -47,6 +48,14 @@ export async function startTimer(taskId: string, userId: string): Promise<string
     details: `Início de cronômetro na tarefa ${task.code}.`,
     user: actor,
   })
+  if (task.status !== 'em_andamento' && task.status !== 'concluida' && task.status !== 'cancelado') {
+    try {
+      await setTaskStatus(taskId, 'em_andamento', userId)
+    } catch {
+      await db.timeSessions.delete(id)
+      throw new Error('Não foi possível marcar a tarefa como em andamento (verifique a fase do projeto).')
+    }
+  }
   return id
 }
 

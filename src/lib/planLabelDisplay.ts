@@ -1,8 +1,6 @@
-import { KANBAN_COLUMNS } from '../constants/kanban'
-import type { DbPhase, DbTask, KanbanColumn } from '../db/types'
+import { phaseProgressionAccent } from '../constants/phaseProgression'
+import type { DbPhase, DbTask } from '../db/types'
 import { compareTaskCode } from './taskCode'
-
-const PLAN_KANBAN_IDS: KanbanColumn[] = ['novos', 'fase_01', 'fase_02', 'fase_03', 'fase_04']
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const h = hex.replace('#', '').trim()
@@ -34,31 +32,6 @@ export function planLabelTextOnBackground(bg: string): string {
   return relativeLuminance(bg) > 0.42 ? '#0f172a' : '#f8fafc'
 }
 
-function buildPhaseTones(base: string): string[] {
-  const dk = '#0f172a'
-  const lt = '#f1f5f9'
-  return [
-    base,
-    mixHex(base, dk, 0.22),
-    mixHex(base, lt, 0.26),
-    mixHex(base, dk, 0.38),
-    mixHex(base, lt, 0.44),
-    mixHex(base, dk, 0.12),
-  ]
-}
-
-const ACCENTS_BY_ID = Object.fromEntries(KANBAN_COLUMNS.map((c) => [c.id, c.accent])) as Record<
-  KanbanColumn,
-  string
->
-
-/** Tons por subfase (1.1 → tom 0, 1.2 → tom 1, …), mesma família da barra da coluna do kanban. */
-export const PLAN_LABEL_PHASE_TONES: readonly (readonly string[])[] = PLAN_KANBAN_IDS.map((id) =>
-  buildPhaseTones(ACCENTS_BY_ID[id] ?? '#64748b'),
-)
-
-const FALLBACK_TONES = buildPhaseTones('#64748b')
-
 export function parsePlanCodeMajorMinor(code: string): { major: number; minor: number } {
   const s = code.trim()
   const i = s.indexOf('.')
@@ -76,20 +49,16 @@ export function parsePlanCodeMajorMinor(code: string): { major: number; minor: n
   }
 }
 
-/** Cores da etiqueta alinhadas à fase do plano (0.x → Fase 00, 1.x → Fase 01, …), com variação por subfase. */
+/** Cores da etiqueta = mesma cor da fase (0.x → Fase 00, 1.x → Fase 01, …); sem tons diferentes por subcódigo. */
 export function planLabelColorsFromCode(code: string): { background: string; color: string } {
-  const { major, minor } = parsePlanCodeMajorMinor(code)
-  const tones = major < PLAN_LABEL_PHASE_TONES.length ? PLAN_LABEL_PHASE_TONES[major] : FALLBACK_TONES
-  const toneIdx = (minor - 1) % tones.length
-  const background = tones[toneIdx] ?? tones[0]
+  const { major } = parsePlanCodeMajorMinor(code)
+  const background = phaseProgressionAccent(major)
   return { background, color: planLabelTextOnBackground(background) }
 }
 
-/** Cor “chefe” da fase (barra do kanban / coluna do quadro) pelo `orderIndex` do plano. */
+/** Cor “chefe” da fase (timeline, cabeçalho da seção Labels, kanban) pelo `orderIndex` do plano. */
 export function planPhaseAccentHex(planOrderIndex: number): string {
-  if (!Number.isFinite(planOrderIndex) || planOrderIndex < 0) return FALLBACK_TONES[0]
-  if (planOrderIndex >= PLAN_LABEL_PHASE_TONES.length) return FALLBACK_TONES[0]
-  return PLAN_LABEL_PHASE_TONES[planOrderIndex][0] ?? FALLBACK_TONES[0]
+  return phaseProgressionAccent(planOrderIndex)
 }
 
 /**

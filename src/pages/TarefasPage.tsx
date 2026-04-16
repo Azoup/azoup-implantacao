@@ -7,6 +7,7 @@ import { db } from '../db/database'
 import { compareTaskCode } from '../lib/taskCode'
 import { isTaskActiveForPrazoBoard } from '../lib/taskDueBucket'
 import { formatDatePt } from '../lib/dates'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { TASK_PRIORITY_OPTIONS, TASK_STATUS_OPTIONS } from '../constants/tasks'
 import { setTaskStatus } from '../services/tasks'
 import type { TaskPriority, TaskStatus } from '../db/types'
@@ -196,7 +197,7 @@ export function TarefasPage() {
                       </select>
                     </td>
                     <td>
-                      {t.actualHours}h/{t.estimatedHours}h
+                      {formatDurationHmFromHours(t.actualHours)}/{formatDurationHmFromHours(t.estimatedHours)}
                     </td>
                     <td>{t.dueDate ? formatDatePt(t.dueDate) : '—'}</td>
                     <td>

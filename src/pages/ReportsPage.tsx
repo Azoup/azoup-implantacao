@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 
 export function ReportsPage() {
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
@@ -53,7 +54,7 @@ export function ReportsPage() {
           <div className="kpi__label">Reagendamentos</div>
         </div>
         <div className="kpi">
-          <div className="kpi__value">{metrics.hoursRealized.toFixed(1)}h</div>
+          <div className="kpi__value">{formatDurationHmFromHours(metrics.hoursRealized)}</div>
           <div className="kpi__label">Horas realizadas (logs)</div>
         </div>
       </section>
@@ -68,7 +69,7 @@ export function ReportsPage() {
                 <div className="bar-row__track">
                   <div className="bar-row__fill" style={{ width: `${(row.h / maxH) * 100}%` }} />
                 </div>
-                <span className="bar-row__val">{row.h}h</span>
+                <span className="bar-row__val">{formatDurationHmFromHours(row.h)}</span>
               </div>
             ))}
             {hoursByProject.length === 0 ? <p className="muted">Sem dados.</p> : null}
@@ -109,11 +110,11 @@ export function ReportsPage() {
             <tbody>
               <tr>
                 <td>Total estimado</td>
-                <td className="num">{metrics.est.toFixed(1)}h</td>
+                <td className="num">{formatDurationHmFromHours(metrics.est)}</td>
               </tr>
               <tr>
                 <td>Total realizado (actualHours)</td>
-                <td className="num">{tasks.reduce((s, t) => s + t.actualHours, 0).toFixed(1)}h</td>
+                <td className="num">{formatDurationHmFromHours(tasks.reduce((s, t) => s + t.actualHours, 0))}</td>
               </tr>
             </tbody>
           </table>

@@ -13,6 +13,7 @@ import { db } from '../db/database'
 import { eventColorsFromAnalyst } from '../lib/analystColors'
 import { buildGoogleCalendarTemplateUrl } from '../lib/googleCalendarUrl'
 import { brDateTimeToIso, normalizeBrDateInput, normalizeTimeInput } from '../lib/dateTimeInput'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 import type { DbEvent } from '../db/types'
 import { createEventValidated } from '../services/events'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -542,7 +543,7 @@ export function AgendaPage() {
                     </div>
                     <div className="uns-card__meta">
                       <Clock size={14} strokeWidth={1.75} aria-hidden />
-                      <span>{t.estimatedHours}h</span>
+                      <span>{formatDurationHmFromHours(t.estimatedHours)}</span>
                     </div>
                     <div className="uns-card__proj">{p?.projectName ?? '—'}</div>
                   </div>

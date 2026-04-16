@@ -6,6 +6,7 @@ import { db } from '../db/database'
 import { ensureDatabase } from '../db/init'
 import { STATIC_PLAN_PRESENTATIONS } from '../constants/planPresentations'
 import { VyntaskLogo } from '../components/VyntaskLogo'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 
 type Card = {
   key: string
@@ -75,7 +76,7 @@ export function PlanPresentationsPage() {
                   <FileText size={28} strokeWidth={1.5} />
                 </div>
                 <h2 className="presentations-card__name">{c.name}</h2>
-                <p className="presentations-card__hours">{c.hoursContracted} horas contratadas</p>
+                <p className="presentations-card__hours">Carga contratada: {formatDurationHmFromHours(c.hoursContracted)}</p>
                 <p className="presentations-card__blurb">{c.blurb}</p>
                 {c.presentationUrl ? (
                   <a

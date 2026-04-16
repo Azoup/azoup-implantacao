@@ -22,6 +22,7 @@ import { createProjectFromPlan } from '../services/project'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 
 function emptyToNull(s: string): string | null {
   const t = s.trim()
@@ -485,7 +486,7 @@ export function ProjectCreateModal({
                   <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} disabled={isEdit}>
                     {plans.map((pl) => (
                       <option key={pl.id} value={pl.key}>
-                        {pl.name} — {pl.hoursContracted}h · {pl.phaseCount} fases
+                        {pl.name} — {formatDurationHmFromHours(pl.hoursContracted)} · {pl.phaseCount} fases
                       </option>
                     ))}
                   </select>

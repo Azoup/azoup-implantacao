@@ -13,6 +13,7 @@ import { applyManualKanbanColumnMove, deriveKanbanColumnFromPlanState } from '..
 import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 
 const iconSmall = { size: 16, strokeWidth: 2 } as const
 
@@ -135,7 +136,7 @@ export function OverviewPage() {
                 const n = m?.name ?? p.planType
                 return n.length > 16 ? `${n.slice(0, 14)}…` : n
               })()
-    return `${tag} ${p.hoursContracted}h`
+    return `${tag} ${formatDurationHmFromHours(p.hoursContracted)}`
   }
 
   return (
@@ -233,6 +234,16 @@ export function OverviewPage() {
                             </Link>
                           </div>
                           <div className="kanban-card__badges">
+                            {analyst ? (
+                              <span className="kanban-card__analyst" title={`Analista responsável: ${analyst.name}`}>
+                                <AnalystAvatar
+                                  name={analyst.name}
+                                  color={analyst.color}
+                                  avatarUrl={analyst.avatarUrl}
+                                  size="sm"
+                                />
+                              </span>
+                            ) : null}
                             <span className={planBadgeClass(p.planType)}>{planBadgeLabel(p)}</span>
                           </div>
                           <PlanLabelRow last={lastLabel} active={activeLabel} variant="kanban" />
@@ -244,20 +255,13 @@ export function OverviewPage() {
                           </div>
                           <div className="kanban-card__meta">
                             <span className="kanban-card__hours">
-                              {p.hoursUsed}h / {p.hoursContracted}h
+                              {formatDurationHmFromHours(p.hoursUsed)} / {formatDurationHmFromHours(p.hoursContracted)}
                             </span>
-                            {analyst ? (
-                              <AnalystAvatar
-                                name={analyst.name}
-                                color={analyst.color}
-                                avatarUrl={analyst.avatarUrl}
-                                size="sm"
-                              />
-                            ) : (
-                              <span className="kanban-card__no-analyst" title="Sem analista">
-                                —
+                            {!analyst ? (
+                              <span className="kanban-card__no-analyst" title="Sem analista responsável">
+                                Sem analista
                               </span>
-                            )}
+                            ) : null}
                           </div>
                           <div className="kanban-card__move">
                             {canEditProjects ? (

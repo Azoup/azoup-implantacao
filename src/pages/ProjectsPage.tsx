@@ -11,9 +11,11 @@ import { projectProgressPercent } from '../lib/projectProgress'
 import { getOpenTaskCodeBadges, getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { PlanLabelPill, PlanLabelRow } from '../components/PlanLabelChips'
+import { AnalystAvatar } from '../components/AnalystAvatar'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import type { DbProject, KanbanColumn } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   readProjectSortConfig,
@@ -32,7 +34,8 @@ export function ProjectsPage() {
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
   const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const analysts = (useLiveQuery(() => db.analysts.toArray(), []) ?? []).filter((a) => a.active)
+  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const analysts = useMemo(() => analystsAll.filter((a) => a.active), [analystsAll])
   const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? []
 
   const [open, setOpen] = useState(false)
@@ -202,6 +205,7 @@ export function ProjectsPage() {
           const lastPlanLabel = getLastCompletedPlanLabel(tasks, p.id)
           const activePlanLabel = getActivePlanLabel(tasks, p.id, phases)
           const tooltipBits = [p.tradeName?.trim(), p.razaoSocial?.trim(), p.cnpj].filter(Boolean)
+          const analyst = analystsAll.find((a) => a.id === p.analystId)
 
           return (
             <article key={p.id} className="proj-card">
@@ -216,6 +220,16 @@ export function ProjectsPage() {
                   </Link>
                 </h2>
                 <div className="proj-card__badges">
+                  {analyst ? (
+                    <span className="proj-card__analyst" title={`Analista responsável: ${analyst.name}`}>
+                      <AnalystAvatar
+                        name={analyst.name}
+                        color={analyst.color}
+                        avatarUrl={analyst.avatarUrl}
+                        size="sm"
+                      />
+                    </span>
+                  ) : null}
                   {p.clientApiId?.trim() ? (
                     <span className="proj-card__badge proj-card__badge--api" title="API do projeto">
                       API {p.clientApiId}
@@ -255,7 +269,7 @@ export function ProjectsPage() {
                 <div className="proj-card__meta-item">
                   <Clock {...metaIcon} aria-hidden />
                   <span>
-                    {p.hoursUsed}h / {p.hoursContracted}h
+                    {formatDurationHmFromHours(p.hoursUsed)} / {formatDurationHmFromHours(p.hoursContracted)}
                   </span>
                 </div>
                 <div className="proj-card__meta-item proj-card__meta-item--phase">

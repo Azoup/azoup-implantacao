@@ -17,8 +17,11 @@ import {
   Video,
   XOctagon,
 } from 'lucide-react'
+import { useAuth } from '../auth/AuthContext'
 import { db } from '../db/database'
+import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import { formatDatePt, weekdayTitlePt } from '../lib/dates'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { brDateTimeToIso, normalizeBrDateInput, normalizeTimeInput } from '../lib/dateTimeInput'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
@@ -65,6 +68,20 @@ function toTimeInput(d: Date): string {
 }
 
 export function DashboardPage() {
+  const { user } = useAuth()
+  const { running: runningTimer, liveSeconds: runningLiveSeconds } = useRunningTimerSession(user?.id)
+  const runningTimerContext = useLiveQuery(
+    async () => {
+      if (!runningTimer?.taskId) return null
+      const task = await db.tasks.get(runningTimer.taskId)
+      if (!task) return null
+      const project = await db.projects.get(task.projectId)
+      if (!project) return null
+      return { task, project }
+    },
+    [runningTimer?.taskId],
+  )
+
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
   const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
@@ -245,6 +262,25 @@ export function DashboardPage() {
         </div>
       </header>
 
+      {user && runningTimer && runningTimerContext ? (
+        <div className="dashboard-live-timer" role="status" aria-live="polite">
+          <Link className="dashboard-live-timer__inner" to={`/projetos/${runningTimerContext.project.id}`}>
+            <span className="dashboard-live-timer__ic" aria-hidden>
+              <Clock3 size={22} strokeWidth={2} absoluteStrokeWidth />
+            </span>
+            <div className="dashboard-live-timer__text">
+              <strong>Cronômetro ativo</strong>
+              <span className="dashboard-live-timer__sub muted">
+                {runningTimerContext.project.projectName}
+                <span aria-hidden> · </span>
+                {runningTimerContext.task.code} {runningTimerContext.task.title}
+              </span>
+            </div>
+            <span className="dashboard-live-timer__hms">{formatDurationHMS(runningLiveSeconds)}</span>
+          </Link>
+        </div>
+      ) : null}
+
       <section className="dashboard-kpi-row" aria-label="Resumo">
         <div className="dashboard-kpi dashboard-kpi--folder">
           <div className="dashboard-kpi__icon" aria-hidden>
@@ -365,12 +401,27 @@ export function DashboardPage() {
                       <Link to={`/projetos/${p.id}`} className="dashboard-proj-card__name dashboard-proj-card__name--link">
                         {p.projectName}
                       </Link>
-                      <span className="dashboard-proj-card__plan">{planLabel(p.planType)}</span>
+                      <div className="dashboard-proj-card__head-trail">
+                        {analyst ? (
+                          <span
+                            className="dashboard-proj-card__analyst"
+                            title={`Analista responsável: ${analyst.name}`}
+                          >
+                            <AnalystAvatar
+                              name={analyst.name}
+                              color={analyst.color}
+                              avatarUrl={analyst.avatarUrl}
+                              size="sm"
+                            />
+                          </span>
+                        ) : null}
+                        <span className="dashboard-proj-card__plan">{planLabel(p.planType)}</span>
+                      </div>
                     </div>
                     <PlanLabelRow last={lastLabel} active={activeLabel} variant="dashboard" />
                     <div className="dashboard-proj-card__meta">
                       <span className="dashboard-proj-card__hours">
-                        {p.hoursUsed}h / {p.hoursContracted}h
+                        {formatDurationHmFromHours(p.hoursUsed)} / {formatDurationHmFromHours(p.hoursContracted)}
                       </span>
                       <span className="dashboard-proj-card__dot" aria-hidden>
                         ·
@@ -381,15 +432,6 @@ export function DashboardPage() {
                       >
                         {phaseLabel}
                       </span>
-                      {analyst ? (
-                        <AnalystAvatar
-                          className="dashboard-proj-card__analyst"
-                          name={analyst.name}
-                          color={analyst.color}
-                          avatarUrl={analyst.avatarUrl}
-                          size="sm"
-                        />
-                      ) : null}
                     </div>
                     <div className="dashboard-proj-card__progress-row">
                       <div className="dashboard-proj-card__track">

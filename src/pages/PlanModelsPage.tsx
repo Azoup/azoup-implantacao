@@ -9,6 +9,7 @@ import { PlanTaskModal, type PlanTaskFormValues } from '../components/PlanTaskMo
 import { db } from '../db/database'
 import type { DbPlanPhase, DbPlanTask, PlanTypeKey } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { BUILTIN_PLAN_KEYS } from '../constants/planPresentations'
 import { slugifyPlanKey } from '../lib/planModelKey'
 import {
@@ -387,10 +388,11 @@ export function PlanModelsPage() {
                   <strong className="plan-card__name">{p.name}</strong>
                   <div className="plan-card__stats">
                     <span>
-                      {p.phaseCount} {p.phaseCount === 1 ? 'fase' : 'fases'} · {p.hoursContracted}h
+                      {p.phaseCount} {p.phaseCount === 1 ? 'fase' : 'fases'} ·{' '}
+                      {formatDurationHmFromHours(p.hoursContracted)}
                     </span>
                   </div>
-                  <div className="plan-card__op muted">Operacional: {op}h</div>
+                  <div className="plan-card__op muted">Operacional: {formatDurationHmFromHours(op)}</div>
                   {!p.active ? <span className="plan-card__inactive">Inativo</span> : null}
                 </button>
               )
@@ -573,7 +575,7 @@ export function PlanModelsPage() {
                               <span className="plan-task-row__code">{t.code}</span>
                               <span className="plan-task-row__title">{t.title}</span>
                               <span className="plan-task-row__hours muted">
-                                {t.isInformational ? 'info' : `${t.estimatedHours}h`}
+                                {t.isInformational ? 'info' : formatDurationHmFromHours(t.estimatedHours)}
                               </span>
                               {editStructure ? (
                                 <span className="plan-task-row__actions">

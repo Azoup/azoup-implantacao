@@ -15,6 +15,7 @@ import {
   Pencil,
   Phone,
   Play,
+  PlayCircle,
   Plus,
   RotateCcw,
   Send,
@@ -24,9 +25,9 @@ import {
   XCircle,
 } from 'lucide-react'
 import { DocCommentBody } from '../components/DocCommentBody'
+import { AnalystAvatar } from '../components/AnalystAvatar'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
-import { TaskTimesheet } from '../components/TaskTimesheet'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
@@ -43,9 +44,16 @@ import { compareTaskCode } from '../lib/taskCode'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
 import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
-import { addProjectDocumentation, addTaskChecklistItem } from '../services/taskComments'
+import {
+  addProjectDocumentation,
+  deleteProjectDocumentation,
+  updateProjectDocumentationContent,
+} from '../services/taskComments'
+import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectConclude'
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import { formatDurationHmFromHours } from '../lib/durationFormat'
+import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import type {
   DbComment,
   DbDocAttachment,
@@ -79,6 +87,8 @@ function phaseStats(phaseId: string, projectId: string, tasks: DbTask[]) {
 function taskStatusIcon(status: TaskStatus) {
   if (status === 'concluida') return <CheckCircle2 className="pd-task__status-ic pd-task__status-ic--done" {...icSm} />
   if (status === 'cancelado') return <XCircle className="pd-task__status-ic" {...icSm} />
+  if (status === 'em_andamento')
+    return <PlayCircle className="pd-task__status-ic pd-task__status-ic--progress" {...icSm} />
   return <Hourglass className="pd-task__status-ic" {...icSm} />
 }
 
@@ -90,6 +100,7 @@ export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { running: runningTimerSession, liveSeconds: runningLiveSeconds } = useRunningTimerSession(user?.id)
   const canEditProjects = hasScope(user, 'projects.edit')
 
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
@@ -118,8 +129,11 @@ export function ProjectDetailPage() {
   }, [projectId]) ?? []
   const taskCommentsOnly = useMemo(() => allComments.filter((c) => c.taskId != null), [allComments])
   const docComments = useMemo(
-    () => [...allComments.filter((c) => c.taskId == null)].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [allComments],
+    () =>
+      [...allComments.filter((c) => c.projectId === projectId && c.taskId == null)].sort((a, b) =>
+        b.createdAt.localeCompare(a.createdAt),
+      ),
+    [allComments, projectId],
   )
 
   const users = useLiveQuery(() => db.users.toArray(), []) ?? []
@@ -154,7 +168,6 @@ export function ProjectDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [hoursTask, setHoursTask] = useState<DbTask | null>(null)
   const [expandedDesc, setExpandedDesc] = useState<Record<string, boolean>>({})
-  const [draftItem, setDraftItem] = useState<Record<string, string>>({})
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [contactRole, setContactRole] = useState('')
@@ -167,6 +180,9 @@ export function ProjectDetailPage() {
   const [docLinkLabelDraft, setDocLinkLabelDraft] = useState('')
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false)
   const [deleteProjectBusy, setDeleteProjectBusy] = useState(false)
+  const [docEditingId, setDocEditingId] = useState<string | null>(null)
+  const [docEditDraft, setDocEditDraft] = useState('')
+  const [docEditBusy, setDocEditBusy] = useState(false)
 
   const sortedPhases = useMemo(
     () => [...phases].sort((a, b) => a.orderIndex - b.orderIndex),
@@ -205,7 +221,7 @@ export function ProjectDetailPage() {
   }, [planBlueprint, sortedPhases, tasks, projectId])
 
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
-  const { toast, toastError, toastWarn, requestConfirm } = useUiFeedback()
+  const { toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason } = useUiFeedback()
 
   if (!user) return null
   const me: DbUser = user
@@ -271,28 +287,22 @@ export function ProjectDetailPage() {
 
   async function onTaskStatus(id: string, next: TaskStatus) {
     if (!canEditProjects) return
+    const task = tasks.find((t) => t.id === id)
+    if (!task) return
     try {
-      await setTaskStatus(id, next, me.id)
+      if (next === 'concluida') {
+        const phase = phaseById.get(task.phaseId)
+        const informational = effectiveTaskIsInformational(task, phase, planBlueprint?.blocks)
+        const r = await concludeOperationalTaskWithHourGuards(task, informational, me.id, {
+          requestConfirm,
+          requestDestructiveWithReason,
+        })
+        if (r === 'cancelled') return
+      } else {
+        await setTaskStatus(id, next, me.id)
+      }
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa')
-    }
-  }
-
-  async function onAddItem(e: FormEvent, task: DbTask) {
-    e.preventDefault()
-    if (!canEditProjects) return
-    const text = draftItem[task.id]?.trim()
-    if (!text) return
-    try {
-      await addTaskChecklistItem({
-        taskId: task.id,
-        projectId: proj.id,
-        authorId: me.id,
-        content: text,
-      })
-      setDraftItem((d) => ({ ...d, [task.id]: '' }))
-    } catch {
-      toastError('Não foi possível adicionar o item')
     }
   }
 
@@ -424,6 +434,61 @@ export function ProjectDetailPage() {
     }
   }
 
+  async function onSaveDocumentationEdit() {
+    if (!docEditingId) return
+    if (!docEditDraft.trim()) {
+      toast('O texto não pode ficar vazio.', 'warn')
+      return
+    }
+    setDocEditBusy(true)
+    try {
+      await updateProjectDocumentationContent({
+        commentId: docEditingId,
+        actorUserId: me.id,
+        newContent: docEditDraft,
+      })
+      toast('Documentação atualizada. A alteração foi registrada nos logs de auditoria.')
+      setDocEditingId(null)
+      setDocEditDraft('')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível salvar a edição.')
+    } finally {
+      setDocEditBusy(false)
+    }
+  }
+
+  async function onDeleteDocumentation(comment: DbComment) {
+    const reason = await requestDestructiveWithReason({
+      title: 'Excluir documentação',
+      message:
+        'Esta entrada será removida permanentemente do projeto. A justificativa e o conteúdo removido ficam nos logs de auditoria.',
+      reasonLabel: 'Justificativa da exclusão',
+      reasonPlaceholder: 'Descreva o motivo (obrigatório para auditoria).',
+      reasonMinLength: 12,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Cancelar',
+    })
+    if (!reason) return
+    setDocEditBusy(true)
+    try {
+      await deleteProjectDocumentation({
+        commentId: comment.id,
+        actorUserId: me.id,
+        actorRole: me.role,
+        justification: reason,
+      })
+      toast('Documentação excluída.')
+      if (docEditingId === comment.id) {
+        setDocEditingId(null)
+        setDocEditDraft('')
+      }
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível excluir.')
+    } finally {
+      setDocEditBusy(false)
+    }
+  }
+
   async function onLabelPillClickByCode(code: string, displayStatus: LabelStatus) {
     if (!canEditProjects) return
     if (displayStatus === 'completed') return
@@ -444,7 +509,13 @@ export function ProjectDetailPage() {
     if (!ok) return
     for (const t of subset) {
       try {
-        await setTaskStatus(t.id, 'concluida', me.id)
+        const phase = phaseById.get(t.phaseId)
+        const informational = effectiveTaskIsInformational(t, phase, planBlueprint?.blocks)
+        const r = await concludeOperationalTaskWithHourGuards(t, informational, me.id, {
+          requestConfirm,
+          requestDestructiveWithReason,
+        })
+        if (r === 'cancelled') break
       } catch (err) {
         toastError(err instanceof Error ? err.message : 'Erro ao concluir tarefa')
         break
@@ -510,12 +581,12 @@ export function ProjectDetailPage() {
         <div className="pd-kpi">
           <span className="pd-kpi__label">Horas utilizadas</span>
           <span className="pd-kpi__value">
-            {proj.hoursUsed}h / {proj.hoursContracted}h
+            {formatDurationHmFromHours(proj.hoursUsed)} / {formatDurationHmFromHours(proj.hoursContracted)}
           </span>
         </div>
         <div className="pd-kpi">
           <span className="pd-kpi__label">Saldo de horas</span>
-          <span className="pd-kpi__value">{saldo.toFixed(1)}h</span>
+          <span className="pd-kpi__value">{formatDurationHmFromHours(saldo)}</span>
         </div>
         <div className="pd-kpi">
           <span className="pd-kpi__label">Tarefas</span>
@@ -656,6 +727,7 @@ export function ProjectDetailPage() {
                         !informational && t.estimatedHours > 0
                           ? Math.min(100, (t.actualHours / t.estimatedHours) * 100)
                           : null
+                      const liveTimerHere = !informational && runningTimerSession?.taskId === t.id
                       const codeColors = planLabelColorsFromCode(t.code)
                       return (
                         <article
@@ -663,7 +735,8 @@ export function ProjectDetailPage() {
                           className={
                             'pd-task' +
                             (doneTask ? ' pd-task--done' : '') +
-                            (informational ? ' pd-task--info' : '')
+                            (informational ? ' pd-task--info' : '') +
+                            (liveTimerHere ? ' pd-task--timer-live' : '')
                           }
                           style={{
                             ['--task-code-color' as string]: codeColors.background,
@@ -680,7 +753,28 @@ export function ProjectDetailPage() {
                               </div>
                               <span className="pd-task__title">{t.title}</span>
                             </div>
-                            {taskStatusIcon(t.status)}
+                            <div className="pd-task__top-right">
+                              {(() => {
+                                const analyst =
+                                  analysts.find((a) => a.id === (t.assignedTo ?? proj.analystId ?? '')) ?? null
+                                if (!analyst) return null
+                                return (
+                                  <span
+                                    className="pd-task__analyst-inline"
+                                    title={analyst.name}
+                                    style={{ ['--analyst-ring' as string]: analyst.color }}
+                                  >
+                                    <AnalystAvatar
+                                      name={analyst.name}
+                                      color={analyst.color}
+                                      avatarUrl={analyst.avatarUrl}
+                                      size="sm"
+                                    />
+                                  </span>
+                                )
+                              })()}
+                              {taskStatusIcon(liveTimerHere ? 'em_andamento' : t.status)}
+                            </div>
                           </div>
                           {doneTask ? (
                             <button
@@ -701,9 +795,9 @@ export function ProjectDetailPage() {
                                       Tempo
                                     </span>
                                     <span className="pd-task__time-budget-values">
-                                      <strong>{t.actualHours}h</strong>
+                                      <strong>{formatDurationHmFromHours(t.actualHours)}</strong>
                                       {t.estimatedHours > 0 ? (
-                                        <> de {t.estimatedHours}h</>
+                                        <> de {formatDurationHmFromHours(t.estimatedHours)}</>
                                       ) : (
                                         <span className="muted"> · sem estimativa</span>
                                       )}
@@ -719,43 +813,13 @@ export function ProjectDetailPage() {
                                   ) : null}
                                 </div>
                               ) : null}
-                              <label className="pd-task__analyst-row muted">
-                                <span className="pd-task__analyst-label">Analista (tarefa e agenda)</span>
-                                <select
-                                  className="input input--xs pd-task__analyst"
-                                  value={t.assignedTo ?? ''}
-                                  onChange={async (e) => {
-                                    if (!canEditProjects) return
-                                    const v = e.target.value.trim() || null
-                                    await db.tasks.update(t.id, { assignedTo: v })
-                                  }}
-                                  disabled={!canEditProjects}
-                                  aria-label="Analista da tarefa"
-                                >
-                                  <option value="">
-                                    Padrão do projeto (
-                                    {analysts.find((a) => a.id === proj.analystId)?.name ?? '—'})
-                                  </option>
-                                  {analysts.map((a) => (
-                                    <option key={a.id} value={a.id}>
-                                      {a.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              {!informational ? <TaskTimesheet task={t} user={me} /> : null}
-                              {canAct ? (
-                                <form className="pd-task__new-row" onSubmit={(e) => onAddItem(e, t)}>
-                                  <input
-                                    className="input input--sm pd-task__new-input"
-                                    placeholder="Novo item…"
-                                    value={draftItem[t.id] ?? ''}
-                                    onChange={(e) => setDraftItem((d) => ({ ...d, [t.id]: e.target.value }))}
-                                  />
-                                  <button type="submit" className="btn btn--ghost btn--sm pd-task__plus" aria-label="Adicionar">
-                                    <Plus size={18} strokeWidth={2} />
-                                  </button>
-                                </form>
+                              {liveTimerHere ? (
+                                <div className="pd-task__live-timer" role="status" aria-live="polite">
+                                  <span className="pd-task__live-timer-dot" aria-hidden />
+                                  <Play className="pd-task__live-timer-play" {...icSm} aria-hidden />
+                                  <span className="pd-task__live-timer-label">Cronômetro</span>
+                                  <strong className="pd-task__live-timer-hms">{formatDurationHMS(runningLiveSeconds)}</strong>
+                                </div>
                               ) : null}
                               {taskComments.length > 0 ? (
                                 <ul className="pd-task__items">
@@ -998,19 +1062,102 @@ export function ProjectDetailPage() {
             {docComments.length === 0 ? (
               <p className="muted pd-docs-empty">Nenhuma entrada ainda. Use o campo acima para registrar notas.</p>
             ) : (
-              docComments.map((c) => (
-                <article key={c.id} className="pd-doc-card">
-                  <header className="pd-doc-card__head">
-                    <strong className="pd-doc-card__author">{userNameById.get(c.authorId) ?? 'Usuário'}</strong>
-                    <time className="pd-doc-card__time muted" dateTime={c.createdAt}>
-                      {docTimestampPt(c.createdAt)}
-                    </time>
-                  </header>
-                  <div className="pd-doc-card__body">
-                    <DocCommentBody comment={c} />
-                  </div>
-                </article>
-              ))
+              docComments.map((c) => {
+                const isAuthor = c.authorId === me.id
+                const isAdmin = me.role === 'admin'
+                const canDeleteDoc = isAdmin || isAuthor
+                const isEditing = docEditingId === c.id
+                const anotherCardEditing = docEditingId !== null && docEditingId !== c.id
+                const actionsDisabled = docEditBusy || anotherCardEditing
+
+                return (
+                  <article key={c.id} className="pd-doc-card">
+                    <header className="pd-doc-card__head">
+                      <div className="pd-doc-card__head-main">
+                        <strong className="pd-doc-card__author">
+                          {userNameById.get(c.authorId) ?? 'Usuário'}
+                        </strong>
+                        <div className="pd-doc-card__meta-row muted">
+                          <time className="pd-doc-card__time" dateTime={c.createdAt}>
+                            {docTimestampPt(c.createdAt)}
+                          </time>
+                          {c.updatedAt ? (
+                            <span className="pd-doc-card__edited">
+                              · editado em {docTimestampPt(c.updatedAt)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="pd-doc-card__actions">
+                        {isAuthor && !isEditing ? (
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--icon btn--sm"
+                            aria-label="Editar documentação"
+                            title="Editar"
+                            disabled={actionsDisabled}
+                            onClick={() => {
+                              setDocEditingId(c.id)
+                              setDocEditDraft(c.content)
+                            }}
+                          >
+                            <Pencil size={16} strokeWidth={2} />
+                          </button>
+                        ) : null}
+                        {canDeleteDoc && !isEditing ? (
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--icon btn--sm"
+                            aria-label="Excluir documentação"
+                            title="Excluir"
+                            disabled={actionsDisabled}
+                            onClick={() => void onDeleteDocumentation(c)}
+                          >
+                            <Trash2 size={16} strokeWidth={2} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </header>
+                    {isEditing ? (
+                      <div className="pd-doc-card__edit">
+                        <textarea
+                          className="input pd-doc-card__edit-input"
+                          rows={5}
+                          value={docEditDraft}
+                          onChange={(e) => setDocEditDraft(e.target.value)}
+                          disabled={docEditBusy}
+                          aria-label="Editar texto da documentação"
+                        />
+                        <div className="pd-doc-card__edit-actions">
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            disabled={docEditBusy}
+                            onClick={() => {
+                              setDocEditingId(null)
+                              setDocEditDraft('')
+                            }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--primary btn--sm"
+                            disabled={docEditBusy || !docEditDraft.trim()}
+                            onClick={() => void onSaveDocumentationEdit()}
+                          >
+                            Salvar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pd-doc-card__body">
+                        <DocCommentBody comment={c} />
+                      </div>
+                    )}
+                  </article>
+                )
+              })
             )}
           </div>
         </div>

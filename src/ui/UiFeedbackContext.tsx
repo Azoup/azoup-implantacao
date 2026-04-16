@@ -17,14 +17,26 @@ export type ConfirmOptions = {
   title?: string
   confirmLabel?: string
   cancelLabel?: string
+  /** Botão à esquerda: encerra o fluxo sem confirmar nem cancelar no sentido “secundário” (`null` na Promise). */
+  dismissLabel?: string
   /** Estilo destrutivo (ex.: excluir) */
   danger?: boolean
 }
 
-type PendingConfirm = {
-  opts: ConfirmOptions
-  resolve: (value: boolean) => void
+/** Confirmação com justificativa no mesmo diálogo (padrão visual do app). */
+export type DestructiveWithReasonOptions = {
+  message: string
+  title?: string
+  confirmLabel?: string
+  cancelLabel?: string
+  reasonLabel: string
+  reasonPlaceholder?: string
+  reasonMinLength: number
 }
+
+type DialogQueueItem =
+  | { kind: 'confirm'; opts: ConfirmOptions; resolve: (value: boolean | null) => void }
+  | { kind: 'destructiveReason'; opts: DestructiveWithReasonOptions; resolve: (value: string | null) => void }
 
 type ToastItem = { id: string; message: string; tone: ToastTone }
 
@@ -32,7 +44,8 @@ type UiFeedbackContextValue = {
   toast: (message: string, tone?: ToastTone) => void
   toastError: (message: string) => void
   toastWarn: (message: string) => void
-  requestConfirm: (options: ConfirmOptions) => Promise<boolean>
+  requestConfirm: (options: ConfirmOptions) => Promise<boolean | null>
+  requestDestructiveWithReason: (options: DestructiveWithReasonOptions) => Promise<string | null>
 }
 
 const UiFeedbackContext = createContext<UiFeedbackContextValue | null>(null)
@@ -48,37 +61,73 @@ export function useUiFeedback(): UiFeedbackContextValue {
 export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   const confirmTitleId = useId()
   const confirmMessageId = useId()
+  const reasonInputId = useId()
   const cancelBtnRef = useRef<HTMLButtonElement>(null)
+  const dismissBtnRef = useRef<HTMLButtonElement>(null)
+  const reasonRef = useRef<HTMLTextAreaElement>(null)
   const [toasts, setToasts] = useState<ToastItem[]>([])
-  const [dialogOpts, setDialogOpts] = useState<ConfirmOptions | null>(null)
-  const pendingRef = useRef<PendingConfirm | null>(null)
-  const queueRef = useRef<PendingConfirm[]>([])
+  const [activeDialog, setActiveDialog] = useState<DialogQueueItem | null>(null)
+  const [reasonDraft, setReasonDraft] = useState('')
+  const pendingRef = useRef<DialogQueueItem | null>(null)
+  const queueRef = useRef<DialogQueueItem[]>([])
 
-  const closeDialog = useCallback((result: boolean) => {
-    const p = pendingRef.current
-    pendingRef.current = null
-    p?.resolve(result)
+  const openNext = useCallback(() => {
     const next = queueRef.current.shift()
     if (next) {
       pendingRef.current = next
-      setDialogOpts(next.opts)
+      setActiveDialog(next)
     } else {
-      setDialogOpts(null)
+      pendingRef.current = null
+      setActiveDialog(null)
+    }
+  }, [])
+
+  const finishConfirm = useCallback(
+    (value: boolean | null) => {
+      const p = pendingRef.current
+      if (!p || p.kind !== 'confirm') return
+      pendingRef.current = null
+      p.resolve(value)
+      openNext()
+    },
+    [openNext],
+  )
+
+  const finishDestructive = useCallback(
+    (value: string | null) => {
+      const p = pendingRef.current
+      if (!p || p.kind !== 'destructiveReason') return
+      pendingRef.current = null
+      p.resolve(value)
+      setReasonDraft('')
+      openNext()
+    },
+    [openNext],
+  )
+
+  const enqueue = useCallback((item: DialogQueueItem) => {
+    if (!pendingRef.current) {
+      pendingRef.current = item
+      setActiveDialog(item)
+    } else {
+      queueRef.current.push(item)
     }
   }, [])
 
   const requestConfirm = useCallback(
     (options: ConfirmOptions) =>
-      new Promise<boolean>((resolve) => {
-        const item: PendingConfirm = { opts: options, resolve }
-        if (!pendingRef.current) {
-          pendingRef.current = item
-          setDialogOpts(options)
-        } else {
-          queueRef.current.push(item)
-        }
+      new Promise<boolean | null>((resolve) => {
+        enqueue({ kind: 'confirm', opts: options, resolve })
       }),
-    [],
+    [enqueue],
+  )
+
+  const requestDestructiveWithReason = useCallback(
+    (options: DestructiveWithReasonOptions) =>
+      new Promise<string | null>((resolve) => {
+        enqueue({ kind: 'destructiveReason', opts: options, resolve })
+      }),
+    [enqueue],
   )
 
   const toast = useCallback((message: string, tone: ToastTone = 'info') => {
@@ -93,27 +142,47 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   const toastWarn = useCallback((message: string) => toast(message, 'warn'), [toast])
 
   const value = useMemo(
-    () => ({ toast, toastError, toastWarn, requestConfirm }),
-    [toast, toastError, toastWarn, requestConfirm],
+    () => ({ toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason }),
+    [toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason],
   )
 
   useEffect(() => {
-    if (!dialogOpts) return
+    if (activeDialog?.kind === 'destructiveReason') {
+      setReasonDraft('')
+    }
+  }, [activeDialog])
+
+  useEffect(() => {
+    if (!activeDialog) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
-        closeDialog(false)
+        if (activeDialog.kind === 'confirm')
+          finishConfirm(activeDialog.opts.dismissLabel ? null : false)
+        else finishDestructive(null)
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [dialogOpts, closeDialog])
+  }, [activeDialog, finishConfirm, finishDestructive])
 
   useEffect(() => {
-    if (!dialogOpts) return
-    const id = window.requestAnimationFrame(() => cancelBtnRef.current?.focus())
+    if (!activeDialog) return
+    const id = window.requestAnimationFrame(() => {
+      if (activeDialog.kind === 'destructiveReason') {
+        reasonRef.current?.focus()
+      } else if (activeDialog.kind === 'confirm' && activeDialog.opts.dismissLabel) {
+        dismissBtnRef.current?.focus()
+      } else {
+        cancelBtnRef.current?.focus()
+      }
+    })
     return () => window.cancelAnimationFrame(id)
-  }, [dialogOpts])
+  }, [activeDialog])
+
+  const destructiveOpts = activeDialog?.kind === 'destructiveReason' ? activeDialog.opts : null
+  const destructiveOk =
+    destructiveOpts != null && reasonDraft.trim().length >= destructiveOpts.reasonMinLength
 
   return (
     <UiFeedbackContext.Provider value={value}>
@@ -125,8 +194,12 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
           </div>
         ))}
       </div>
-      {dialogOpts ? (
-        <div className="ui-confirm-backdrop" role="presentation" onClick={() => closeDialog(false)}>
+      {activeDialog?.kind === 'confirm' ? (
+        <div
+          className="ui-confirm-backdrop"
+          role="presentation"
+          onClick={() => finishConfirm(activeDialog.opts.dismissLabel ? null : false)}
+        >
           <div
             className="ui-confirm"
             role="dialog"
@@ -136,26 +209,90 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 id={confirmTitleId} className="ui-confirm__title">
-              {dialogOpts.title ?? 'Confirmar'}
+              {activeDialog.opts.title ?? 'Confirmar'}
             </h2>
             <p id={confirmMessageId} className="ui-confirm__message">
-              {dialogOpts.message}
+              {activeDialog.opts.message}
             </p>
+            <div className={'ui-confirm__actions' + (activeDialog.opts.dismissLabel ? ' ui-confirm__actions--with-dismiss' : '')}>
+              {activeDialog.opts.dismissLabel ? (
+                <button
+                  ref={dismissBtnRef}
+                  type="button"
+                  className="btn btn--ghost ui-confirm__dismiss"
+                  onClick={() => finishConfirm(null)}
+                >
+                  {activeDialog.opts.dismissLabel}
+                </button>
+              ) : null}
+              <button
+                ref={cancelBtnRef}
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => finishConfirm(false)}
+              >
+                {activeDialog.opts.cancelLabel ?? 'Cancelar'}
+              </button>
+              <button
+                type="button"
+                className={activeDialog.opts.danger ? 'btn btn--danger' : 'btn btn--primary'}
+                onClick={() => finishConfirm(true)}
+              >
+                {activeDialog.opts.confirmLabel ?? 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : activeDialog?.kind === 'destructiveReason' && destructiveOpts ? (
+        <div className="ui-confirm-backdrop" role="presentation" onClick={() => finishDestructive(null)}>
+          <div
+            className="ui-confirm ui-confirm--with-reason"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            aria-describedby={confirmMessageId}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id={confirmTitleId} className="ui-confirm__title">
+              {destructiveOpts.title ?? 'Confirmar exclusão'}
+            </h2>
+            <p id={confirmMessageId} className="ui-confirm__message">
+              {destructiveOpts.message}
+            </p>
+            <div className="ui-confirm__field">
+              <label htmlFor={reasonInputId} className="ui-confirm__field-label">
+                {destructiveOpts.reasonLabel}
+              </label>
+              <textarea
+                ref={reasonRef}
+                id={reasonInputId}
+                className="input ui-confirm__textarea"
+                rows={3}
+                value={reasonDraft}
+                onChange={(e) => setReasonDraft(e.target.value)}
+                placeholder={destructiveOpts.reasonPlaceholder}
+                autoComplete="off"
+              />
+              <p className="ui-confirm__hint muted">
+                Mínimo de {destructiveOpts.reasonMinLength} caracteres para confirmar.
+              </p>
+            </div>
             <div className="ui-confirm__actions">
               <button
                 ref={cancelBtnRef}
                 type="button"
                 className="btn btn--ghost"
-                onClick={() => closeDialog(false)}
+                onClick={() => finishDestructive(null)}
               >
-                {dialogOpts.cancelLabel ?? 'Cancelar'}
+                {destructiveOpts.cancelLabel ?? 'Cancelar'}
               </button>
               <button
                 type="button"
-                className={dialogOpts.danger ? 'btn btn--danger' : 'btn btn--primary'}
-                onClick={() => closeDialog(true)}
+                className="btn btn--danger"
+                disabled={!destructiveOk}
+                onClick={() => finishDestructive(reasonDraft.trim())}
               >
-                {dialogOpts.confirmLabel ?? 'OK'}
+                {destructiveOpts.confirmLabel ?? 'Excluir'}
               </button>
             </div>
           </div>

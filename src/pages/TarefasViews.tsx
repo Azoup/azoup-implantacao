@@ -218,9 +218,26 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
       {groups.length === 0 ? (
         <p className="muted pad">Nenhuma tarefa com os filtros atuais.</p>
       ) : (
-        groups.map(({ project, phases: phGroups }) => (
+        groups.map(({ project, phases: phGroups }) => {
+          const projectAnalyst = project.analystId ? analystById.get(project.analystId) : null
+          return (
           <section key={project.id} className="task-fase-project">
-            <h3 className="task-fase-project__name">{project.projectName}</h3>
+            <div className="task-fase-project__head">
+              <h3 className="task-fase-project__name">{project.projectName}</h3>
+              {projectAnalyst ? (
+                <span
+                  className="task-fase-project__analyst"
+                  title={`Analista responsável: ${projectAnalyst.name}`}
+                >
+                  <AnalystAvatar
+                    name={projectAnalyst.name}
+                    color={projectAnalyst.color}
+                    avatarUrl={projectAnalyst.avatarUrl}
+                    size="sm"
+                  />
+                </span>
+              ) : null}
+            </div>
             <div className="task-fase-phases">
               {phGroups.map(({ phase, tasks: ts }) => {
                 const k = keyFor(project.id, phase.id)
@@ -300,7 +317,8 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
               })}
             </div>
           </section>
-        ))
+          )
+        })
       )}
     </div>
   )
