@@ -1,22 +1,56 @@
+export type PhaseColorPreset = {
+  key: 'preparativos' | 'vendas' | 'financeiro' | 'producao' | 'gerencial' | 'extra'
+  label: string
+  hex: string
+}
+
 /**
- * Cor “chefe” por ordem da fase no plano (0 = Fase 00, 1 = Fase 01, …).
- * Cinco matizes bem separados no círculo cromático (ouro ≠ coral ≠ jade ≠ ciano ≠ violeta),
- * com saturação moderada para destacar no fundo escuro sem “neon”.
- * Timeline, labels, fases e kanban usam a mesma sequência.
+ * Paleta oficial de fases (conforme guia visual do produto).
+ * A ordem segue a progressão operacional; o usuário pode sobrescrever no cadastro da fase.
  */
-export const PHASE_PROGRESSION_ACCENTS = [
-  '#c9a227', // 0 — ouro / preparação
-  '#e0573a', // 1 — coral-laranja / vendas
-  '#2f9d6e', // 2 — jade / financeiro
-  '#2d93b0', // 3 — ciano / produção
-  '#6f5bd4', // 4 — violeta / gerencial · fechamento
-  '#b85c8c', // 5 — magenta-rosado (fase extra)
+export const PHASE_COLOR_PRESETS: readonly PhaseColorPreset[] = [
+  { key: 'preparativos', label: 'Preparativos (mostarda)', hex: '#b89a2b' },
+  { key: 'vendas', label: 'Vendas (laranja)', hex: '#e26b2f' },
+  { key: 'financeiro', label: 'Financeiro (verde)', hex: '#35a36f' },
+  { key: 'producao', label: 'Produção (azul)', hex: '#3f7fc8' },
+  { key: 'gerencial', label: 'Gerencial (roxo)', hex: '#7757cc' },
+  { key: 'extra', label: 'Extra', hex: '#b85c8c' },
 ] as const
 
 const FALLBACK = '#64748b'
 
+function normalize(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+function hasAny(text: string, words: readonly string[]): boolean {
+  return words.some((w) => text.includes(w))
+}
+
+export function inferPhaseColor(name: string, orderIndex: number): string {
+  const n = normalize(name)
+  if (hasAny(n, ['onboarding', 'prepar', 'kickoff', 'inicio', 'inicial'])) return PHASE_COLOR_PRESETS[0].hex
+  if (hasAny(n, ['venda', 'comercial'])) return PHASE_COLOR_PRESETS[1].hex
+  if (hasAny(n, ['finance', 'fiscal', 'tesouraria', 'boleto'])) return PHASE_COLOR_PRESETS[2].hex
+  if (hasAny(n, ['produc', 'pcp', 'faccao', 'ordem'])) return PHASE_COLOR_PRESETS[3].hex
+  if (hasAny(n, ['gerenc', 'gest', 'relatorio', 'bi', 'diretoria'])) return PHASE_COLOR_PRESETS[4].hex
+  return phaseProgressionAccent(orderIndex)
+}
+
+export function normalizePhaseColorHex(hex: string | null | undefined, fallback: string): string {
+  const raw = (hex ?? '').trim()
+  if (!raw) return fallback
+  const normalized = raw.startsWith('#') ? raw : `#${raw}`
+  if (!/^#[0-9a-fA-F]{6}$/.test(normalized)) return fallback
+  return normalized.toLowerCase()
+}
+
 export function phaseProgressionAccent(planOrderIndex: number): string {
   if (!Number.isFinite(planOrderIndex) || planOrderIndex < 0) return FALLBACK
-  const i = Math.min(Math.floor(planOrderIndex), PHASE_PROGRESSION_ACCENTS.length - 1)
-  return PHASE_PROGRESSION_ACCENTS[i] ?? FALLBACK
+  const i = Math.min(Math.floor(planOrderIndex), PHASE_COLOR_PRESETS.length - 1)
+  return PHASE_COLOR_PRESETS[i]?.hex ?? FALLBACK
 }

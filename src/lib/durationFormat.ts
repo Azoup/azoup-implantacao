@@ -55,6 +55,12 @@ export function formatDurationHmFromHours(decimalHours: number): string {
   return formatDurationHmFromSeconds(nonNegativeSecondsFromDecimalHours(decimalHours))
 }
 
+/** Resumo ultra compacto: `12h` (sem minutos). */
+export function formatDurationHFromHours(decimalHours: number): string {
+  if (!Number.isFinite(decimalHours) || decimalHours <= 0) return '0h'
+  return `${Math.round(decimalHours)}h`
+}
+
 /**
  * Converte texto do usuário em horas decimais: `hh:mm:ss`, `mm:ss`, ou decimal `1,5`.
  */

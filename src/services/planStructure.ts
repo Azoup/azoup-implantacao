@@ -2,22 +2,22 @@ import { db } from '../db/database'
 import { uuid } from '../lib/uuid'
 import { compareTaskCode } from '../lib/taskCode'
 
-export async function addPlanPhase(planModelId: string, name: string): Promise<string> {
+export async function addPlanPhase(planModelId: string, name: string, colorHex: string): Promise<string> {
   const phases = await db.planPhases.where('planModelId').equals(planModelId).sortBy('orderIndex')
   const orderIndex = phases.length ? phases[phases.length - 1].orderIndex + 1 : 0
   const id = uuid()
   await db.transaction('rw', db.planPhases, db.planModels, async () => {
-    await db.planPhases.add({ id, planModelId, name: name.trim(), orderIndex })
+    await db.planPhases.add({ id, planModelId, name: name.trim(), orderIndex, colorHex })
     const n = await db.planPhases.where('planModelId').equals(planModelId).count()
     await db.planModels.update(planModelId, { phaseCount: n })
   })
   return id
 }
 
-export async function updatePlanPhase(phaseId: string, name: string): Promise<void> {
+export async function updatePlanPhase(phaseId: string, name: string, colorHex: string): Promise<void> {
   const ph = await db.planPhases.get(phaseId)
   if (!ph) throw new Error('Fase não encontrada')
-  await db.planPhases.update(phaseId, { name: name.trim() })
+  await db.planPhases.update(phaseId, { name: name.trim(), colorHex })
 }
 
 export async function deletePlanPhase(phaseId: string): Promise<void> {

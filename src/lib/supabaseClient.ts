@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 const rawUrl = import.meta.env.VITE_SUPABASE_URL
 const rawAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
 const rawMode = import.meta.env.VITE_DATA_MODE
+const OVERRIDE_KEY = 'vyntask.dataModeOverride.v1'
 
 function looksLikeValidHttpUrl(s: string): boolean {
   try {
@@ -25,17 +26,38 @@ export type DataMode = 'local' | 'cloud'
 
 function parseMode(): DataMode {
   const m = typeof rawMode === 'string' ? rawMode.trim().toLowerCase() : ''
-  return m === 'cloud' ? 'cloud' : 'local'
+  return m === 'local' ? 'local' : 'cloud'
 }
 
 const parsed = parseSupabaseEnv()
-const mode = parseMode()
+const envMode = parseMode()
+
+function readOverrideMode(): DataMode | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(OVERRIDE_KEY)?.trim().toLowerCase()
+    if (raw === 'local' || raw === 'cloud') return raw
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+function shouldAllowRuntimeOverride(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname.toLowerCase()
+  return import.meta.env.DEV || host === 'localhost' || host === '127.0.0.1'
+}
+
+const runtimeOverride = shouldAllowRuntimeOverride() ? readOverrideMode() : null
+const mode: DataMode = runtimeOverride ?? envMode
 
 if (import.meta.env.DEV) {
   const urlT = typeof rawUrl === 'string' ? rawUrl.trim() : ''
   const keyT = typeof rawAnon === 'string' ? rawAnon.trim() : ''
   if (mode === 'local') {
-    console.info('[VynTask] Modo LOCAL ativo (VITE_DATA_MODE=local). Supabase desativado neste ambiente.')
+    const origin = runtimeOverride ? `override runtime (${runtimeOverride})` : 'VITE_DATA_MODE=local'
+    console.info(`[VynTask] Modo LOCAL ativo (${origin}). Supabase desativado neste ambiente.`)
   } else if ((urlT || keyT) && !parsed) {
     console.warn(
       '[VynTask] Supabase desativado: confira VITE_SUPABASE_URL (https://…supabase.co, sem espaços) e VITE_SUPABASE_ANON_KEY no .env.local.',
@@ -62,4 +84,18 @@ export function getDataMode(): DataMode {
 
 export function isSupabaseConfigured(): boolean {
   return mode === 'cloud' && supabase !== null
+}
+
+export function canOverrideDataModeRuntime(): boolean {
+  return shouldAllowRuntimeOverride()
+}
+
+export function getDataModeOverrideRuntime(): DataMode | null {
+  return runtimeOverride
+}
+
+export function setDataModeOverrideRuntime(next: DataMode | null): void {
+  if (!shouldAllowRuntimeOverride() || typeof window === 'undefined') return
+  if (next === null) window.localStorage.removeItem(OVERRIDE_KEY)
+  else window.localStorage.setItem(OVERRIDE_KEY, next)
 }

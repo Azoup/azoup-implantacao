@@ -52,6 +52,8 @@ import {
 import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectConclude'
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import type {
@@ -162,7 +164,8 @@ export function ProjectDetailPage() {
     }
     return { blocks }
   }, [projectId])
-  const analysts = (useLiveQuery(() => db.analysts.toArray(), []) ?? []).filter((a) => a.active)
+  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const analysts = useMemo(() => analystsAll.filter((a) => a.active), [analystsAll])
 
   const [tab, setTab] = useState<DetailTab>('fases')
   const [editOpen, setEditOpen] = useState(false)
@@ -245,6 +248,7 @@ export function ProjectDetailPage() {
   }
 
   const proj: DbProject = project
+  const projectAnalyst = proj.analystId ? analystsAll.find((a) => a.id === proj.analystId) ?? null : null
 
   async function onCancelProject() {
     if (!canEditProjects) return
@@ -256,7 +260,12 @@ export function ProjectDetailPage() {
       danger: true,
     })
     if (!ok) return
-    await db.projects.update(proj.id, { status: 'cancelado', kanbanColumn: 'cancelados' as KanbanColumn })
+    const cancelPatch = { status: 'cancelado' as const, kanbanColumn: 'cancelados' as KanbanColumn }
+    if (isSupabaseConfigured()) {
+      const nextRow: DbProject = { ...proj, ...cancelPatch }
+      await upsertProjectToSupabase(nextRow)
+    }
+    await db.projects.update(proj.id, cancelPatch)
     navigate('/projetos', { replace: true })
   }
 
@@ -535,6 +544,21 @@ export function ProjectDetailPage() {
           <div className="pd-header__titles">
             <h1 className="pd-title">{proj.projectName}</h1>
             <span className="pd-plan-badge">{planName}</span>
+            <span className="pd-analyst-badge" title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}>
+              {projectAnalyst ? (
+                <>
+                  <AnalystAvatar
+                    name={projectAnalyst.name}
+                    color={projectAnalyst.color}
+                    avatarUrl={projectAnalyst.avatarUrl}
+                    size="sm"
+                  />
+                  <span className="pd-analyst-badge__text">{projectAnalyst.name}</span>
+                </>
+              ) : (
+                <span className="pd-analyst-badge__text muted">Sem analista</span>
+              )}
+            </span>
           </div>
         </div>
         <div className="pd-header__actions">
@@ -612,7 +636,8 @@ export function ProjectDetailPage() {
                 className={'pd-timeline__seg pd-timeline__seg--' + s}
                 title={sortedPhases[i]?.name}
                 style={{
-                  ['--seg-base' as string]: planPhaseAccentHex(sortedPhases[i]?.orderIndex ?? 0),
+                  ['--seg-base' as string]:
+                    sortedPhases[i]?.colorHex || planPhaseAccentHex(sortedPhases[i]?.orderIndex ?? 0),
                 }}
               />
             ))}
@@ -625,7 +650,7 @@ export function ProjectDetailPage() {
               <span
                 key={ph.id}
                 className="pd-timeline__label"
-                style={{ ['--seg-base' as string]: planPhaseAccentHex(ph.orderIndex) }}
+                style={{ ['--seg-base' as string]: ph.colorHex || planPhaseAccentHex(ph.orderIndex) }}
               >
                 {phaseNameShort(ph.name)}
               </span>
@@ -693,7 +718,7 @@ export function ProjectDetailPage() {
                     (ativa ? ' pd-phase--ativa' : '') +
                     (locked ? ' pd-phase--locked' : '')
                   }
-                  style={{ ['--pd-phase-accent' as string]: planPhaseAccentHex(phase.orderIndex) }}
+                  style={{ ['--pd-phase-accent' as string]: phase.colorHex || planPhaseAccentHex(phase.orderIndex) }}
                 >
                   <header className="pd-phase__head">
                     <div className={'pd-phase__icon' + (ativa ? ' pd-phase__icon--play' : '')}>
@@ -728,7 +753,7 @@ export function ProjectDetailPage() {
                           ? Math.min(100, (t.actualHours / t.estimatedHours) * 100)
                           : null
                       const liveTimerHere = !informational && runningTimerSession?.taskId === t.id
-                      const codeColors = planLabelColorsFromCode(t.code)
+                      const codeColors = planLabelColorsFromCode(t.code, phase.colorHex)
                       return (
                         <article
                           key={t.id}
@@ -739,8 +764,8 @@ export function ProjectDetailPage() {
                             (liveTimerHere ? ' pd-task--timer-live' : '')
                           }
                           style={{
-                            ['--task-code-color' as string]: codeColors.background,
-                            ['--task-phase-accent' as string]: planPhaseAccentHex(phase.orderIndex),
+                            ['--task-code-color' as string]: codeColors.phase,
+                            ['--task-phase-accent' as string]: phase.colorHex || planPhaseAccentHex(phase.orderIndex),
                           }}
                         >
                           <div className="pd-task__top">
@@ -1185,7 +1210,9 @@ export function ProjectDetailPage() {
                 <section
                   key={section.planPhase.id}
                   className="pd-label-group"
-                  style={{ ['--group-accent' as string]: planPhaseAccentHex(section.orderIndex) }}
+                  style={{
+                    ['--group-accent' as string]: section.planPhase.colorHex || planPhaseAccentHex(section.orderIndex),
+                  }}
                 >
                   <h3 className="pd-label-group__title">
                     {phaseNameShort(section.planPhase.name)}
@@ -1196,7 +1223,7 @@ export function ProjectDetailPage() {
                   <div className="pd-label-pills">
                     {section.rows.map((row) => {
                       const done = row.displayStatus === 'completed'
-                      const pill = planLabelTabPillStyle(row.code, done)
+                      const pill = planLabelTabPillStyle(row.code, done, section.planPhase.colorHex)
                       return (
                         <button
                           key={section.planPhase.id + '-' + row.planTask.id}

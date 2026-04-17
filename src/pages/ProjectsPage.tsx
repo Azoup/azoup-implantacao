@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowDownAZ, ArrowUpWideNarrow, CalendarDays, Clock, Plus, Search, TrendingUp, X } from 'lucide-react'
+import { ArrowDownAZ, CalendarDays, ChevronDown, ChevronUp, Clock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
 import { projectProgressPercent } from '../lib/projectProgress'
-import { getOpenTaskCodeBadges, getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
+import { getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
-import { PlanLabelPill, PlanLabelRow } from '../components/PlanLabelChips'
+import { PlanLabelRow } from '../components/PlanLabelChips'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import type { DbProject, KanbanColumn } from '../db/types'
-import { compareTaskCode } from '../lib/taskCode'
-import { formatDurationHmFromHours } from '../lib/durationFormat'
+import { formatDurationHFromHours } from '../lib/durationFormat'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   readProjectSortConfig,
@@ -43,15 +42,20 @@ export function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [projectNameSearch, setProjectNameSearch] = useState('')
+  const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   const visibleProjects = useMemo(() => {
     const sorted = sortProjects(projects, projectSort)
+    const analystFiltered =
+      selectedAnalystIds.length === 0
+        ? sorted
+        : sorted.filter((p) => p.analystId && selectedAnalystIds.includes(p.analystId))
     const q = projectNameSearch.trim().toLowerCase()
-    if (!q) return sorted
-    return sorted.filter((p) => p.projectName.toLowerCase().includes(q))
-  }, [projects, projectSort, projectNameSearch])
+    if (!q) return analystFiltered
+    return analystFiltered.filter((p) => p.projectName.toLowerCase().includes(q))
+  }, [projects, projectSort, projectNameSearch, selectedAnalystIds])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -120,49 +124,82 @@ export function ProjectsPage() {
       </header>
 
       <div className="projects-page__toolbar">
-        <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
+        <div className="project-sortbar" aria-label="Ordenação de projetos">
           <button
             type="button"
-            className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
+            className={'project-sortbar__toggle' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+            aria-label="Ordenar por data de início"
+            title={
+              projectSort.key === 'startDate' && projectSort.direction === 'asc'
+                ? 'Mais antigos primeiro'
+                : 'Mais novos primeiro'
+            }
             onClick={() => {
-              const next: ProjectSortConfig = { ...projectSort, key: 'name' }
+              const nextDirection =
+                projectSort.key === 'startDate' && projectSort.direction === 'asc' ? 'desc' : 'asc'
+              const next: ProjectSortConfig = { key: 'startDate', direction: nextDirection }
               setProjectSort(next)
               writeProjectSortConfig(next)
             }}
-            title="Ordenar por nome"
           >
-            <ArrowDownAZ size={15} strokeWidth={2} />
-            Nome
+            <CalendarDays size={14} strokeWidth={2} />
+            {projectSort.key === 'startDate' && projectSort.direction === 'asc' ? (
+              <ChevronUp size={14} strokeWidth={2.4} />
+            ) : (
+              <ChevronDown size={14} strokeWidth={2.4} />
+            )}
           </button>
           <button
             type="button"
-            className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+            className={'project-sortbar__toggle' + (projectSort.key === 'name' ? ' is-active' : '')}
+            aria-label="Ordenar por nome"
+            title={projectSort.key === 'name' && projectSort.direction === 'asc' ? 'Nome A-Z' : 'Nome Z-A'}
             onClick={() => {
-              const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
+              const nextDirection = projectSort.key === 'name' && projectSort.direction === 'asc' ? 'desc' : 'asc'
+              const next: ProjectSortConfig = { key: 'name', direction: nextDirection }
               setProjectSort(next)
               writeProjectSortConfig(next)
             }}
-            title="Ordenar por início do projeto"
           >
-            <CalendarDays size={15} strokeWidth={2} />
-            Início
+            <ArrowDownAZ size={14} strokeWidth={2} />
+            <span className="project-sortbar__toggle-text">
+              {projectSort.key === 'name' && projectSort.direction === 'desc' ? 'Z-A' : 'A-Z'}
+            </span>
+            {projectSort.key === 'name' && projectSort.direction === 'desc' ? (
+              <ChevronDown size={14} strokeWidth={2.4} />
+            ) : (
+              <ChevronUp size={14} strokeWidth={2.4} />
+            )}
           </button>
-          <button
-            type="button"
-            className="project-sortbar__btn project-sortbar__btn--dir"
-            onClick={() => {
-              const next: ProjectSortConfig = {
-                ...projectSort,
-                direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
-              }
-              setProjectSort(next)
-              writeProjectSortConfig(next)
-            }}
-            title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
-          >
-            <ArrowUpWideNarrow size={15} strokeWidth={2} />
-            {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
-          </button>
+        </div>
+        <div className="projects-page__analyst-filter" role="group" aria-label="Filtrar por analista">
+          {analystsAll.filter((a) => a.active).map((a) => {
+            const selected = selectedAnalystIds.includes(a.id)
+            return (
+              <button
+                key={a.id}
+                type="button"
+                className={'projects-page__analyst-chip' + (selected ? ' is-selected' : '')}
+                onClick={() =>
+                  setSelectedAnalystIds((prev) =>
+                    prev.includes(a.id) ? prev.filter((id) => id !== a.id) : [...prev, a.id],
+                  )
+                }
+                title={selected ? `Remover filtro: ${a.name}` : `Filtrar por: ${a.name}`}
+              >
+                <AnalystAvatar name={a.name} color={a.color} avatarUrl={a.avatarUrl} size="sm" />
+              </button>
+            )
+          })}
+          {selectedAnalystIds.length > 0 ? (
+            <button
+              type="button"
+              className="projects-page__analyst-clear"
+              onClick={() => setSelectedAnalystIds([])}
+            >
+              Limpar analistas
+            </button>
+          ) : null}
         </div>
         <label className="projects-page__search" aria-label="Buscar projeto por nome">
           <Search size={15} strokeWidth={2} />
@@ -199,13 +236,18 @@ export function ProjectsPage() {
           const currentSegIdx = segments.findIndex((s) => s === 'current')
           const phaseCaptionColor =
             currentSegIdx >= 0 && phSorted[currentSegIdx]
-              ? planPhaseAccentHex(phSorted[currentSegIdx].orderIndex)
+              ? phSorted[currentSegIdx].colorHex || planPhaseAccentHex(phSorted[currentSegIdx].orderIndex)
               : undefined
-          const codeBadges = getOpenTaskCodeBadges(phases, tasks, p.id)
           const lastPlanLabel = getLastCompletedPlanLabel(tasks, p.id)
           const activePlanLabel = getActivePlanLabel(tasks, p.id, phases)
           const tooltipBits = [p.tradeName?.trim(), p.razaoSocial?.trim(), p.cnpj].filter(Boolean)
           const analyst = analystsAll.find((a) => a.id === p.analystId)
+
+          const resolveCodeColor = (code: string): string | null => {
+            const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
+            const phase = Number.isFinite(major) && major >= 0 ? phSorted[major] : null
+            return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
+          }
 
           return (
             <article key={p.id} className="proj-card">
@@ -221,7 +263,11 @@ export function ProjectsPage() {
                 </h2>
                 <div className="proj-card__badges">
                   {analyst ? (
-                    <span className="proj-card__analyst" title={`Analista responsável: ${analyst.name}`}>
+                    <span
+                      className="proj-card__analyst"
+                      title={`Analista responsável: ${analyst.name}`}
+                      style={{ ['--analyst-color' as string]: analyst.color }}
+                    >
                       <AnalystAvatar
                         name={analyst.name}
                         color={analyst.color}
@@ -251,12 +297,15 @@ export function ProjectsPage() {
                   role="img"
                   aria-label="Progresso por fase"
                 >
-                  {segments.map((state, i) => (
+                  {segments.map((_, i) => (
                     <div
                       key={i}
-                      className={'proj-card__phase-seg proj-card__phase-seg--' + state}
+                      className={
+                        'proj-card__phase-seg ' +
+                        (i === currentSegIdx ? 'proj-card__phase-seg--current' : 'proj-card__phase-seg--idle')
+                      }
                       style={{
-                        ['--seg-base' as string]: planPhaseAccentHex(phSorted[i]?.orderIndex ?? i),
+                        ['--seg-base' as string]: phSorted[i]?.colorHex || planPhaseAccentHex(phSorted[i]?.orderIndex ?? i),
                       }}
                     />
                   ))}
@@ -269,11 +318,10 @@ export function ProjectsPage() {
                 <div className="proj-card__meta-item">
                   <Clock {...metaIcon} aria-hidden />
                   <span>
-                    {formatDurationHmFromHours(p.hoursUsed)} / {formatDurationHmFromHours(p.hoursContracted)}
+                    {formatDurationHFromHours(p.hoursUsed)} / {formatDurationHFromHours(p.hoursContracted)}
                   </span>
                 </div>
                 <div className="proj-card__meta-item proj-card__meta-item--phase">
-                  <TrendingUp {...metaIcon} aria-hidden />
                   <span
                     className="proj-card__phase-caption"
                     style={phaseCaptionColor ? { color: phaseCaptionColor } : undefined}
@@ -284,35 +332,12 @@ export function ProjectsPage() {
               </div>
 
               <div className="proj-card__plan-labels">
-                <PlanLabelRow last={lastPlanLabel} active={activePlanLabel} variant="dashboard" />
-              </div>
-
-              <div className="proj-card__codes">
-                <span className="proj-card__codes-heading">Em aberto</span>
-                {codeBadges.length === 0 ? (
-                  <span className="proj-card__codes-empty muted">Nenhuma tarefa em aberto</span>
-                ) : (
-                  codeBadges.map((b) => {
-                    const openForCode = projectTasks
-                      .filter(
-                        (x) =>
-                          x.code === b.code &&
-                          !x.isInformational &&
-                          (x.status === 'pendente' || x.status === 'em_andamento'),
-                      )
-                      .sort((a, c) => compareTaskCode(a.code, c.code) || a.sortOrder - c.sortOrder)
-                    const openTask = openForCode[0]
-                    return (
-                      <PlanLabelPill
-                        key={b.code}
-                        chip={{ code: b.code, name: openTask?.title ?? b.code }}
-                        variant="compact"
-                        kind={b.tone === 'progress' ? 'open-progress' : 'open-pending'}
-                        codeOnly
-                      />
-                    )
-                  })
-                )}
+                <PlanLabelRow
+                  last={lastPlanLabel}
+                  active={activePlanLabel}
+                  variant="dashboard"
+                  resolveCodeColor={resolveCodeColor}
+                />
               </div>
 
               <div className="proj-card__progress-row">
@@ -330,16 +355,24 @@ export function ProjectsPage() {
                   <span className="proj-card__actions">
                     <button
                       type="button"
-                      className="btn btn--ghost btn--sm"
+                      className="btn btn--ghost btn--icon proj-card__icon-action"
+                      aria-label="Editar projeto"
+                      title="Editar projeto"
                       onClick={() => {
                         setEditingProject(p)
                         setOpen(true)
                       }}
                     >
-                      Editar
+                      <Pencil size={15} strokeWidth={2.15} />
                     </button>
-                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => onDelete(p.id)}>
-                      Excluir
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon proj-card__icon-action proj-card__icon-action--danger"
+                      aria-label="Excluir projeto"
+                      title="Excluir projeto"
+                      onClick={() => onDelete(p.id)}
+                    >
+                      <Trash2 size={15} strokeWidth={2.1} />
                     </button>
                   </span>
                 )}

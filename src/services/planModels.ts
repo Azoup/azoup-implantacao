@@ -47,6 +47,7 @@ export async function duplicatePlanModel(opts: {
         planModelId: newPlanId,
         name: ph.name,
         orderIndex: ph.orderIndex,
+        colorHex: ph.colorHex,
       })
       for (const t of tasks) {
         await db.planTasks.add({

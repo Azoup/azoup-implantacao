@@ -18,6 +18,8 @@ import {
   formatCnpjDisplay,
   formatPhoneBrDisplay,
 } from '../lib/brazilFormat'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
 import { createProjectFromPlan } from '../services/project'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
@@ -260,7 +262,12 @@ export function ProjectCreateModal({
           status: projectStatus,
           kanbanColumn: projectToEdit.kanbanColumn,
         })
-        await db.projects.update(projectToEdit.id, { ...common, ...placement })
+        const patch = { ...common, ...placement }
+        if (isSupabaseConfigured()) {
+          const nextRow: DbProject = { ...projectToEdit, ...patch }
+          await upsertProjectToSupabase(nextRow)
+        }
+        await db.projects.update(projectToEdit.id, patch)
       } else {
         await createProjectFromPlan({
           ...common,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users } from 'lucide-react'
+import { Check, Cloud, DatabaseZap, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
@@ -9,7 +9,15 @@ import { formatDatePt } from '../lib/dates'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
-import { supabase } from '../lib/supabaseClient'
+import {
+  canOverrideDataModeRuntime,
+  getDataMode,
+  getDataModeOverrideRuntime,
+  isSupabaseConfigured,
+  setDataModeOverrideRuntime,
+  supabase,
+  type DataMode,
+} from '../lib/supabaseClient'
 import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 import { mapProfileToUser, type ProfileRow } from '../auth/mapProfileToUser'
 
@@ -33,6 +41,15 @@ export function SettingsPage() {
   const [permissionDraft, setPermissionDraft] = useState<PermissionScope[]>([])
   const [usersBusy, setUsersBusy] = useState<string | null>(null)
   const [remoteUsers, setRemoteUsers] = useState<DbUser[] | null>(null)
+  const [dataModeState, setDataModeState] = useState<{
+    mode: DataMode
+    override: DataMode | null
+    canOverride: boolean
+  }>({
+    mode: getDataMode(),
+    override: getDataModeOverrideRuntime(),
+    canOverride: canOverrideDataModeRuntime(),
+  })
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
   const users = remoteUsers ?? cachedUsers
@@ -163,6 +180,23 @@ export function SettingsPage() {
     } finally {
       setUsersBusy(null)
     }
+  }
+
+  function onToggleDataMode() {
+    if (!canManageUsers || !dataModeState.canOverride) return
+    const next: DataMode = dataModeState.mode === 'cloud' ? 'local' : 'cloud'
+    setDataModeOverrideRuntime(next === 'cloud' ? null : next)
+    setDataModeState({
+      mode: next,
+      override: next === 'cloud' ? null : next,
+      canOverride: dataModeState.canOverride,
+    })
+    toast(
+      next === 'cloud'
+        ? 'Modo PRODUÇÃO ativado. Recarregando para sincronizar com Supabase...'
+        : 'Modo TESTE local ativado. Recarregando...',
+    )
+    window.setTimeout(() => window.location.reload(), 250)
   }
 
   return (
@@ -306,6 +340,35 @@ export function SettingsPage() {
               Próximas evoluções que costumam fechar o ciclo: anexos por projeto, modelos de e-mail/checklist por fase,
               integração com calendário e exportação para BI.
             </p>
+          </section>
+
+          <section className="panel panel--stack">
+            <h2 className="panel__title">Persistência de dados (nuvem x teste)</h2>
+            <p className="muted panel__lead">
+              Em produção, o padrão agora é <strong>nuvem (Supabase)</strong>. Use modo local somente para testes.
+            </p>
+            <div className="settings-data-mode">
+              <div className="settings-data-mode__status">
+                <span className={'pill' + (dataModeState.mode === 'cloud' ? ' pill--ok' : '')}>
+                  {dataModeState.mode === 'cloud' ? 'Produção · Supabase' : 'Teste · Local (Dexie)'}
+                </span>
+                <span className="muted">
+                  {isSupabaseConfigured()
+                    ? 'Conexão Supabase disponível neste ambiente.'
+                    : 'Supabase não configurado para este ambiente.'}
+                </span>
+              </div>
+              {canManageUsers && dataModeState.canOverride ? (
+                <button type="button" className="btn btn--ghost" onClick={onToggleDataMode}>
+                  {dataModeState.mode === 'cloud' ? <DatabaseZap size={16} strokeWidth={2} /> : <Cloud size={16} strokeWidth={2} />}
+                  {dataModeState.mode === 'cloud' ? 'Ativar modo teste local' : 'Voltar para produção (nuvem)'}
+                </button>
+              ) : (
+                <p className="muted settings-data-mode__hint">
+                  Alteração de modo disponível apenas para admin em ambiente local (`localhost`).
+                </p>
+              )}
+            </div>
           </section>
 
           <section className="panel panel--stack">

@@ -1,5 +1,7 @@
 import { db } from '../db/database'
 import type { DbProject, KanbanColumn, PlanTypeKey } from '../db/types'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { upsertProjectGraphFromDexie } from '../sync/supabaseDexieBridge'
 import { uuid } from '../lib/uuid'
 import { syncLabelsForProject } from './labels'
 import { normalizeProjectPlacement } from './projectGovernance'
@@ -110,6 +112,7 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
         name: pp.name,
         orderIndex: pp.orderIndex,
         status: idx++ === 0 ? 'ativa' : 'bloqueada',
+        colorHex: pp.colorHex ?? null,
       })
 
       const planTasks = await db.planTasks.where('planPhaseId').equals(pp.id).sortBy('sortOrder')
@@ -137,5 +140,8 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
   })
 
   await syncLabelsForProject(projectId)
+  if (isSupabaseConfigured()) {
+    await upsertProjectGraphFromDexie(projectId)
+  }
   return projectId
 }

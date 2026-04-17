@@ -1,5 +1,7 @@
 import { db } from '../db/database'
 import type { DbPhase, DbProject, DbTask, KanbanColumn, PhaseStatus } from '../db/types'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { upsertProjectGraphFromDexie, upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
 import {
   kanbanColumnToTargetPlanOrderIndex,
   planOrderIndexToKanbanColumn,
@@ -58,6 +60,10 @@ export async function syncProjectKanbanFromPlanState(projectId: string): Promise
   const next = deriveKanbanColumnFromPlanState(project, phases, tasks)
   if (next !== project.kanbanColumn) {
     await db.projects.update(projectId, { kanbanColumn: next })
+    if (isSupabaseConfigured()) {
+      const p = await db.projects.get(projectId)
+      if (p) await upsertProjectToSupabase(p)
+    }
   }
 }
 
@@ -88,10 +94,15 @@ export async function applyManualKanbanColumnMove(
 
   if (to === 'cancelados') {
     const norm = normalizeProjectPlacement({ status: 'cancelado', kanbanColumn: 'cancelados' })
-    await db.projects.update(projectId, {
+    const patch = {
       ...norm,
       internalNotes: appendKanbanNote(project.internalNotes, line),
-    })
+    }
+    if (isSupabaseConfigured()) {
+      const nextRow: DbProject = { ...project, ...patch }
+      await upsertProjectToSupabase(nextRow)
+    }
+    await db.projects.update(projectId, patch)
     return
   }
 
@@ -113,6 +124,7 @@ export async function applyManualKanbanColumnMove(
       })
     })
     await syncLabelsForProject(projectId)
+    if (isSupabaseConfigured()) await upsertProjectGraphFromDexie(projectId)
     return
   }
 
@@ -160,5 +172,6 @@ export async function applyManualKanbanColumnMove(
   })
 
   await syncLabelsForProject(projectId)
+  if (isSupabaseConfigured()) await upsertProjectGraphFromDexie(projectId)
   await syncProjectKanbanFromPlanState(projectId)
 }

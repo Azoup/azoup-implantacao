@@ -20,6 +20,7 @@ import type {
   PermissionScope,
 } from '../db/types'
 import { ALL_PERMISSION_SCOPES } from '../auth/permissions'
+import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
 
 type BridgeDef<TLocal> = {
   localTable: keyof typeof db
@@ -32,6 +33,36 @@ let hooksInstalled = false
 let syncingMuted = false
 const OPTIONAL_REMOTE_TABLES = new Set(['audit_logs', 'project_deletion_logs'])
 
+/** Tabelas de domínio: nunca substituir cache local por “vazio” vindo da API (evita apagar tudo com RLS/sessão errada). */
+const TABLES_GUARD_EMPTY_REMOTE = new Set<string>([
+  'projects',
+  'phases',
+  'tasks',
+  'plan_models',
+  'plan_phases',
+  'plan_tasks',
+  'analysts',
+  'labels',
+  'project_contacts',
+  'comments',
+  'events',
+  'time_logs',
+  'time_sessions',
+  'audit_logs',
+  'project_deletion_logs',
+])
+
+const FORCE_CACHE_REFRESH_KEY = 'vyntask_force_empty_remote_cache.v1'
+
+function allowReplaceCacheWithEmptyRemote(remoteTable: string): boolean {
+  if (!TABLES_GUARD_EMPTY_REMOTE.has(remoteTable)) return true
+  try {
+    return typeof window !== 'undefined' && window.sessionStorage?.getItem(FORCE_CACHE_REFRESH_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function assertSupabase() {
   if (!supabase) throw new Error('Supabase não configurado.')
   return supabase
@@ -40,10 +71,17 @@ function assertSupabase() {
 function isOptionalTableError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const e = err as { code?: string; message?: string }
-  if (e.code === '42P01') return true
-  if (e.code === '42501') return true
+  const code = String(e.code ?? '')
+  if (code === '42P01' || code === '42501') return true
+  // PostgREST: tabela ausente no cache do schema (não é o mesmo texto do Postgres "does not exist")
+  if (code === 'PGRST205' || code === 'PGRST204') return true
   const msg = (e.message ?? '').toLowerCase()
-  return msg.includes('does not exist') || msg.includes('permission denied')
+  return (
+    msg.includes('does not exist') ||
+    msg.includes('permission denied') ||
+    msg.includes('schema cache') ||
+    msg.includes('could not find the table')
+  )
 }
 
 function shouldIgnoreMissingTable(table: string, err: unknown): boolean {
@@ -85,6 +123,110 @@ function toBool(v: unknown, fallback = false): boolean {
 
 function toStringArrayOrNull(v: unknown): string[] | null {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null
+}
+
+/** Payload REST/Postgres para `projects` (usado pelo bridge e por gravação explícita na nuvem). */
+export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
+  return {
+    id: v.id,
+    project_name: v.projectName,
+    plan_type: v.planType,
+    hours_contracted: v.hoursContracted,
+    hours_used: v.hoursUsed,
+    start_date: v.startDate,
+    due_date: v.dueDate,
+    status: v.status,
+    owner_id: v.ownerId,
+    analyst_id: v.analystId,
+    created_by: v.createdBy,
+    created_at: v.createdAt,
+    kanban_column: v.kanbanColumn,
+    cnpj: v.cnpj,
+    razao_social: v.razaoSocial,
+    trade_name: v.tradeName,
+    cep: v.cep,
+    address_street: v.addressStreet,
+    address_number: v.addressNumber,
+    address_complement: v.addressComplement,
+    address_neighborhood: v.addressNeighborhood,
+    address_city: v.addressCity,
+    address_state: v.addressState,
+    implantation_contact_name: v.implantationContactName,
+    implantation_contact_phone: v.implantationContactPhone,
+    corporate_email: v.corporateEmail,
+    client_api_id: v.clientApiId,
+    internal_notes: v.internalNotes,
+    state_registration: v.stateRegistration,
+    secondary_cnpj: v.secondaryCnpj,
+    secondary_razao_social: v.secondaryRazaoSocial,
+    modules_description: v.modulesDescription,
+    plan_snapshot_captured_at: v.planSnapshotCapturedAt,
+    plan_snapshot: v.planSnapshot,
+  }
+}
+
+export function dbPhaseToSupabaseRow(v: DbPhase): Record<string, unknown> {
+  return {
+    id: v.id,
+    project_id: v.projectId,
+    name: v.name,
+    order_index: v.orderIndex,
+    status: v.status,
+    color_hex: v.colorHex,
+  }
+}
+
+export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
+  return {
+    id: v.id,
+    title: v.title,
+    description: v.description,
+    project_id: v.projectId,
+    phase_id: v.phaseId,
+    status: v.status,
+    priority: v.priority,
+    estimated_hours: v.estimatedHours,
+    actual_hours: v.actualHours,
+    assigned_to: v.assignedTo,
+    due_date: v.dueDate,
+    is_informational: v.isInformational,
+    created_at: v.createdAt,
+    code: v.code,
+    sort_order: v.sortOrder,
+  }
+}
+
+/** Grava um projeto no Supabase e falha com erro legível se RLS/rede barrar (Dexie 4 não aguarda Promises em hooks). */
+export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
+  const client = assertSupabase()
+  const { error } = await client.from('projects').upsert(dbProjectToSupabaseRow(project))
+  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+}
+
+export async function upsertPhasesToSupabase(phases: DbPhase[]): Promise<void> {
+  if (phases.length === 0) return
+  const client = assertSupabase()
+  const { error } = await client.from('phases').upsert(phases.map(dbPhaseToSupabaseRow))
+  if (error) throw new Error(`Não foi possível salvar fases na nuvem: ${error.message}`)
+}
+
+export async function upsertTasksToSupabase(tasks: DbTask[]): Promise<void> {
+  if (tasks.length === 0) return
+  const client = assertSupabase()
+  const { error } = await client.from('tasks').upsert(tasks.map(dbTaskToSupabaseRow))
+  if (error) throw new Error(`Não foi possível salvar tarefas na nuvem: ${error.message}`)
+}
+
+/** Projeto + fases + tarefas do projeto (após criação ou mutação ampla em Dexie). */
+export async function upsertProjectGraphFromDexie(projectId: string): Promise<void> {
+  if (!supabase) return
+  const p = await db.projects.get(projectId)
+  if (!p) return
+  await upsertProjectToSupabase(p)
+  const phases = await db.phases.where('projectId').equals(projectId).toArray()
+  await upsertPhasesToSupabase(phases)
+  const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
+  await upsertTasksToSupabase(tasks)
 }
 
 const defs: BridgeDef<unknown>[] = [
@@ -146,10 +288,14 @@ const defs: BridgeDef<unknown>[] = [
       planModelId: String(r.plan_model_id),
       name: String(r.name ?? ''),
       orderIndex: toNumber(r.order_index),
+      colorHex: normalizePhaseColorHex(
+        toStringOrNull(r.color_hex),
+        inferPhaseColor(String(r.name ?? ''), toNumber(r.order_index)),
+      ),
     }),
     toRemote: (x) => {
       const v = x as DbPlanPhase
-      return { id: v.id, plan_model_id: v.planModelId, name: v.name, order_index: v.orderIndex }
+      return { id: v.id, plan_model_id: v.planModelId, name: v.name, order_index: v.orderIndex, color_hex: v.colorHex }
     },
   },
   {
@@ -227,45 +373,7 @@ const defs: BridgeDef<unknown>[] = [
           taskCount: 0,
         } as DbProject['planSnapshot']),
     }),
-    toRemote: (x) => {
-      const v = x as DbProject
-      return {
-        id: v.id,
-        project_name: v.projectName,
-        plan_type: v.planType,
-        hours_contracted: v.hoursContracted,
-        hours_used: v.hoursUsed,
-        start_date: v.startDate,
-        due_date: v.dueDate,
-        status: v.status,
-        owner_id: v.ownerId,
-        analyst_id: v.analystId,
-        created_by: v.createdBy,
-        created_at: v.createdAt,
-        kanban_column: v.kanbanColumn,
-        cnpj: v.cnpj,
-        razao_social: v.razaoSocial,
-        trade_name: v.tradeName,
-        cep: v.cep,
-        address_street: v.addressStreet,
-        address_number: v.addressNumber,
-        address_complement: v.addressComplement,
-        address_neighborhood: v.addressNeighborhood,
-        address_city: v.addressCity,
-        address_state: v.addressState,
-        implantation_contact_name: v.implantationContactName,
-        implantation_contact_phone: v.implantationContactPhone,
-        corporate_email: v.corporateEmail,
-        client_api_id: v.clientApiId,
-        internal_notes: v.internalNotes,
-        state_registration: v.stateRegistration,
-        secondary_cnpj: v.secondaryCnpj,
-        secondary_razao_social: v.secondaryRazaoSocial,
-        modules_description: v.modulesDescription,
-        plan_snapshot_captured_at: v.planSnapshotCapturedAt,
-        plan_snapshot: v.planSnapshot,
-      }
-    },
+    toRemote: (x) => dbProjectToSupabaseRow(x as DbProject),
   },
   {
     localTable: 'projectContacts',
@@ -291,11 +399,12 @@ const defs: BridgeDef<unknown>[] = [
       name: String(r.name ?? ''),
       orderIndex: toNumber(r.order_index),
       status: String(r.status ?? 'bloqueada') as DbPhase['status'],
+      colorHex: normalizePhaseColorHex(
+        toStringOrNull(r.color_hex),
+        inferPhaseColor(String(r.name ?? ''), toNumber(r.order_index)),
+      ),
     }),
-    toRemote: (x) => {
-      const v = x as DbPhase
-      return { id: v.id, project_id: v.projectId, name: v.name, order_index: v.orderIndex, status: v.status }
-    },
+    toRemote: (x) => dbPhaseToSupabaseRow(x as DbPhase),
   },
   {
     localTable: 'tasks',
@@ -317,26 +426,7 @@ const defs: BridgeDef<unknown>[] = [
       code: String(r.code ?? ''),
       sortOrder: toNumber(r.sort_order),
     }),
-    toRemote: (x) => {
-      const v = x as DbTask
-      return {
-        id: v.id,
-        title: v.title,
-        description: v.description,
-        project_id: v.projectId,
-        phase_id: v.phaseId,
-        status: v.status,
-        priority: v.priority,
-        estimated_hours: v.estimatedHours,
-        actual_hours: v.actualHours,
-        assigned_to: v.assignedTo,
-        due_date: v.dueDate,
-        is_informational: v.isInformational,
-        created_at: v.createdAt,
-        code: v.code,
-        sort_order: v.sortOrder,
-      }
-    },
+    toRemote: (x) => dbTaskToSupabaseRow(x as DbTask),
   },
   {
     localTable: 'events',
@@ -560,26 +650,26 @@ function installHooks() {
 
   for (const def of defs) {
     const table = (db as Record<string, any>)[def.localTable]
+    // Dexie 4: hooks creating/updating não aguardam Promise; retornar Promise quebrava o sync e a UI “salvava” só no IndexedDB.
     table.hook('creating', function (_primaryKey: unknown, obj: unknown) {
       if (syncingMuted) return
-      return upsertRemote(def, obj)
+      void upsertRemote(def, obj).catch((e) => console.warn(`[Supabase] sync create ${def.remoteTable}`, e))
     })
     table.hook('updating', function (mods: Record<string, unknown>, _primaryKey: unknown, obj: Record<string, unknown>) {
       if (syncingMuted) return
       const merged = { ...obj, ...mods }
-      return upsertRemote(def, merged)
+      void upsertRemote(def, merged).catch((e) => console.warn(`[Supabase] sync update ${def.remoteTable}`, e))
     })
     table.hook('deleting', function (primaryKey: unknown) {
       if (syncingMuted) return
       const client = assertSupabase()
-      return client
+      void client
         .from(def.remoteTable)
         .delete()
         .eq('id', String(primaryKey))
         .then(({ error }) => {
-          if (error) {
-            if (shouldIgnoreMissingTable(def.remoteTable, error)) return
-            throw new Error(`[Supabase] ${def.remoteTable} delete: ${error.message}`)
+          if (error && !shouldIgnoreMissingTable(def.remoteTable, error)) {
+            console.warn(`[Supabase] sync delete ${def.remoteTable}`, error)
           }
         })
     })
@@ -600,8 +690,17 @@ async function hydrateUsersFromProfiles() {
     createdAt: String(r.created_at ?? new Date().toISOString()),
     lastLogin: toStringOrNull(r.last_login_at),
   }))
+  if (users.length === 0) {
+    const prev = await db.users.count()
+    if (prev > 0) {
+      console.warn(
+        '[Supabase] profiles retornou 0 linhas com usuários já em cache local; mantendo cache de usuários para não quebrar o app.',
+      )
+    }
+    return
+  }
   await db.users.clear()
-  if (users.length > 0) await db.users.bulkPut(users)
+  await db.users.bulkPut(users)
 }
 
 export async function refreshSupabaseDexieCache(): Promise<void> {
@@ -614,6 +713,19 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
       try {
         const rows = await fetchAll(def.remoteTable)
         const mapped = rows.map(def.fromRemote)
+        const localCount = await table.count()
+        if (
+          mapped.length === 0 &&
+          localCount > 0 &&
+          !allowReplaceCacheWithEmptyRemote(def.remoteTable)
+        ) {
+          console.warn(
+            `[Supabase] Pulando refresh de ${def.remoteTable}: remoto retornou 0 linhas e o cache local tem ${localCount}. ` +
+              'Isso costuma ser RLS, sessão expirada ou falha de rede — não limpamos o IndexedDB para evitar perda de visão dos dados. ' +
+              `Para forçar substituição por vazio, defina sessionStorage['${FORCE_CACHE_REFRESH_KEY}'] = '1' e recarregue (use com cuidado).`,
+          )
+          continue
+        }
         await table.clear()
         if (mapped.length > 0) await table.bulkPut(mapped)
       } catch (err) {

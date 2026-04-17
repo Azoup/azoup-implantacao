@@ -21,6 +21,11 @@ import {
   updatePlanModel,
 } from '../services/planModels'
 import {
+  inferPhaseColor,
+  normalizePhaseColorHex,
+  phaseProgressionAccent,
+} from '../constants/phaseProgression'
+import {
   addPlanPhase,
   addPlanTask,
   deletePlanPhase,
@@ -177,13 +182,26 @@ export function PlanModelsPage() {
   }, [canEditPlanModels])
 
   const onPhaseSave = useCallback(
-    async (phaseName: string) => {
+    async (phaseName: string, phaseColorHex: string) => {
       if (!selectedId) return
       if (!canEditPlanModels) return
-      if (phaseEditing) await updatePlanPhase(phaseEditing.id, phaseName)
-      else await addPlanPhase(selectedId, phaseName)
+      if (phaseEditing) {
+        await updatePlanPhase(
+          phaseEditing.id,
+          phaseName,
+          normalizePhaseColorHex(phaseColorHex, inferPhaseColor(phaseName, phaseEditing.orderIndex)),
+        )
+      } else {
+        const nextOrder =
+          detail.phases.length > 0 ? detail.phases[detail.phases.length - 1].orderIndex + 1 : 0
+        await addPlanPhase(
+          selectedId,
+          phaseName,
+          normalizePhaseColorHex(phaseColorHex, inferPhaseColor(phaseName, nextOrder)),
+        )
+      }
     },
-    [selectedId, phaseEditing, canEditPlanModels],
+    [selectedId, phaseEditing, canEditPlanModels, detail.phases],
   )
 
   const openNewTask = useCallback(
@@ -520,7 +538,11 @@ export function PlanModelsPage() {
                   {detail.phases.map((ph) => {
                     const ts = tasksByPhase.get(ph.id) ?? []
                     return (
-                      <div key={ph.id} className="plan-phase-card">
+                      <div
+                        key={ph.id}
+                        className="plan-phase-card"
+                        style={{ ['--plan-phase-accent' as string]: ph.colorHex || phaseProgressionAccent(ph.orderIndex) }}
+                      >
                         <div className="plan-phase-card__head">
                           <span className="plan-phase-card__badge">{ph.orderIndex + 1}</span>
                           <h4 className="plan-phase-card__name">{ph.name}</h4>
@@ -699,6 +721,13 @@ export function PlanModelsPage() {
           setPhaseEditing(null)
         }}
         phase={phaseEditing}
+        orderIndex={
+          phaseEditing
+            ? phaseEditing.orderIndex
+            : detail.phases.length > 0
+              ? detail.phases[detail.phases.length - 1].orderIndex + 1
+              : 0
+        }
         onSave={onPhaseSave}
       />
 

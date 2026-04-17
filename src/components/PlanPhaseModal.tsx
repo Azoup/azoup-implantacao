@@ -1,24 +1,28 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { DbPlanPhase } from '../db/types'
+import { PHASE_COLOR_PRESETS, inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
 
 type Props = {
   open: boolean
   onClose: () => void
   phase: DbPlanPhase | null
-  onSave: (name: string) => Promise<void>
+  orderIndex: number
+  onSave: (name: string, colorHex: string) => Promise<void>
 }
 
-export function PlanPhaseModal({ open, onClose, phase, onSave }: Props) {
+export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Props) {
   const [name, setName] = useState('')
+  const [colorHex, setColorHex] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setName(phase?.name ?? '')
+    setColorHex(phase?.colorHex ?? inferPhaseColor(phase?.name ?? '', orderIndex))
     setErr(null)
-  }, [open, phase?.id])
+  }, [open, phase?.id, orderIndex])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -30,7 +34,7 @@ export function PlanPhaseModal({ open, onClose, phase, onSave }: Props) {
     setSaving(true)
     setErr(null)
     try {
-      await onSave(n)
+      await onSave(n, normalizePhaseColorHex(colorHex, inferPhaseColor(n, orderIndex)))
       onClose()
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : 'Erro ao salvar')
@@ -71,6 +75,33 @@ export function PlanPhaseModal({ open, onClose, phase, onSave }: Props) {
                 required
                 minLength={2}
                 placeholder="Ex: Fase 01 — Vendas"
+              />
+            </label>
+            <label className="field">
+              <span>Cor da fase</span>
+              <div className="plan-phase-color-grid">
+                {PHASE_COLOR_PRESETS.map((preset) => {
+                  const selected = colorHex.toLowerCase() === preset.hex.toLowerCase()
+                  return (
+                    <button
+                      key={preset.key}
+                      type="button"
+                      className={'plan-phase-color-chip' + (selected ? ' is-selected' : '')}
+                      onClick={() => setColorHex(preset.hex)}
+                      title={preset.label}
+                      style={{ ['--phase-chip-color' as string]: preset.hex }}
+                    >
+                      <span className="plan-phase-color-chip__dot" aria-hidden />
+                      {preset.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <input
+                value={colorHex}
+                onChange={(e) => setColorHex(e.target.value)}
+                placeholder="#b89a2b"
+                pattern="^#?[0-9a-fA-F]{6}$"
               />
             </label>
             <p className="muted plan-new-form__hint">

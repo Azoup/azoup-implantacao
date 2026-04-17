@@ -23,12 +23,15 @@ export function sortProjects<T extends Pick<DbProject, 'projectName' | 'startDat
   config: ProjectSortConfig,
 ): T[] {
   return [...projects].sort((a, b) => {
-    const base =
-      config.key === 'name'
-        ? nameCmp(a, b)
-        : config.direction === 'desc'
-          ? startMs(b, 'min') - startMs(a, 'min')
-          : startMs(a, 'max') - startMs(b, 'max')
+    const base = (() => {
+      if (config.key === 'name') {
+        const cmp = nameCmp(a, b)
+        return config.direction === 'asc' ? cmp : -cmp
+      }
+      return config.direction === 'desc'
+        ? startMs(b, 'min') - startMs(a, 'min')
+        : startMs(a, 'max') - startMs(b, 'max')
+    })()
     if (base !== 0) return base
     return nameCmp(a, b)
   })

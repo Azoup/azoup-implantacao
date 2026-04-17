@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { DEFAULT_PLAN_PRESENTATION_URLS, STATIC_PLAN_PRESENTATIONS } from '../constants/planPresentations'
+import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
 import type {
   DbAnalyst,
   DbAuditLog,
@@ -295,6 +296,60 @@ export class VyntaskDB extends Dexie {
       comments: 'id, createdAt, taskId, projectId, eventId, authorId',
       labels: 'id, projectId, code',
     })
+    this.version(12)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo',
+        events: 'id, startTime, analystId, projectId, taskId',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        const models = (await tx.table('planModels').toArray()) as { id: string; key: string }[]
+        const projects = (await tx.table('projects').toArray()) as { id: string; planType: string }[]
+        const phases = (await tx.table('planPhases').toArray()) as {
+          id: string
+          planModelId: string
+          name: string
+          orderIndex: number
+          colorHex?: string | null
+        }[]
+
+        const planKeyByModelId = new Map(models.map((m) => [m.id, m.key]))
+        const projectPlanKeyById = new Map(projects.map((p) => [p.id, p.planType]))
+        const planColorByKeyOrder = new Map<string, string>()
+
+        for (const ph of phases) {
+          const fallback = inferPhaseColor(ph.name ?? '', Number(ph.orderIndex ?? 0))
+          const colorHex = normalizePhaseColorHex(ph.colorHex, fallback)
+          await tx.table('planPhases').update(ph.id, { colorHex })
+          const planKey = planKeyByModelId.get(ph.planModelId)
+          if (planKey) planColorByKeyOrder.set(`${planKey}:${ph.orderIndex}`, colorHex)
+        }
+
+        await tx.table('phases').toCollection().modify((ph: Record<string, unknown>) => {
+          const projectId = String(ph.projectId ?? '')
+          const orderIndex = Number(ph.orderIndex ?? 0)
+          const name = String(ph.name ?? '')
+          const planKey = projectPlanKeyById.get(projectId)
+          const fromPlan = planKey ? planColorByKeyOrder.get(`${planKey}:${orderIndex}`) : null
+          ph.colorHex = normalizePhaseColorHex(
+            (ph.colorHex as string | null | undefined) ?? fromPlan ?? null,
+            inferPhaseColor(name, orderIndex),
+          )
+        })
+      })
   }
 }
 

@@ -105,6 +105,8 @@ export interface DbPlanPhase {
   planModelId: string
   name: string
   orderIndex: number
+  /** Cor oficial da fase (hex) usada nas etiquetas e barras. */
+  colorHex: string
 }
 
 export interface DbPlanTask {
@@ -184,6 +186,8 @@ export interface DbPhase {
   name: string
   orderIndex: number
   status: PhaseStatus
+  /** Snapshot da cor da fase no momento da criação do projeto. */
+  colorHex: string | null
 }
 
 export interface DbTask {

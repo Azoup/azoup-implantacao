@@ -6,6 +6,7 @@
  * Códigos de tarefa: o número antes do ponto (0.7, 1.2, 2.1…) segue essa mesma fase.
  */
 import { uuid } from '../lib/uuid'
+import { inferPhaseColor } from '../constants/phaseProgression'
 import { db } from './database'
 import type { DbPlanPhase, DbPlanTask, PlanTypeKey } from './types'
 
@@ -39,6 +40,7 @@ function phaseRows(
     planModelId,
     name,
     orderIndex,
+    colorHex: inferPhaseColor(name, orderIndex),
   }
   const taskRows: DbPlanTask[] = tasks.map((t, sortOrder) => ({
     id: uuid(),

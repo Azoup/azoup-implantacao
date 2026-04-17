@@ -1,4 +1,6 @@
 import { db } from '../db/database'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
 
 /** Soma horas registradas via modal de log (inclui 0 em cancelado sem horas). */
 export async function sumTimeLogHoursForTask(taskId: string): Promise<number> {
@@ -40,6 +42,10 @@ export async function recalculateProjectHoursUsed(projectId: string): Promise<vo
   }
   const rounded = Math.round(sum * 1000) / 1000
   await db.projects.update(projectId, { hoursUsed: rounded })
+  if (isSupabaseConfigured()) {
+    const p = await db.projects.get(projectId)
+    if (p) await upsertProjectToSupabase(p)
+  }
 }
 
 /** Reprocessa todos os projetos (ex.: migração). */

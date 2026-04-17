@@ -32,6 +32,11 @@ export function planLabelTextOnBackground(bg: string): string {
   return relativeLuminance(bg) > 0.42 ? '#0f172a' : '#f8fafc'
 }
 
+/** Texto da etiqueta com fundo neutro; mantém contraste em dark/light. */
+export function planLabelTextOnNeutral(phaseHex: string): string {
+  return relativeLuminance(phaseHex) > 0.56 ? mixHex(phaseHex, '#0f172a', 0.58) : mixHex(phaseHex, '#f8fafc', 0.2)
+}
+
 export function parsePlanCodeMajorMinor(code: string): { major: number; minor: number } {
   const s = code.trim()
   const i = s.indexOf('.')
@@ -50,10 +55,14 @@ export function parsePlanCodeMajorMinor(code: string): { major: number; minor: n
 }
 
 /** Cores da etiqueta = mesma cor da fase (0.x → Fase 00, 1.x → Fase 01, …); sem tons diferentes por subcódigo. */
-export function planLabelColorsFromCode(code: string): { background: string; color: string } {
+export function planLabelColorsFromCode(
+  code: string,
+  phaseHex?: string | null,
+): { background: string; color: string; border: string; phase: string } {
   const { major } = parsePlanCodeMajorMinor(code)
-  const background = phaseProgressionAccent(major)
-  return { background, color: planLabelTextOnBackground(background) }
+  const phase = phaseHex?.trim() || phaseProgressionAccent(major)
+  const background = 'transparent'
+  return { background, color: planLabelTextOnNeutral(phase), border: phase, phase }
 }
 
 /** Cor “chefe” da fase (timeline, cabeçalho da seção Labels, kanban) pelo `orderIndex` do plano. */
@@ -64,23 +73,22 @@ export function planPhaseAccentHex(planOrderIndex: number): string {
 /**
  * Pills da aba Labels (projeto): fundo/borda/ponto alinhados ao código; concluídas ficam na mesma família, mais apagadas.
  */
-export function planLabelTabPillStyle(code: string, completed: boolean): {
+export function planLabelTabPillStyle(code: string, completed: boolean, phaseHex?: string | null): {
   background: string
   color: string
   dot: string
   border: string
 } {
-  const base = planLabelColorsFromCode(code)
+  const base = planLabelColorsFromCode(code, phaseHex)
   if (!completed) {
-    const dot = mixHex(base.background, '#0f172a', 0.24)
-    const border = mixHex(base.background, '#0f172a', 0.32)
+    const dot = mixHex(base.phase, '#f8fafc', 0.2)
+    const border = mixHex(base.phase, '#f8fafc', 0.05)
     return { background: base.background, color: base.color, dot, border }
   }
-  const bg = mixHex(base.background, '#334155', 0.5)
-  const color = planLabelTextOnBackground(bg)
-  const dot = mixHex(bg, '#0f172a', 0.22)
-  const border = mixHex(bg, '#475569', 0.45)
-  return { background: bg, color, dot, border }
+  const color = mixHex(base.color, '#94a3b8', 0.32)
+  const dot = mixHex(base.phase, '#94a3b8', 0.4)
+  const border = mixHex(base.phase, '#64748b', 0.55)
+  return { background: 'transparent', color, dot, border }
 }
 
 export type PlanLabelChip = { code: string; name: string }

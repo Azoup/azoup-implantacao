@@ -207,6 +207,14 @@ export function OverviewPage() {
                       const analyst = analysts.find((a) => a.id === p.analystId)
                       const lastLabel = getLastCompletedPlanLabel(tasks, p.id)
                       const activeLabel = getActivePlanLabel(tasks, p.id, phases)
+                      const phSorted = phases
+                        .filter((x) => x.projectId === p.id)
+                        .sort((a, b) => a.orderIndex - b.orderIndex)
+                      const resolveCodeColor = (code: string): string | null => {
+                        const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
+                        const phase = Number.isFinite(major) && major >= 0 ? phSorted[major] : null
+                        return phase?.colorHex ?? null
+                      }
                       const effective = effectiveKanbanByProject.get(p.id) ?? p.kanbanColumn
                       return (
                         <article
@@ -246,7 +254,12 @@ export function OverviewPage() {
                             ) : null}
                             <span className={planBadgeClass(p.planType)}>{planBadgeLabel(p)}</span>
                           </div>
-                          <PlanLabelRow last={lastLabel} active={activeLabel} variant="kanban" />
+                          <PlanLabelRow
+                            last={lastLabel}
+                            active={activeLabel}
+                            variant="kanban"
+                            resolveCodeColor={resolveCodeColor}
+                          />
                           <div className="kanban-card__progress">
                             <div className="kanban-card__progress-track">
                               <div className="kanban-card__progress-fill" style={{ width: `${pct}%` }} />

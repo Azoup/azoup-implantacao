@@ -185,6 +185,7 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
             name: 'Sem fase vinculada',
             orderIndex: 999,
             status: 'ativa',
+            colorHex: null,
           }
           row.phases.push({ phase: synthetic, tasks: realOrphans })
         }

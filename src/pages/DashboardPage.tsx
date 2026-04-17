@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowDownAZ,
-  ArrowUpWideNarrow,
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   Clock3,
   ExternalLink,
@@ -342,45 +343,49 @@ export function DashboardPage() {
           <div className="project-sortbar" role="group" aria-label="Ordenação de projetos">
             <button
               type="button"
-              className={'project-sortbar__btn' + (projectSort.key === 'name' ? ' is-active' : '')}
+              className={'project-sortbar__toggle' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+              aria-label="Ordenar por data de início"
+              title={
+                projectSort.key === 'startDate' && projectSort.direction === 'asc'
+                  ? 'Mais antigos primeiro'
+                  : 'Mais novos primeiro'
+              }
               onClick={() => {
-                const next: ProjectSortConfig = { ...projectSort, key: 'name' }
+                const nextDirection =
+                  projectSort.key === 'startDate' && projectSort.direction === 'asc' ? 'desc' : 'asc'
+                const next: ProjectSortConfig = { key: 'startDate', direction: nextDirection }
                 setProjectSort(next)
                 writeProjectSortConfig(next)
               }}
-              title="Ordenar por nome"
             >
-              <ArrowDownAZ size={15} strokeWidth={2} />
-              Nome
+              <CalendarDays size={14} strokeWidth={2} />
+              {projectSort.key === 'startDate' && projectSort.direction === 'asc' ? (
+                <ChevronUp size={14} strokeWidth={2.4} />
+              ) : (
+                <ChevronDown size={14} strokeWidth={2.4} />
+              )}
             </button>
             <button
               type="button"
-              className={'project-sortbar__btn' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+              className={'project-sortbar__toggle' + (projectSort.key === 'name' ? ' is-active' : '')}
+              aria-label="Ordenar por nome"
+              title={projectSort.key === 'name' && projectSort.direction === 'asc' ? 'Nome A-Z' : 'Nome Z-A'}
               onClick={() => {
-                const next: ProjectSortConfig = { ...projectSort, key: 'startDate' }
+                const nextDirection = projectSort.key === 'name' && projectSort.direction === 'asc' ? 'desc' : 'asc'
+                const next: ProjectSortConfig = { key: 'name', direction: nextDirection }
                 setProjectSort(next)
                 writeProjectSortConfig(next)
               }}
-              title="Ordenar por início do projeto"
             >
-              <CalendarDays size={15} strokeWidth={2} />
-              Início
-            </button>
-            <button
-              type="button"
-              className="project-sortbar__btn project-sortbar__btn--dir"
-              onClick={() => {
-                const next: ProjectSortConfig = {
-                  ...projectSort,
-                  direction: projectSort.direction === 'asc' ? 'desc' : 'asc',
-                }
-                setProjectSort(next)
-                writeProjectSortConfig(next)
-              }}
-              title={projectSort.direction === 'asc' ? 'Direção: ascendente' : 'Direção: descendente'}
-            >
-              <ArrowUpWideNarrow size={15} strokeWidth={2} />
-              {projectSort.direction === 'asc' ? 'A-Z' : 'Z-A'}
+              <ArrowDownAZ size={14} strokeWidth={2} />
+              <span className="project-sortbar__toggle-text">
+                {projectSort.key === 'name' && projectSort.direction === 'desc' ? 'Z-A' : 'A-Z'}
+              </span>
+              {projectSort.key === 'name' && projectSort.direction === 'desc' ? (
+                <ChevronDown size={14} strokeWidth={2.4} />
+              ) : (
+                <ChevronUp size={14} strokeWidth={2.4} />
+              )}
             </button>
           </div>
           <div className="dashboard-proj-list">
@@ -392,9 +397,17 @@ export function DashboardPage() {
                 const analyst = analysts.find((a) => a.id === p.analystId)
                 const activePhase = phases.find((ph) => ph.projectId === p.id && ph.status === 'ativa')
                 const phaseLabel = activePhase?.name ?? '—'
-                const phaseColor = activePhase ? planPhaseAccentHex(activePhase.orderIndex) : undefined
+                const phaseColor = activePhase ? activePhase.colorHex || planPhaseAccentHex(activePhase.orderIndex) : undefined
                 const lastLabel = getLastCompletedPlanLabel(tasks, p.id)
                 const activeLabel = getActivePlanLabel(tasks, p.id, phases)
+                const phSorted = phases
+                  .filter((x) => x.projectId === p.id)
+                  .sort((a, b) => a.orderIndex - b.orderIndex)
+                const resolveCodeColor = (code: string): string | null => {
+                  const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
+                  const phase = Number.isFinite(major) && major >= 0 ? phSorted[major] : null
+                  return phase?.colorHex ?? null
+                }
                 return (
                   <article key={p.id} className="dashboard-proj-card">
                     <div className="dashboard-proj-card__head">
@@ -418,7 +431,12 @@ export function DashboardPage() {
                         <span className="dashboard-proj-card__plan">{planLabel(p.planType)}</span>
                       </div>
                     </div>
-                    <PlanLabelRow last={lastLabel} active={activeLabel} variant="dashboard" />
+                    <PlanLabelRow
+                      last={lastLabel}
+                      active={activeLabel}
+                      variant="dashboard"
+                      resolveCodeColor={resolveCodeColor}
+                    />
                     <div className="dashboard-proj-card__meta">
                       <span className="dashboard-proj-card__hours">
                         {formatDurationHmFromHours(p.hoursUsed)} / {formatDurationHmFromHours(p.hoursContracted)}

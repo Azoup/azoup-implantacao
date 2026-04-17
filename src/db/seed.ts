@@ -31,19 +31,57 @@ async function seedPlan(
 }
 
 let seeding = false
+const LOCAL_TEST_ADMIN_EMAIL = 'admin@azoup.com'
+const LOCAL_TEST_ADMIN_PASSWORD = 'Azoup@2026'
+
+async function ensureLocalTestAdminUser(): Promise<void> {
+  const allUsers = await db.users.toArray()
+  const hasAnyPasswordLogin = allUsers.some(
+    (u) => u.status === 'active' && typeof u.passwordHash === 'string' && u.passwordHash.trim().length > 0,
+  )
+  if (hasAnyPasswordLogin) return
+
+  const adminHash = await hashPassword(LOCAL_TEST_ADMIN_EMAIL, LOCAL_TEST_ADMIN_PASSWORD)
+  const existing = await db.users.where('email').equals(LOCAL_TEST_ADMIN_EMAIL).first()
+  if (existing) {
+    await db.users.update(existing.id, {
+      name: existing.name || 'Administrador',
+      passwordHash: adminHash,
+      role: 'admin',
+      permissions: defaultScopesForRole('admin'),
+      status: 'active',
+    })
+    return
+  }
+
+  await db.users.add({
+    id: uuid(),
+    name: 'Administrador',
+    email: LOCAL_TEST_ADMIN_EMAIL,
+    passwordHash: adminHash,
+    role: 'admin',
+    permissions: defaultScopesForRole('admin'),
+    status: 'active',
+    createdAt: new Date().toISOString(),
+    lastLogin: null,
+  })
+}
 
 export async function seedDatabase(): Promise<void> {
   if (seeding) return
   seeding = true
   try {
     const n = await db.users.count()
-    if (n > 0) return
+    if (n > 0) {
+      await ensureLocalTestAdminUser()
+      return
+    }
 
-    const adminHash = await hashPassword('admin@azoup.com', 'Azoup@2026')
+    const adminHash = await hashPassword(LOCAL_TEST_ADMIN_EMAIL, LOCAL_TEST_ADMIN_PASSWORD)
     await db.users.add({
       id: uuid(),
       name: 'Administrador',
-      email: 'admin@azoup.com',
+      email: LOCAL_TEST_ADMIN_EMAIL,
       passwordHash: adminHash,
       role: 'admin',
       permissions: defaultScopesForRole('admin'),
@@ -74,6 +112,7 @@ export async function seedDatabase(): Promise<void> {
     await seedPlan('basic', 'Basic', 30, buildBasicPlan)
     await seedPlan('pro', 'Pró', 50, buildProPlan)
     await seedPlan('master', 'Master', 70, buildMasterPlan)
+    await ensureLocalTestAdminUser()
   } finally {
     seeding = false
   }
