@@ -94,24 +94,18 @@ order by policyname;
 -- \i supabase/sql/008_audit_logs.sql
 
 -- ---------------------------------------------------------------------------
--- 8) Opcional: analista poder editar projeto (RLS) — ajuste conforme sua governança
+-- 8) RLS — “analista pode editar projeto”
+--     O campo projects.analyst_id referencia public.analysts(id), não auth.uid().
+--     Para ligar analista ao login e atualizar can_edit_project, rode na ordem:
+--       supabase/sql/010_analysts_profile_link.sql
+--     Depois preencha analysts.profile_id (uuid do perfil Supabase) para cada analista.
 -- ---------------------------------------------------------------------------
--- create or replace function public.can_edit_project(p_project_id uuid)
--- returns boolean
--- language sql
--- stable
--- security definer
--- set search_path = public
--- as $function$
---   select exists (
---     select 1
---     from public.projects p
---     where p.id = p_project_id
---       and (
---         p.created_by = auth.uid()
---         or p.owner_id = auth.uid()
---         or p.analyst_id = auth.uid()
---         or public.is_admin()
---       )
---   );
--- $function$;
+
+-- ---------------------------------------------------------------------------
+-- 9) plan_phases / plan_tasks = 0 ? Corrija ou o app fica sem estrutura de planos.
+--     Antes de rodar 007_seed_plan_phases_tasks.sql, confira se os IDs batem com o seed:
+-- ---------------------------------------------------------------------------
+-- select id, key, name from public.plan_models order by key;
+-- O arquivo 007 usa plan_model_id fixos (ex.: a1111111-1111-4111-8111-111111111111 = basic).
+-- Se seus 3 modelos tiverem outros UUIDs, rode antes 005_seed_builtin_plan_models.sql (ou adapte o 007).
+-- Depois rode no SQL Editor o conteúdo completo de: supabase/sql/007_seed_plan_phases_tasks.sql

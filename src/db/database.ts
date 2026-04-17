@@ -350,6 +350,30 @@ export class VyntaskDB extends Dexie {
           )
         })
       })
+    this.version(13)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo',
+        events: 'id, startTime, analystId, projectId, taskId',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('analysts').toCollection().modify((a: Record<string, unknown>) => {
+          if (a.profileId === undefined) a.profileId = null
+        })
+      })
   }
 }
 

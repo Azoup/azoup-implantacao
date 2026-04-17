@@ -85,6 +85,8 @@ export interface DbAnalyst {
   color: string
   active: boolean
   createdAt: string
+  /** Mesmo id que public.profiles (Supabase); usado em RLS can_edit_project na nuvem. */
+  profileId?: string | null
 }
 
 export interface DbPlanModel {

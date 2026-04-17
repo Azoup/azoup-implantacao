@@ -240,6 +240,7 @@ const defs: BridgeDef<unknown>[] = [
       color: String(r.color ?? '#6366f1'),
       active: toBool(r.active, true),
       createdAt: String(r.created_at ?? new Date().toISOString()),
+      profileId: toStringOrNull(r.profile_id),
     }),
     toRemote: (x) => {
       const v = x as DbAnalyst
@@ -250,6 +251,7 @@ const defs: BridgeDef<unknown>[] = [
         color: v.color,
         active: v.active,
         created_at: v.createdAt,
+        profile_id: v.profileId ?? null,
       }
     },
   },
