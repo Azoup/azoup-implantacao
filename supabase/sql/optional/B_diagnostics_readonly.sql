@@ -89,15 +89,15 @@ order by policyname;
 
 -- ---------------------------------------------------------------------------
 -- 7) Opcional: criar tabelas de auditoria se ainda não existirem (remove 404 no PostgREST)
---     Aplique o arquivo completo: supabase/sql/008_audit_logs.sql
+--     Aplique o arquivo completo: supabase/sql/005_audit_logs.sql
 -- ---------------------------------------------------------------------------
--- \i supabase/sql/008_audit_logs.sql
+-- \i supabase/sql/005_audit_logs.sql
 
 -- ---------------------------------------------------------------------------
 -- 8) RLS — “analista pode editar projeto”
 --     O campo projects.analyst_id referencia public.analysts(id), não auth.uid().
 --     Para ligar analista ao login e atualizar can_edit_project, rode na ordem:
---       supabase/sql/010_analysts_profile_link.sql
+--       supabase/sql/008_analysts_profile_link.sql
 --     Depois preencha analysts.profile_id (uuid do perfil Supabase) para cada analista.
 -- ---------------------------------------------------------------------------
 
@@ -107,5 +107,5 @@ order by policyname;
 -- ---------------------------------------------------------------------------
 -- select id, key, name from public.plan_models order by key;
 -- O arquivo 007 usa plan_model_id fixos (ex.: a1111111-1111-4111-8111-111111111111 = basic).
--- Se seus 3 modelos tiverem outros UUIDs, rode antes 005_seed_builtin_plan_models.sql (ou adapte o 007).
+-- Se seus 3 modelos tiverem outros UUIDs, rode antes 006_seed_builtin_plan_models.sql (ou adapte o 007).
 -- Depois rode no SQL Editor o conteúdo completo de: supabase/sql/007_seed_plan_phases_tasks.sql

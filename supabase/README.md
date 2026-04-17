@@ -1,26 +1,35 @@
-# Supabase SQL Flow
+# Supabase SQL — VynTask
 
-Ordem recomendada para um ambiente novo:
+**Índice principal:** `sql/README_RUN_ORDER.txt` (ordem de execução, risco, import legado).
 
-1. `sql/001_profiles.sql`
-2. Demais arquivos estruturais da pasta `sql/` (na ordem numérica)
-3. `sql/005_seed_builtin_plan_models.sql`
-4. `sql/007_seed_plan_phases_tasks.sql`
-5. `sql/008_audit_logs.sql`
+## Pipeline base (novo ambiente)
 
-## Migração de legado (quando aplicável)
+Na pasta `sql/`, na ordem numérica até `008`:
 
-Depois da estrutura base:
+1. `001_profiles.sql`
+2. `002_core_domain.sql`
+3. `003_storage.sql`
+4. `004_realtime.sql`
+5. `005_audit_logs.sql`
+6. `006_seed_builtin_plan_models.sql`
+7. `007_seed_plan_phases_tasks.sql` — idempotente (`ON CONFLICT … DO UPDATE`)
+8. `008_analysts_profile_link.sql` — coluna `analysts.profile_id` e função `can_edit_project`
 
-1. `import/006_legacy_import.sql` (carga principal de dados legados)
-2. `import/008_restore_project_docs_comments.sql` (reparo/restauração de comentários/documentação)
+## Opcional / pontual / manutenção
 
-## Notas operacionais
+- `sql/optional/` — catálogo extra (Upsell), diagnósticos somente leitura.
+- `sql/one_time/` — scripts específicos de ambiente (ex.: merge de analistas); **editar antes**.
+- `sql/maintenance/` — `UPDATE` em dados (ex.: deduplicar título de tarefa).
 
-- `007_seed_plan_phases_tasks.sql` é idempotente via `ON CONFLICT (id) DO UPDATE`.
-- `008_audit_logs.sql` cria as tabelas `audit_logs` e `project_deletion_logs` (com RLS e grants)
-  usadas para sincronizar trilha de auditoria entre app local e Supabase.
-- `008_restore_project_docs_comments.sql` deve ser usado quando houver necessidade de restaurar
-  documentação/comentários após carga principal.
-- Os geradores Python em `scripts/` podem ser usados para regenerar SQLs de import quando a base
-  de origem mudar.
+## Import legado (alto risco se mal configurado)
+
+Pasta `import/`:
+
+1. `legacy_full_import_with_user_map.sql` — ajustar `_user_map` no topo.
+2. `legacy_restore_project_docs_comments.sql` — só se precisar repor docs/comentários.
+
+**Não** restaure um dump antigo por cima de dados já atualizados pelo app; use clone de projeto ou export seletivo.
+
+## Geradores
+
+Em `scripts/`: `gen_plan_templates_sql.py`, `gen_migration_sql.py`, `gen_project_docs_sql.py` — saídas alinhadas aos nomes atuais dos `.sql`.

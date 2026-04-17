@@ -3,7 +3,7 @@ Gera SQL de recuperação de documentação/comentários por projeto
 do dataset antigo (Lovable) para o schema atual.
 
 Saída:
-  supabase/import/008_restore_project_docs_comments.sql
+  supabase/import/legacy_restore_project_docs_comments.sql
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import csv
 from pathlib import Path
 
 SRC = Path(r"C:\Users\teste\Downloads\lovable_old_vyntask\dados_old")
-OUT = Path(__file__).resolve().parents[1] / "supabase" / "import" / "008_restore_project_docs_comments.sql"
+OUT = Path(__file__).resolve().parents[1] / "supabase" / "import" / "legacy_restore_project_docs_comments.sql"
 
 
 def rd(name: str) -> list[dict[str, str]]:

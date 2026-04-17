@@ -1,5 +1,5 @@
 """
-Gera supabase/import/006_legacy_import.sql a partir dos CSVs do projeto antigo.
+Gera supabase/import/legacy_full_import_with_user_map.sql a partir dos CSVs do projeto antigo.
 Execução: python scripts/gen_migration_sql.py
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ from pathlib import Path
 SRC = Path(r"C:\Users\teste\Downloads\lovable_old_vyntask\dados_old")
 OUT_DIR = Path(__file__).resolve().parents[1] / "supabase" / "import"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-OUT_SQL = OUT_DIR / "006_legacy_import.sql"
+OUT_SQL = OUT_DIR / "legacy_full_import_with_user_map.sql"
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +181,7 @@ w("")
 # ---------------------------------------------------------------------------
 # PLAN MODELS / PHASES / TASKS — PULADOS INTENCIONALMENTE
 # O novo projeto já tem estes templates seedados corretamente via
-# supabase/sql/005_seed_builtin_plan_models.sql com UUIDs fixos.
+# supabase/sql/006_seed_builtin_plan_models.sql com UUIDs fixos.
 # Inserir novamente causaria conflito na constraint UNIQUE(key).
 # Os dados operacionais (projects, phases, tasks) não referenciam
 # plan_model_id — usam plan_type (text) diretamente.
@@ -189,10 +189,13 @@ w("")
 w(
     "-- ============================================================",
     "-- 2-4. PLAN MODELS / PLAN PHASES / PLAN TASKS",
-    "-- PULADOS: já existem no novo projeto via 005_seed_builtin_plan_models.sql",
-    "-- Os templates do projeto antigo tinham UUIDs diferentes dos fixos do novo.",
-    "-- Caso queira adicionar o modelo customizado 'Upsell', faça manualmente",
-    "-- pelo painel de Modelos de Plano do sistema.",
+    "-- PULADOS: use no SQL Editor, NESTA ORDEM (ver supabase/sql/README_RUN_ORDER.txt):",
+    "--   supabase/sql/006_seed_builtin_plan_models.sql  (basic / pro / master)",
+    "--   supabase/sql/007_seed_plan_phases_tasks.sql    (14 fases + 72 tarefas)",
+    "-- Opcional — 4º catálogo \"Upsell\" espelhando dados_old (Lovable):",
+    "--   supabase/sql/optional/A_seed_upsell_plan_from_lovable.sql",
+    "-- Os CSVs em dados_old/plan_templates*, phase_templates*, task_templates*",
+    "-- alimentaram o gerador do 007 (IDs de fase/tarefa dos 3 planos batem com o export).",
     "-- ============================================================",
     "",
 )

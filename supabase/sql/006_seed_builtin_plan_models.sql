@@ -1,8 +1,8 @@
 -- VynTask — INSERT inicial dos 3 modelos de plano (basic / pro / master)
 -- Pré-requisito: 002_core_domain.sql (tabela plan_models).
 -- Idempotente: ON CONFLICT (key) DO NOTHING — não sobrescreve planos já criados no painel/app.
--- Fases e tarefas modelo (plan_phases / plan_tasks) não vêm aqui: sincronize pelo app (Dexie)
---   ou gere um script dedicado; os IDs abaixo servem como âncora estável no Supabase.
+-- Fases e tarefas modelo (plan_phases / plan_tasks): rode em seguida 007_seed_plan_phases_tasks.sql
+--   (ou app Dexie). Os IDs abaixo são âncora estável no Supabase.
 
 insert into public.plan_models (
   id,

@@ -3,7 +3,8 @@
 -- Remove: 66827fda-8720-455b-8771-16ac80f22de4 ("Vinícius" duplicado)
 -- Perfil de login: f2f37d7b-e3ee-408b-b5d0-66e1a4ccc799 (vinicius.azoup@gmail.com)
 --
--- Pré-requisito: coluna analysts.profile_id existe (script 010_analysts_profile_link.sql).
+-- Pré-requisito: coluna analysts.profile_id existe (rode antes supabase/sql/008_analysts_profile_link.sql).
+-- ATENÇÃO: UUIDs abaixo são EXEMPLO de ambiente; edite antes de rodar ou crie script próprio.
 
 begin;
 
