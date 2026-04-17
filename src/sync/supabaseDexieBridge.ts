@@ -31,6 +31,18 @@ type BridgeDef<TLocal> = {
 
 let hooksInstalled = false
 let syncingMuted = false
+/** Permite refresh + salvamento explícito sem “empilhar” mute de forma incorreta. */
+let syncingMuteDepth = 0
+
+function pushSyncMute() {
+  syncingMuteDepth++
+  syncingMuted = true
+}
+
+function popSyncMute() {
+  syncingMuteDepth = Math.max(0, syncingMuteDepth - 1)
+  syncingMuted = syncingMuteDepth > 0
+}
 const OPTIONAL_REMOTE_TABLES = new Set(['audit_logs', 'project_deletion_logs'])
 
 /** Tabelas de domínio: nunca substituir cache local por “vazio” vindo da API (evita apagar tudo com RLS/sessão errada). */
@@ -125,6 +137,17 @@ function toStringArrayOrNull(v: unknown): string[] | null {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null
 }
 
+/** Colunas `date` no Postgres: enviar só `YYYY-MM-DD` evita deslocamento por fuso em ISO completo. */
+function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
+  if (isoOrYmd == null) return null
+  const s = String(isoOrYmd).trim()
+  if (!s) return null
+  const head = s.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (head) return head[1]
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
 /** Payload REST/Postgres para `projects` (usado pelo bridge e por gravação explícita na nuvem). */
 export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
   return {
@@ -133,8 +156,8 @@ export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
     plan_type: v.planType,
     hours_contracted: v.hoursContracted,
     hours_used: v.hoursUsed,
-    start_date: v.startDate,
-    due_date: v.dueDate,
+    start_date: toPgDateOnly(v.startDate),
+    due_date: toPgDateOnly(v.dueDate),
     status: v.status,
     owner_id: v.ownerId,
     analyst_id: v.analystId,
@@ -196,11 +219,44 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
   }
 }
 
+const PROJECT_UPSERT_TIMEOUT_MS = 45_000
+
 /** Grava um projeto no Supabase e falha com erro legível se RLS/rede barrar (Dexie 4 não aguarda Promises em hooks). */
 export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
   const client = assertSupabase()
-  const { error } = await client.from('projects').upsert(dbProjectToSupabaseRow(project))
-  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+  const payload = dbProjectToSupabaseRow(project)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const upsertPromise = Promise.resolve(client.from('projects').upsert(payload))
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `Tempo esgotado (${PROJECT_UPSERT_TIMEOUT_MS / 1000}s) ao salvar o projeto na nuvem. Verifique a conexão ou o status do Supabase.`,
+          ),
+        )
+      }, PROJECT_UPSERT_TIMEOUT_MS)
+    })
+    const { error } = await Promise.race([upsertPromise, timeoutPromise])
+    if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/**
+ * Desliga temporariamente os hooks Dexie→Supabase para evitar upsert duplicado
+ * (ex.: gravação explícita + hook no `projects.update`).
+ */
+export async function withDexieSupabaseSyncMuted<T>(fn: () => Promise<T>): Promise<T> {
+  if (!supabase) return await fn()
+  installHooks()
+  pushSyncMute()
+  try {
+    return await fn()
+  } finally {
+    popSyncMute()
+  }
 }
 
 export async function upsertPhasesToSupabase(phases: DbPhase[]): Promise<void> {
@@ -708,7 +764,7 @@ async function hydrateUsersFromProfiles() {
 export async function refreshSupabaseDexieCache(): Promise<void> {
   if (!supabase) return
   installHooks()
-  syncingMuted = true
+  pushSyncMute()
   try {
     for (const def of defs) {
       const table = (db as Record<string, any>)[def.localTable]
@@ -740,7 +796,7 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
       console.warn('[Supabase] Falha ao hidratar usuários do profiles. Mantendo cache local anterior.', err)
     }
   } finally {
-    syncingMuted = false
+    popSyncMute()
   }
 }
 

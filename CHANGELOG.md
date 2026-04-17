@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.2.11 (2026-04-17)
+
+- **Edição de projeto (nuvem):** salvamento com Supabase usa `withDexieSupabaseSyncMuted` para evitar upsert duplicado (explícito + hook Dexie) e normaliza `start_date`/`due_date` para `YYYY-MM-DD` no payload.
+- **UX:** timeout de 45s no `upsert` de projeto com mensagem clara se a requisição não concluir (evita “Salvando…” indefinido por rede/Supabase pendente).
+
 ## v2.2.10 (2026-04-17)
 
 - Bump de versão para disparar novo deploy (Vercel) e alinhar artefatos ao release **v2.2.10**.
