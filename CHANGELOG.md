@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.10 (2026-04-17)
+
+- Bump de versão para disparar novo deploy (Vercel) e alinhar artefatos ao release **v2.2.10**.
+
 ## v2.2.9 (2026-04-17)
 
 - **Segurança de dados (crítico):** o refresh do cache Dexie não apaga mais tabelas de domínio quando a API Supabase devolve **0 linhas** mas o IndexedDB ainda tem dados (cenário típico: RLS, sessão ou leitura vazia). Evita “sumir” todos os projetos na tela local. Para forçar substituição por vazio: `sessionStorage['vyntask_force_empty_remote_cache.v1'] = '1'` + reload (uso raro).
