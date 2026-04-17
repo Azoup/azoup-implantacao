@@ -148,6 +148,90 @@ function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
 }
 
+const PROJECT_WRITE_TIMEOUT_MS = 60_000
+
+async function raceProjectWrite<T>(promise: Promise<T>, opLabel: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(
+          new Error(
+            `Tempo esgotado (${PROJECT_WRITE_TIMEOUT_MS / 1000}s) ao ${opLabel}. ` +
+              'Verifique rede, se o projeto Supabase está ativo (não pausado) e se as policies RLS permitem esta alteração.',
+          ),
+        )
+      }, PROJECT_WRITE_TIMEOUT_MS)
+    })
+    return await Promise.race([Promise.resolve(promise), timeoutPromise])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+/**
+ * PATCH parcial: só colunas presentes em `patch` (evita reenviar `plan_snapshot` gigante a cada edição).
+ */
+function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<string, unknown> {
+  const o: Record<string, unknown> = {}
+  const set = (k: keyof DbProject, snake: string, val: unknown) => {
+    if (!Object.prototype.hasOwnProperty.call(patch, k)) return
+    o[snake] = val
+  }
+  set('projectName', 'project_name', patch.projectName)
+  set('planType', 'plan_type', patch.planType)
+  set('hoursContracted', 'hours_contracted', patch.hoursContracted)
+  set('hoursUsed', 'hours_used', patch.hoursUsed)
+  if (Object.prototype.hasOwnProperty.call(patch, 'startDate')) {
+    o.start_date = toPgDateOnly(patch.startDate ?? null)
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'dueDate')) {
+    o.due_date = toPgDateOnly(patch.dueDate ?? null)
+  }
+  set('status', 'status', patch.status)
+  set('ownerId', 'owner_id', patch.ownerId)
+  set('analystId', 'analyst_id', patch.analystId)
+  set('createdBy', 'created_by', patch.createdBy)
+  set('createdAt', 'created_at', patch.createdAt)
+  set('kanbanColumn', 'kanban_column', patch.kanbanColumn)
+  set('cnpj', 'cnpj', patch.cnpj)
+  set('razaoSocial', 'razao_social', patch.razaoSocial)
+  set('tradeName', 'trade_name', patch.tradeName)
+  set('cep', 'cep', patch.cep)
+  set('addressStreet', 'address_street', patch.addressStreet)
+  set('addressNumber', 'address_number', patch.addressNumber)
+  set('addressComplement', 'address_complement', patch.addressComplement)
+  set('addressNeighborhood', 'address_neighborhood', patch.addressNeighborhood)
+  set('addressCity', 'address_city', patch.addressCity)
+  set('addressState', 'address_state', patch.addressState)
+  set('implantationContactName', 'implantation_contact_name', patch.implantationContactName)
+  set('implantationContactPhone', 'implantation_contact_phone', patch.implantationContactPhone)
+  set('corporateEmail', 'corporate_email', patch.corporateEmail)
+  set('clientApiId', 'client_api_id', patch.clientApiId)
+  set('internalNotes', 'internal_notes', patch.internalNotes)
+  set('stateRegistration', 'state_registration', patch.stateRegistration)
+  set('secondaryCnpj', 'secondary_cnpj', patch.secondaryCnpj)
+  set('secondaryRazaoSocial', 'secondary_razao_social', patch.secondaryRazaoSocial)
+  set('modulesDescription', 'modules_description', patch.modulesDescription)
+  set('planSnapshotCapturedAt', 'plan_snapshot_captured_at', patch.planSnapshotCapturedAt)
+  if (Object.prototype.hasOwnProperty.call(patch, 'planSnapshot')) {
+    o.plan_snapshot = patch.planSnapshot
+  }
+  return o
+}
+
+/** Atualiza só as colunas informadas (PostgREST `PATCH` — payload leve, ideal para formulário de projeto). */
+export async function updateProjectPartialInSupabase(projectId: string, patch: Partial<DbProject>): Promise<void> {
+  const client = assertSupabase()
+  const body = dbProjectPartialToSupabaseUpdate(patch)
+  if (Object.keys(body).length === 0) return
+  const { error } = await raceProjectWrite(
+    Promise.resolve(client.from('projects').update(body).eq('id', projectId)),
+    'atualizar o projeto na nuvem',
+  )
+  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+}
+
 /** Payload REST/Postgres para `projects` (usado pelo bridge e por gravação explícita na nuvem). */
 export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
   return {
@@ -219,29 +303,15 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
   }
 }
 
-const PROJECT_UPSERT_TIMEOUT_MS = 45_000
-
-/** Grava um projeto no Supabase e falha com erro legível se RLS/rede barrar (Dexie 4 não aguarda Promises em hooks). */
+/** Grava um projeto inteiro no Supabase (INSERT/UPSERT — use após criação ou sync amplo; edições de formulário preferem `updateProjectPartialInSupabase`). */
 export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
   const client = assertSupabase()
   const payload = dbProjectToSupabaseRow(project)
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const upsertPromise = Promise.resolve(client.from('projects').upsert(payload))
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        reject(
-          new Error(
-            `Tempo esgotado (${PROJECT_UPSERT_TIMEOUT_MS / 1000}s) ao salvar o projeto na nuvem. Verifique a conexão ou o status do Supabase.`,
-          ),
-        )
-      }, PROJECT_UPSERT_TIMEOUT_MS)
-    })
-    const { error } = await Promise.race([upsertPromise, timeoutPromise])
-    if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
+  const { error } = await raceProjectWrite(
+    Promise.resolve(client.from('projects').upsert(payload)),
+    'salvar o projeto completo na nuvem',
+  )
+  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
 }
 
 /**

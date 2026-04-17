@@ -53,7 +53,7 @@ import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectCo
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
+import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import type {
@@ -262,10 +262,13 @@ export function ProjectDetailPage() {
     if (!ok) return
     const cancelPatch = { status: 'cancelado' as const, kanbanColumn: 'cancelados' as KanbanColumn }
     if (isSupabaseConfigured()) {
-      const nextRow: DbProject = { ...proj, ...cancelPatch }
-      await upsertProjectToSupabase(nextRow)
+      await withDexieSupabaseSyncMuted(async () => {
+        await updateProjectPartialInSupabase(proj.id, cancelPatch)
+        await db.projects.update(proj.id, cancelPatch)
+      })
+    } else {
+      await db.projects.update(proj.id, cancelPatch)
     }
-    await db.projects.update(proj.id, cancelPatch)
     navigate('/projetos', { replace: true })
   }
 

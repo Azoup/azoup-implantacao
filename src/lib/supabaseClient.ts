@@ -14,6 +14,29 @@ function looksLikeValidHttpUrl(s: string): boolean {
   }
 }
 
+const SUPABASE_HTTP_TIMEOUT_MS = 70_000
+
+/** Evita requisições penduradas indefinidamente (rede lenta / edge sem resposta). */
+async function supabaseFetchWithDeadline(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), SUPABASE_HTTP_TIMEOUT_MS)
+  const parent = init?.signal
+  const onParentAbort = () => ctrl.abort()
+  if (parent) {
+    if (parent.aborted) {
+      clearTimeout(timer)
+      throw new DOMException('Aborted', 'AbortError')
+    }
+    parent.addEventListener('abort', onParentAbort)
+  }
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal })
+  } finally {
+    clearTimeout(timer)
+    parent?.removeEventListener('abort', onParentAbort)
+  }
+}
+
 function parseSupabaseEnv(): { url: string; anonKey: string } | null {
   const url = typeof rawUrl === 'string' ? rawUrl.trim() : ''
   const anonKey = typeof rawAnon === 'string' ? rawAnon.trim() : ''
@@ -74,6 +97,9 @@ export const supabase: SupabaseClient | null =
         auth: {
           persistSession: true,
           detectSessionInUrl: true,
+        },
+        global: {
+          fetch: supabaseFetchWithDeadline,
         },
       })
     : null

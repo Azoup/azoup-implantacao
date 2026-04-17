@@ -1,7 +1,7 @@
 import { db } from '../db/database'
-import type { DbProject, KanbanColumn, ProjectStatus } from '../db/types'
+import type { KanbanColumn, ProjectStatus } from '../db/types'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { upsertProjectToSupabase } from '../sync/supabaseDexieBridge'
+import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 
 export function normalizeProjectPlacement(input: {
   status: ProjectStatus
@@ -29,9 +29,12 @@ export async function updateProjectPlacement(projectId: string, next: {
     kanbanColumn: next.kanbanColumn ?? current.kanbanColumn,
   })
   if (isSupabaseConfigured()) {
-    const merged: DbProject = { ...current, ...normalized }
-    await upsertProjectToSupabase(merged)
+    await withDexieSupabaseSyncMuted(async () => {
+      await updateProjectPartialInSupabase(projectId, normalized)
+      await db.projects.update(projectId, normalized)
+    })
+  } else {
+    await db.projects.update(projectId, normalized)
   }
-  await db.projects.update(projectId, normalized)
 }
 

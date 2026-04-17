@@ -19,7 +19,7 @@ import {
   formatPhoneBrDisplay,
 } from '../lib/brazilFormat'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { upsertProjectToSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
+import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { createProjectFromPlan } from '../services/project'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
@@ -264,9 +264,8 @@ export function ProjectCreateModal({
         })
         const patch = { ...common, ...placement }
         if (isSupabaseConfigured()) {
-          const nextRow: DbProject = { ...projectToEdit, ...patch }
           await withDexieSupabaseSyncMuted(async () => {
-            await upsertProjectToSupabase(nextRow)
+            await updateProjectPartialInSupabase(projectToEdit.id, patch)
             await db.projects.update(projectToEdit.id, patch)
           })
         } else {
