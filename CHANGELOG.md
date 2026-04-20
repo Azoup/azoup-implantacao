@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.3.4 (2026-04-20)
+
+- **Correção (nuvem — plano avulso):** exclusão de fase ou tarefa sumia só no Dexie; no `upsertProjectGraphFromDexie` o app só fazia **UPSERT** das linhas locais e **não apagava** registros órfãos no Supabase, então após **F5** a fase/tarefa “voltava”. Agora, antes dos upserts, reconciliamos **tarefas** e **fases** remotas do projeto que não existem mais no Dexie (DELETE em lotes).
+
 ## v2.3.3 (2026-04-20)
 
 - **Modal de projeto:** rodapé fora do formulário com `form` associado; estilos de `.project-create-modal__footer` e padding do corpo para evitar sobreposição; confirmação de UI com `z-index` acima do modal; ao ajustar contrato (plano avulso), o campo de horas sincroniza com o valor confirmado.

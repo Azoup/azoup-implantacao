@@ -527,6 +527,44 @@ export async function upsertTasksToSupabase(tasks: DbTask[]): Promise<void> {
   )
 }
 
+const RECONCILE_DELETE_CHUNK = 120
+
+/**
+ * Remove no Supabase tarefas que não existem mais no Dexie (antes de reconciliar fases).
+ * O grafo só faz UPSERT — sem DELETE de órfãos, exclusões locais reaparecem após reload.
+ */
+async function reconcileOrphanProjectTasksInSupabase(projectId: string, localTasks: DbTask[]): Promise<void> {
+  const client = assertSupabase()
+  const localTaskIds = new Set(localTasks.map((t) => t.id))
+  const { data: remoteTasks, error: selTasksErr } = await client.from('tasks').select('id').eq('project_id', projectId)
+  if (selTasksErr) throw selTasksErr
+  const orphanTaskIds = (remoteTasks ?? [])
+    .map((r) => String((r as { id: unknown }).id))
+    .filter((id) => !localTaskIds.has(id))
+
+  for (let i = 0; i < orphanTaskIds.length; i += RECONCILE_DELETE_CHUNK) {
+    const slice = orphanTaskIds.slice(i, i + RECONCILE_DELETE_CHUNK)
+    const { error } = await client.from('tasks').delete().in('id', slice)
+    if (error) throw error
+  }
+}
+
+async function reconcileOrphanProjectPhasesInSupabase(projectId: string, localPhases: DbPhase[]): Promise<void> {
+  const client = assertSupabase()
+  const localPhaseIds = new Set(localPhases.map((ph) => ph.id))
+  const { data: remotePhases, error: selPhasesErr } = await client.from('phases').select('id').eq('project_id', projectId)
+  if (selPhasesErr) throw selPhasesErr
+  const orphanPhaseIds = (remotePhases ?? [])
+    .map((r) => String((r as { id: unknown }).id))
+    .filter((id) => !localPhaseIds.has(id))
+
+  for (let i = 0; i < orphanPhaseIds.length; i += RECONCILE_DELETE_CHUNK) {
+    const slice = orphanPhaseIds.slice(i, i + RECONCILE_DELETE_CHUNK)
+    const { error } = await client.from('phases').delete().in('id', slice)
+    if (error) throw error
+  }
+}
+
 /** Projeto + fases + tarefas do projeto (após criação ou mutação ampla em Dexie). */
 export async function upsertProjectGraphFromDexie(projectId: string): Promise<void> {
   if (!supabase) return
@@ -542,9 +580,12 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
       return await client.from('projects').upsert(payload)
     })
     const phases = await db.phases.where('projectId').equals(projectId).toArray()
-    failedOperation = 'phases'
-    await upsertPhasesToSupabase(phases)
     const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
+    failedOperation = 'tasks'
+    await reconcileOrphanProjectTasksInSupabase(projectId, tasks)
+    failedOperation = 'phases'
+    await reconcileOrphanProjectPhasesInSupabase(projectId, phases)
+    await upsertPhasesToSupabase(phases)
     failedOperation = 'tasks'
     await upsertTasksToSupabase(tasks)
   } catch (err) {
