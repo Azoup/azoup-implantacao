@@ -26,7 +26,9 @@ import type { LucideIcon } from 'lucide-react'
 import {
   IMPLANTATION_JOURNEY_INTRO,
   IMPLANTATION_JOURNEY_STEPS,
+  IMPLANTATION_TOOL_LINES,
   type ImplantationJourneyIconKey,
+  type ImplantationToolPart,
 } from '../constants/implantationJourney'
 import { AzoupLogoMark } from '../components/AzoupLogoMark'
 import './ImplantationJourneyPage.css'
@@ -58,22 +60,24 @@ const iconProps = { size: 26, strokeWidth: 1.75, absoluteStrokeWidth: true } as 
 type UrlPart = { kind: 'url'; href: string }
 type TextPart = { kind: 'text'; s: string }
 
-function splitUrls(text: string): (UrlPart | TextPart)[] {
+function splitUrls(text: string | null | undefined): (UrlPart | TextPart)[] {
+  const t = typeof text === 'string' ? text : ''
   const out: (UrlPart | TextPart)[] = []
   const re = /(https?:\/\/[^\s]+)/g
   let last = 0
   let m: RegExpExecArray | null
-  while ((m = re.exec(text))) {
-    if (m.index > last) out.push({ kind: 'text', s: text.slice(last, m.index) })
+  while ((m = re.exec(t))) {
+    if (m.index > last) out.push({ kind: 'text', s: t.slice(last, m.index) })
     out.push({ kind: 'url', href: m[1] })
     last = m.index + m[1].length
   }
-  if (last < text.length) out.push({ kind: 'text', s: text.slice(last) })
+  if (last < t.length) out.push({ kind: 'text', s: t.slice(last) })
   return out
 }
 
-function renderBold(s: string): ReactNode {
-  const parts = s.split(/(\*\*[^*]+\*\*)/g)
+function renderBold(s: string | null | undefined): ReactNode {
+  const raw = typeof s === 'string' ? s : ''
+  const parts = raw.split(/(\*\*[^*]+\*\*)/g)
   return parts.map((p, i) => {
     if (p.startsWith('**') && p.endsWith('**')) {
       return <strong key={i}>{p.slice(2, -2)}</strong>
@@ -82,7 +86,7 @@ function renderBold(s: string): ReactNode {
   })
 }
 
-function RichParagraph({ text }: { text: string }) {
+function RichParagraph({ text }: { text: string | null | undefined }) {
   const chunks = splitUrls(text)
   return (
     <p className="impl-page__pill-body">
@@ -99,7 +103,7 @@ function RichParagraph({ text }: { text: string }) {
   )
 }
 
-function IntroRich({ text }: { text: string }) {
+function IntroRich({ text }: { text: string | null | undefined }) {
   const chunks = splitUrls(text)
   return (
     <>
@@ -114,6 +118,18 @@ function IntroRich({ text }: { text: string }) {
       )}
     </>
   )
+}
+
+function ToolLinePartView({ part }: { part: ImplantationToolPart }) {
+  if (part.type === 'text') return <span>{part.value}</span>
+  if (part.type === 'link') {
+    return (
+      <a href={part.href} target="_blank" rel="noopener noreferrer">
+        {part.label}
+      </a>
+    )
+  }
+  return <strong className="impl-page__tool-tag">{part.value}</strong>
 }
 
 export function ImplantationJourneyPage() {
@@ -179,14 +195,21 @@ export function ImplantationJourneyPage() {
         <div className="impl-page__intro-card">
           <strong>Centro de controle</strong>
           <p>
-            <IntroRich text={IMPLANTATION_JOURNEY_INTRO.control} />
+            <IntroRich text={IMPLANTATION_JOURNEY_INTRO.control ?? ''} />
           </p>
         </div>
-        <div className="impl-page__intro-card" style={{ gridColumn: '1 / -1' }}>
+        <div className={'impl-page__intro-card impl-page__intro-card--tools'} style={{ gridColumn: '1 / -1' }}>
           <strong>{IMPLANTATION_JOURNEY_INTRO.toolsTitle}</strong>
-          <p>
-            <IntroRich text={IMPLANTATION_JOURNEY_INTRO.toolsBody} />
-          </p>
+          <ul className="impl-page__tools-list">
+            {IMPLANTATION_TOOL_LINES.map((line) => (
+              <li key={line.name}>
+                <strong className="impl-page__tool-name">{line.name}</strong>
+                {line.parts.map((part, i) => (
+                  <ToolLinePartView key={`${line.name}-${i}`} part={part} />
+                ))}
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -207,7 +230,7 @@ export function ImplantationJourneyPage() {
                 </div>
                 <div className="impl-page__pill">
                   <p className="impl-page__pill-title">{step.title}</p>
-                  <RichParagraph text={step.body} />
+                  <RichParagraph text={step.body ?? ''} />
                 </div>
                 <div className="impl-page__ico" aria-hidden>
                   <Icon {...iconProps} />

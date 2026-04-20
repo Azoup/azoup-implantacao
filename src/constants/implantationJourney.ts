@@ -36,11 +36,64 @@ export const IMPLANTATION_JOURNEY_INTRO = {
   objective:
     'Registrar o método de implantação após contratação: contato, alinhamento, importação de dados, preparação da base, cronograma, execução e encerramento.',
   control:
-    'O **VynTask** concentra projeto, responsáveis, fases e tarefas — substituindo o **Trello** como ferramenta oficial de controle e documentação dos projetos de implantação.',
+    'O **VynTask** concentra projeto, responsáveis, fases e tarefas. Antes o controle e a documentação dos projetos de implantação eram feitos no **Trello**; a referência oficial passa a ser o **VynTask**.',
   toolsTitle: 'Ferramentas',
-  toolsBody:
-    'E-mail em https://titan.hostgator.com.br/mail/ ; **WhatsApp** com o cliente; **Google Agenda** e **Google Meet**; **FileZilla** para envio da base; **IBExpert** na base .FDB; **Notepad++** para textos auxiliares; **Discord** (interno e canal **#infoclientes**).',
 }
+
+/** Linhas da seção Ferramentas (lista no app e espelho no HTML/PDF). */
+export type ImplantationToolPart =
+  | { type: 'text'; value: string }
+  | { type: 'link'; href: string; label: string }
+  /** Segundo nome em destaque na mesma linha (ex.: Google Meet, #infoclientes) */
+  | { type: 'tag'; value: string }
+
+export type ImplantationToolLine = {
+  name: string
+  parts: ImplantationToolPart[]
+}
+
+export const IMPLANTATION_TOOL_LINES: ImplantationToolLine[] = [
+  {
+    name: 'E-mail',
+    parts: [
+      { type: 'text', value: ' corporativo em ' },
+      { type: 'link', href: 'https://titan.hostgator.com.br/mail/', label: 'titan.hostgator.com.br/mail' },
+      { type: 'text', value: '.' },
+    ],
+  },
+  {
+    name: 'WhatsApp',
+    parts: [{ type: 'text', value: ' com o cliente.' }],
+  },
+  {
+    name: 'Google Agenda',
+    parts: [
+      { type: 'text', value: ' e ' },
+      { type: 'tag', value: 'Google Meet' },
+      { type: 'text', value: ' para agendamentos e videoconferência.' },
+    ],
+  },
+  {
+    name: 'FileZilla',
+    parts: [{ type: 'text', value: ' envio da base (FTP/SFTP).' }],
+  },
+  {
+    name: 'IBExpert',
+    parts: [{ type: 'text', value: ' acesso à base .FDB.' }],
+  },
+  {
+    name: 'Notepad++',
+    parts: [{ type: 'text', value: ' edição auxiliar de textos.' }],
+  },
+  {
+    name: 'Discord',
+    parts: [
+      { type: 'text', value: ' comunicação interna e canal ' },
+      { type: 'tag', value: '#infoclientes' },
+      { type: 'text', value: '.' },
+    ],
+  },
+]
 
 export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
   {

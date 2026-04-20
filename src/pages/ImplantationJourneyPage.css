@@ -181,7 +181,7 @@
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--azoup-orange-deep);
+  color: var(--accent);
   margin-bottom: 0.45rem;
 }
 
@@ -190,6 +190,60 @@
   font-size: 0.85rem;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+.impl-page__intro-card p strong {
+  color: var(--accent);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.impl-page__tools-list {
+  list-style: none;
+  margin: 0.2rem 0 0;
+  padding: 0;
+}
+
+.impl-page__tools-list li {
+  margin: 0 0 0.42rem;
+  padding-left: 0.85rem;
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.impl-page__tools-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.impl-page__tool-name,
+.impl-page__tool-tag {
+  font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif);
+  color: var(--accent);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+}
+
+.impl-page__tools-list a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.impl-page__tools-list a:hover {
+  text-decoration: underline;
 }
 
 .impl-page__intro-card a {

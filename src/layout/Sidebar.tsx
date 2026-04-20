@@ -2,23 +2,23 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
   Briefcase,
-  CalendarRange,
-  ChartColumnIncreasing,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  ClipboardList,
   Gauge,
+  History,
   Kanban,
   Library,
-  Logs,
+  ListChecks,
   LogOut,
+  Map,
   Moon,
+  PieChart,
   Plus,
   SlidersHorizontal,
   Sparkles,
   Sun,
   UsersRound,
-  Workflow,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
@@ -30,24 +30,25 @@ type NavItem = { to: string; label: string; icon: LucideIcon; scope: Parameters<
 
 const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Gauge, scope: 'dashboard.view' },
-  { to: '/visao-geral', label: 'Visão Geral', icon: Kanban, scope: 'overview.view' },
+  { to: '/visao-geral', label: 'Visão geral', icon: Kanban, scope: 'overview.view' },
   { to: '/projetos', label: 'Projetos', icon: Briefcase, scope: 'projects.view' },
-  { to: '/implantacao', label: 'Implantação', icon: Workflow, scope: 'projects.view' },
-  { to: '/tarefas', label: 'Tarefas', icon: ClipboardList, scope: 'tasks.view' },
-  { to: '/agenda', label: 'Agenda', icon: CalendarRange, scope: 'agenda.view' },
-  { to: '/relatorios', label: 'Relatórios', icon: ChartColumnIncreasing, scope: 'reports.view' },
-  { to: '/logs', label: 'Logs', icon: Logs, scope: 'reports.view' },
-  { to: '/assistente', label: 'Assistente IA', icon: Sparkles, scope: 'ai.view' },
+  { to: '/implantacao', label: 'Implantação', icon: Map, scope: 'projects.view' },
+  { to: '/tarefas', label: 'Tarefas', icon: ListChecks, scope: 'tasks.view' },
+  { to: '/agenda', label: 'Agenda', icon: CalendarDays, scope: 'agenda.view' },
+  { to: '/relatorios', label: 'Relatórios', icon: PieChart, scope: 'reports.view' },
+  { to: '/logs', label: 'Logs', icon: History, scope: 'reports.view' },
+  { to: '/assistente', label: 'Assistente', icon: Sparkles, scope: 'ai.view' },
 ]
 
 const bottomNav: NavItem[] = [
   { to: '/configuracoes', label: 'Configurações', icon: SlidersHorizontal, scope: 'settings.view' },
-  { to: '/modelos-planos', label: 'Modelos de Planos', icon: Library, scope: 'planModels.view' },
+  { to: '/modelos-planos', label: 'Planos', icon: Library, scope: 'planModels.view' },
   { to: '/analistas', label: 'Analistas', icon: UsersRound, scope: 'analysts.view' },
 ]
 
-const iconProps = { size: 20, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
-const iconPropsCollapsed = { size: 22, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
+/** Stroke uniforme para peso visual parecido entre ícones Lucide. */
+const iconProps = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
+const iconPropsCollapsed = { size: 19, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 type SidebarProps = {
   collapsed: boolean
@@ -68,16 +69,32 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
 
   return (
     <aside className={'sidebar' + (collapsed ? ' sidebar--collapsed' : '')}>
-      <div className="sidebar__brand sidebar__brand--interactive">
-        <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-          <VyntaskLogo variant="brand" size={32} />
-        </span>
-        <div className="sidebar__brand-text">
-          <div className="sidebar__title">
-            <span className="sidebar__title-accent">Vyn</span>Task
+      <div className="sidebar__header">
+        <div className="sidebar__brand sidebar__brand--interactive">
+          <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
+            <VyntaskLogo variant="brand" size={32} />
+          </span>
+          <div className="sidebar__brand-text">
+            <div className="sidebar__title">
+              <span className="sidebar__title-accent">Vyn</span>Task
+            </div>
+            <div className="sidebar__version" spellCheck={false}>
+              {APP_VERSION_DISPLAY}
+            </div>
           </div>
-          <div className="sidebar__version">{APP_VERSION_DISPLAY}</div>
         </div>
+        <button
+          type="button"
+          className="sidebar__theme-toggle"
+          onClick={() => {
+            toggle()
+            onNavigate?.()
+          }}
+          title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          aria-label={theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'}
+        >
+          <ThemeIcon size={17} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+        </button>
       </div>
 
       <div className="sidebar__divider" aria-hidden />
@@ -104,7 +121,9 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}
             >
-              <Icon className="sidebar__icon" aria-hidden {...ip} />
+              <span className="sidebar__link-icon-wrap" aria-hidden>
+                <Icon className="sidebar__icon" {...ip} />
+              </span>
               <span className="sidebar__label">{label}</span>
             </NavLink>
           ))}
@@ -120,25 +139,12 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}
             >
-              <Icon className="sidebar__icon" aria-hidden {...ip} />
+              <span className="sidebar__link-icon-wrap" aria-hidden>
+                <Icon className="sidebar__icon" {...ip} />
+              </span>
               <span className="sidebar__label">{label}</span>
             </NavLink>
           ))}
-          <button
-            type="button"
-            className="sidebar__link sidebar__link--btn"
-            onClick={() => {
-              toggle()
-              onNavigate?.()
-            }}
-            title={collapsed ? (theme === 'dark' ? 'Modo claro' : 'Modo escuro') : undefined}
-            aria-label={
-              collapsed ? (theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro') : undefined
-            }
-          >
-            <ThemeIcon className="sidebar__icon" aria-hidden {...ip} />
-            <span className="sidebar__label">Modo {theme === 'dark' ? 'Claro' : 'Escuro'}</span>
-          </button>
           <button
             type="button"
             className="sidebar__link sidebar__link--btn"
@@ -150,7 +156,9 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             title={collapsed ? 'Sair' : undefined}
             aria-label={collapsed ? 'Sair' : undefined}
           >
-            <LogOut className="sidebar__icon" aria-hidden {...ip} />
+            <span className="sidebar__link-icon-wrap" aria-hidden>
+              <LogOut className="sidebar__icon" {...ip} />
+            </span>
             <span className="sidebar__label">Sair</span>
           </button>
         </nav>

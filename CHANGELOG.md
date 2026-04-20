@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.4.7 (2026-04-21)
+
+- **Implantação:** correção de crash em `splitUrls` / `IntroRich` quando texto vem `undefined` (página da jornada não quebra mais).
+- **Sidebar:** ícones mais distintos (Gauge, Kanban, Map, etc.), rótulo **Planos**, tema sol/lua no cabeçalho ao lado da marca; refinamentos de **alinhamento** (marca + tema), **coluna fixa** para labels, **SVGs** com tamanho e traço uniformes, paddings e rodapé/CTA mais equilibrados; estado ativo sem “caixa dupla”; `spellCheck={false}` na versão exibida para evitar artefatos do corretor.
+- **Metadados:** `index.html` e `package-lock` alinhados à versão exibida no app (`APP_VERSION_DISPLAY`).
+
 ## v2.4.1 (2026-04-20)
 
 - **Jornada de implantação (cliente Azoup):** nova rota `/implantacao` com leitura da jornada (HTML/PDF em `public/docs`), dados estruturados em `implantationJourney`, marca `AzoupLogoMark`, estilos dedicados.

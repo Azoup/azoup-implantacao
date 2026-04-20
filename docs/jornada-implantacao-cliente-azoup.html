@@ -8,19 +8,21 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
   <style>
-    /* Identidade visual Azoup (laranja #f38121) + VynTask */
+    /* Laranja alinhado ao tema claro do VynTask + pills Azoup */
     :root {
-      --accent: #f38121;
-      --accent-hover: #e36209;
+      --accent: #f97316;
+      --accent-hover: #ea580c;
       --accent-soft: #ffedd5;
-      --accent-ring: rgba(243, 129, 33, 0.38);
+      --accent-ring: rgba(249, 115, 22, 0.38);
+      --pill-orange: #f38121;
+      --pill-orange-deep: #e36209;
       --text: #18181b;
       --text-muted: #52525b;
       --surface: #ffffff;
       --bg: #f4f4f5;
       --rail: #d4d4d8;
       --on-pill: #ffffff;
-      --pill-shadow: 0 14px 36px rgba(227, 98, 9, 0.26);
+      --pill-shadow: 0 14px 36px rgba(234, 88, 12, 0.24);
       --icon: #27272a;
     }
 
@@ -42,7 +44,7 @@
       font-size: 9.5pt;
       line-height: 1.45;
       background:
-        radial-gradient(120% 80% at 100% 0%, rgba(243, 129, 33, 0.1), transparent 52%),
+        radial-gradient(120% 80% at 100% 0%, rgba(249, 115, 22, 0.1), transparent 52%),
         radial-gradient(90% 60% at 0% 100%, rgba(24, 24, 27, 0.05), transparent 48%),
         linear-gradient(180deg, #fafafa 0%, var(--bg) 55%, #ececef 100%);
       min-height: 100vh;
@@ -67,8 +69,8 @@
       min-height: 34mm;
       background-color: #141414;
       background-image:
-        radial-gradient(ellipse 90% 70% at 0% 0%, rgba(243, 129, 33, 0.22) 0%, transparent 55%),
-        radial-gradient(ellipse 70% 60% at 100% 10%, rgba(243, 129, 33, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse 90% 70% at 0% 0%, rgba(249, 115, 22, 0.2) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 100% 10%, rgba(249, 115, 22, 0.09) 0%, transparent 50%),
         linear-gradient(165deg, #101010 0%, #1c1c1c 48%, #121212 100%);
       position: relative;
     }
@@ -91,7 +93,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: linear-gradient(105deg, transparent 0%, rgba(10, 10, 10, 0.35) 55%, rgba(243, 129, 33, 0.18) 100%);
+      background: linear-gradient(105deg, transparent 0%, rgba(10, 10, 10, 0.35) 55%, rgba(249, 115, 22, 0.16) 100%);
       pointer-events: none;
     }
 
@@ -207,8 +209,8 @@
       display: block;
       height: 2.6mm;
       border-radius: 999px;
-      background: linear-gradient(90deg, #e36209 0%, #f38121 38%, #ffc266 72%, #f38121 100%);
-      box-shadow: 0 0 5mm rgba(243, 129, 33, 0.35);
+      background: linear-gradient(90deg, #ea580c 0%, #f97316 38%, #ffb86c 72%, #f97316 100%);
+      box-shadow: 0 0 5mm rgba(249, 115, 22, 0.32);
     }
 
     .intro-cards {
@@ -235,14 +237,16 @@
       box-shadow: 0 8px 24px rgba(24, 24, 27, 0.06);
     }
 
-    .intro-card strong {
+    /* Só o título do card (filho direto) — evita quebrar <strong> dentro do parágrafo */
+    .intro-card > strong {
       font-family: "Plus Jakarta Sans", Inter, sans-serif;
       font-size: 8.5pt;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--accent-hover);
+      color: var(--accent);
       display: block;
       margin-bottom: 6px;
+      font-weight: 800;
     }
 
     .intro-card p {
@@ -251,8 +255,15 @@
       font-size: 8.8pt;
     }
 
+    .intro-card p strong {
+      color: var(--accent);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
     .intro-card a {
-      color: var(--accent-hover);
+      color: var(--accent);
       font-weight: 600;
       text-decoration: none;
       word-break: break-all;
@@ -260,6 +271,47 @@
 
     .intro-card a:hover {
       text-decoration: underline;
+    }
+
+    .tools-list {
+      list-style: none;
+      margin: 2px 0 0;
+      padding: 0;
+    }
+
+    .tools-list li {
+      margin: 0 0 5px;
+      padding-left: 10px;
+      position: relative;
+      font-size: 8.8pt;
+      color: var(--text-muted);
+      line-height: 1.48;
+    }
+
+    .tools-list li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .tool-name,
+    .tool-tag {
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-size: 7.6pt;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .tools-list a {
+      color: var(--accent);
+      font-weight: 600;
     }
 
     .pill .body a {
@@ -316,7 +368,7 @@
       height: 40px;
       border-radius: 50%;
       background: linear-gradient(180deg, #ffedd5 0%, #fed7aa 100%);
-      border: 2px solid rgba(243, 129, 33, 0.5);
+      border: 2px solid rgba(249, 115, 22, 0.45);
       color: var(--text);
       font-family: "Plus Jakarta Sans", Inter, sans-serif;
       font-weight: 800;
@@ -341,7 +393,7 @@
     }
 
     .pill {
-      background: linear-gradient(125deg, var(--accent) 0%, var(--accent-hover) 92%);
+      background: linear-gradient(125deg, var(--pill-orange) 0%, var(--pill-orange-deep) 92%);
       color: var(--on-pill);
       border-radius: 999px;
       padding: 12px 18px 12px 20px;
@@ -470,9 +522,22 @@
       </div>
       <div class="intro-card intro-card--full">
         <strong>Ferramentas</strong>
-        <p>
-          E-mail corporativo em <a href="https://titan.hostgator.com.br/mail/">titan.hostgator.com.br/mail</a>; <strong>WhatsApp</strong> com o cliente; <strong>Google Agenda</strong> e <strong>Google Meet</strong>; <strong>FileZilla</strong> para envio da base; <strong>IBExpert</strong> para acesso à base .FDB; <strong>Notepad++</strong> para edição auxiliar de textos; <strong>Discord</strong> (comunicação interna e canal <strong>#infoclientes</strong>).
-        </p>
+        <ul class="tools-list">
+          <li>
+            <strong class="tool-name">E-mail</strong> corporativo em
+            <a href="https://titan.hostgator.com.br/mail/">titan.hostgator.com.br/mail</a>.
+          </li>
+          <li><strong class="tool-name">WhatsApp</strong> com o cliente.</li>
+          <li>
+            <strong class="tool-name">Google Agenda</strong> e <strong class="tool-tag">Google Meet</strong> para agendamentos e videoconferência.
+          </li>
+          <li><strong class="tool-name">FileZilla</strong> envio da base (FTP/SFTP).</li>
+          <li><strong class="tool-name">IBExpert</strong> acesso à base .FDB.</li>
+          <li><strong class="tool-name">Notepad++</strong> edição auxiliar de textos.</li>
+          <li>
+            <strong class="tool-name">Discord</strong> comunicação interna e canal <strong class="tool-tag">#infoclientes</strong>.
+          </li>
+        </ul>
       </div>
     </div>
 
