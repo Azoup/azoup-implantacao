@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.4.0 (2026-04-20)
+
+- **Sync multi-aba e tempo real (Supabase):** canal `BroadcastChannel` para outras abas dispararem pull incremental leve; inscrição Realtime em `projects`, `phases` e `tasks` aplicando mudanças no Dexie com mute nos hooks (evita loop Dexie→nuvem).
+- **Pull incremental:** após refresh completo, cursores em `localStorage` por tabela; polling (~2 min) e filtro `.gt('updated_at', cursor)` quando a coluna existir no Postgres.
+- **Versionamento local:** `remoteUpdatedAt` em projeto/fase/tarefa (Dexie v14); merge conservador se o cache local já tiver timestamp mais novo que o evento remoto.
+- **Hooks Dexie→PostgREST:** retry com backoff (mesma política de tentativas do sync de grafo) e `CustomEvent` `vyntask-sync-failure` com toast limitado por tabela no `UiFeedbackProvider`.
+- **Operação:** script opcional `supabase/sql/optional/D_domain_row_versioning_updated_at.sql` adiciona `updated_at`, triggers, índices e `REPLICA IDENTITY FULL` para DELETE via Realtime; habilitar replicação das três tabelas no painel Supabase.
+
 ## v2.3.4 (2026-04-20)
 
 - **Correção (nuvem — plano avulso):** exclusão de fase ou tarefa sumia só no Dexie; no `upsertProjectGraphFromDexie` o app só fazia **UPSERT** das linhas locais e **não apagava** registros órfãos no Supabase, então após **F5** a fase/tarefa “voltava”. Agora, antes dos upserts, reconciliamos **tarefas** e **fases** remotas do projeto que não existem mais no Dexie (DELETE em lotes).

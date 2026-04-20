@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { SYNC_FAILURE_EVENT, type SyncFailureDetail } from '../sync/syncFailure'
 
 export type ToastTone = 'info' | 'error' | 'warn'
 
@@ -145,6 +146,22 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
     () => ({ toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason }),
     [toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason],
   )
+
+  useEffect(() => {
+    const lastByTable = new Map<string, number>()
+    const onFail = (ev: Event) => {
+      const ce = ev as CustomEvent<SyncFailureDetail>
+      const d = ce.detail
+      if (!d?.table || !d.message) return
+      const now = Date.now()
+      const prev = lastByTable.get(d.table) ?? 0
+      if (now - prev < 25_000) return
+      lastByTable.set(d.table, now)
+      toastWarn(`Sincronização (${d.table}): ${d.message}`)
+    }
+    window.addEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
+    return () => window.removeEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
+  }, [toastWarn])
 
   useEffect(() => {
     if (activeDialog?.kind === 'destructiveReason') {

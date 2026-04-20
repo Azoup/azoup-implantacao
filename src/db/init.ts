@@ -4,6 +4,7 @@ import { seedTestProjects } from './seedTestProjects'
 import { seedDatabase } from './seed'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { initializeSupabaseDexieBridge } from '../sync/supabaseDexieBridge'
+import { startLiveSyncAfterBridgeReady } from '../sync/liveSyncController'
 
 let initPromise: Promise<void> | null = null
 const LOCAL_SANDBOX_SEEDED_KEY = 'vyntask.localSandboxSeeded.v1'
@@ -34,6 +35,7 @@ export function ensureDatabase(): Promise<void> {
       await db.open()
       if (isSupabaseConfigured()) {
         await initializeSupabaseDexieBridge()
+        await startLiveSyncAfterBridgeReady()
       } else {
         await seedDatabase()
         await ensureLocalSandboxProjects()

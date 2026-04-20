@@ -21,6 +21,9 @@ import type {
 } from '../db/types'
 import { ALL_PERMISSION_SCOPES } from '../auth/permissions'
 import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
+import { broadcastDexieSyncHint } from './crossTabSync'
+import { dispatchSyncFailure } from './syncFailure'
+import { bumpSyncCursor, isIncrementalRemoteTable, setSyncCursor } from './syncCursors'
 
 type BridgeDef<TLocal> = {
   localTable: keyof typeof db
@@ -772,6 +775,7 @@ const defs: BridgeDef<unknown>[] = [
           phaseCount: 0,
           taskCount: 0,
         } as DbProject['planSnapshot']),
+      remoteUpdatedAt: toStringOrNull(r.updated_at),
     }),
     toRemote: (x) => dbProjectToSupabaseRow(x as DbProject),
   },
@@ -803,6 +807,7 @@ const defs: BridgeDef<unknown>[] = [
         toStringOrNull(r.color_hex),
         inferPhaseColor(String(r.name ?? ''), toNumber(r.order_index)),
       ),
+      remoteUpdatedAt: toStringOrNull(r.updated_at),
     }),
     toRemote: (x) => dbPhaseToSupabaseRow(x as DbPhase),
   },
@@ -825,6 +830,7 @@ const defs: BridgeDef<unknown>[] = [
       createdAt: String(r.created_at ?? new Date().toISOString()),
       code: String(r.code ?? ''),
       sortOrder: toNumber(r.sort_order),
+      remoteUpdatedAt: toStringOrNull(r.updated_at),
     }),
     toRemote: (x) => dbTaskToSupabaseRow(x as DbTask),
   },
@@ -1034,14 +1040,92 @@ const defs: BridgeDef<unknown>[] = [
   },
 ]
 
-async function upsertRemote(def: BridgeDef<unknown>, localRow: unknown): Promise<void> {
+const defByRemoteTable = new Map<string, BridgeDef<unknown>>(defs.map((d) => [d.remoteTable, d]))
+
+function remoteVersionMs(row: unknown): number {
+  if (!row || typeof row !== 'object') return 0
+  const s = (row as { remoteUpdatedAt?: string | null }).remoteUpdatedAt
+  if (typeof s !== 'string' || !s.trim()) return 0
+  const t = Date.parse(s)
+  return Number.isFinite(t) ? t : 0
+}
+
+export async function applyRemoteRowFromSupabase(
+  remoteTable: string,
+  row: Record<string, unknown> | null,
+  event: 'INSERT' | 'UPDATE' | 'DELETE',
+): Promise<void> {
+  const def = defByRemoteTable.get(remoteTable)
+  if (!def) return
+
+  if (event === 'DELETE') {
+    const id = row?.id != null ? String(row.id) : null
+    if (!id) return
+    pushSyncMute()
+    try {
+      await (db as unknown as Record<string, { delete: (k: string) => Promise<unknown> }>)[String(def.localTable)].delete(
+        id,
+      )
+    } finally {
+      popSyncMute()
+    }
+    return
+  }
+
+  if (!row) return
+  const mapped = def.fromRemote(row)
+  const id = (mapped as { id?: unknown }).id != null ? String((mapped as { id: unknown }).id) : null
+  if (!id) return
+
+  const table = (db as unknown as Record<string, { get: (k: string) => Promise<unknown> }>)[String(def.localTable)]
+  const existing = await table.get(id)
+  if (existing && remoteVersionMs(existing) > remoteVersionMs(mapped)) return
+
+  pushSyncMute()
+  try {
+    await (db as unknown as Record<string, { put: (x: unknown) => Promise<unknown> }>)[String(def.localTable)].put(
+      mapped,
+    )
+  } finally {
+    popSyncMute()
+  }
+
+  if (isIncrementalRemoteTable(remoteTable) && typeof row.updated_at === 'string') {
+    bumpSyncCursor(remoteTable, row.updated_at)
+  }
+}
+
+async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown): Promise<void> {
   const client = assertSupabase()
   const payload = def.toRemote(localRow)
-  const { error } = await client.from(def.remoteTable).upsert(payload)
-  if (error) {
+  let lastMsg = 'Falha desconhecida ao sincronizar.'
+  for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
+    const { error } = await client.from(def.remoteTable).upsert(payload)
+    if (!error) {
+      broadcastDexieSyncHint()
+      return
+    }
     if (shouldIgnoreMissingTable(def.remoteTable, error)) return
-    throw new Error(`[Supabase] ${def.remoteTable} upsert: ${error.message}`)
+    lastMsg = error.message || lastMsg
+    if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
   }
+  dispatchSyncFailure({ table: def.remoteTable, operation: 'upsert', message: lastMsg })
+}
+
+async function deleteRemoteWithRetry(def: BridgeDef<unknown>, id: string): Promise<void> {
+  const client = assertSupabase()
+  let lastMsg = 'Falha desconhecida ao excluir na nuvem.'
+  for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
+    const { error } = await client.from(def.remoteTable).delete().eq('id', id)
+    if (!error) {
+      broadcastDexieSyncHint()
+      return
+    }
+    if (shouldIgnoreMissingTable(def.remoteTable, error)) return
+    lastMsg = error.message || lastMsg
+    if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
+  }
+  dispatchSyncFailure({ table: def.remoteTable, operation: 'delete', message: lastMsg })
 }
 
 function installHooks() {
@@ -1053,25 +1137,16 @@ function installHooks() {
     // Dexie 4: hooks creating/updating não aguardam Promise; retornar Promise quebrava o sync e a UI “salvava” só no IndexedDB.
     table.hook('creating', function (_primaryKey: unknown, obj: unknown) {
       if (syncingMuted) return
-      void upsertRemote(def, obj).catch((e) => console.warn(`[Supabase] sync create ${def.remoteTable}`, e))
+      void upsertRemoteWithRetry(def, obj)
     })
     table.hook('updating', function (mods: Record<string, unknown>, _primaryKey: unknown, obj: Record<string, unknown>) {
       if (syncingMuted) return
       const merged = { ...obj, ...mods }
-      void upsertRemote(def, merged).catch((e) => console.warn(`[Supabase] sync update ${def.remoteTable}`, e))
+      void upsertRemoteWithRetry(def, merged)
     })
     table.hook('deleting', function (primaryKey: unknown) {
       if (syncingMuted) return
-      const client = assertSupabase()
-      void client
-        .from(def.remoteTable)
-        .delete()
-        .eq('id', String(primaryKey))
-        .then(({ error }) => {
-          if (error && !shouldIgnoreMissingTable(def.remoteTable, error)) {
-            console.warn(`[Supabase] sync delete ${def.remoteTable}`, error)
-          }
-        })
+      void deleteRemoteWithRetry(def, String(primaryKey))
     })
   }
 }
@@ -1128,6 +1203,14 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
         }
         await table.clear()
         if (mapped.length > 0) await table.bulkPut(mapped)
+        if (mapped.length > 0 && isIncrementalRemoteTable(def.remoteTable)) {
+          let maxIso: string | null = null
+          for (const r of rows) {
+            const u = typeof (r as { updated_at?: unknown }).updated_at === 'string' ? (r as { updated_at: string }).updated_at : null
+            if (u && (!maxIso || u > maxIso)) maxIso = u
+          }
+          if (maxIso) setSyncCursor(def.remoteTable, maxIso)
+        }
       } catch (err) {
         console.warn(`[Supabase] Falha ao sincronizar tabela ${def.remoteTable}. Mantendo cache local anterior.`, err)
       }

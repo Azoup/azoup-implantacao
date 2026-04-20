@@ -165,6 +165,8 @@ export interface DbProject {
   planSnapshotCapturedAt: string
   /** Foto do plano na criação do projeto (baseline contratual). */
   planSnapshot: DbProjectPlanSnapshot
+  /** Último `updated_at` do Postgres (migração opcional D_domain…); merge incremental / Realtime. */
+  remoteUpdatedAt?: string | null
 }
 
 /** Catálogo: modelo de plano. `mode` omitido = catálogo (compatível com dados antigos). */
@@ -208,6 +210,8 @@ export interface DbPhase {
   status: PhaseStatus
   /** Snapshot da cor da fase no momento da criação do projeto. */
   colorHex: string | null
+  /** Último `updated_at` do Postgres (migração opcional D_domain…). */
+  remoteUpdatedAt?: string | null
 }
 
 export interface DbTask {
@@ -226,6 +230,8 @@ export interface DbTask {
   createdAt: string
   code: string
   sortOrder: number
+  /** Último `updated_at` do Postgres (migração opcional D_domain…). */
+  remoteUpdatedAt?: string | null
 }
 
 export interface DbEvent {
