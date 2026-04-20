@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, createBrowserRouter, createRoutesFromElements } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { hasScope } from './auth/permissions'
@@ -44,9 +44,10 @@ function RequireScope({ scope, children }: { scope: PermissionScope; children: R
   return children
 }
 
-export default function App() {
-  return (
-    <Routes>
+/** Data router: necessário para `useBlocker` no AppShell (alterações não salvas na agenda). */
+export const appRouter = createBrowserRouter(
+  createRoutesFromElements(
+    <>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/cadastro" element={<RegisterPage />} />
       <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
@@ -159,6 +160,6 @@ export default function App() {
         />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
-  )
-}
+    </>,
+  ),
+)

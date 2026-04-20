@@ -1,9 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { RouterProvider } from 'react-router-dom'
 import './index.css'
 import './theme/palettes.css'
-import App from './App.tsx'
+import { appRouter } from './App.tsx'
 import { AuthProvider } from './auth/AuthContext'
 import { UnsavedChangesProvider } from './navigation/UnsavedChangesContext'
 import { ThemeProvider } from './theme/ThemeContext'
@@ -24,11 +24,9 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <UiFeedbackProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <UnsavedChangesProvider>
-              <App />
-            </UnsavedChangesProvider>
-          </BrowserRouter>
+          <UnsavedChangesProvider>
+            <RouterProvider router={appRouter} />
+          </UnsavedChangesProvider>
         </AuthProvider>
       </UiFeedbackProvider>
     </ThemeProvider>
