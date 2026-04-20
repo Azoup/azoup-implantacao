@@ -33,6 +33,7 @@ let hooksInstalled = false
 let syncingMuted = false
 /** Permite refresh + salvamento explícito sem “empilhar” mute de forma incorreta. */
 let syncingMuteDepth = 0
+let pendingProjectGraphListenerInstalled = false
 
 function pushSyncMute() {
   syncingMuteDepth++
@@ -65,6 +66,7 @@ const TABLES_GUARD_EMPTY_REMOTE = new Set<string>([
 ])
 
 const FORCE_CACHE_REFRESH_KEY = 'vyntask_force_empty_remote_cache.v1'
+const PENDING_PROJECT_GRAPH_SYNC_KEY = 'vyntask_pending_project_graph_sync.v1'
 
 function allowReplaceCacheWithEmptyRemote(remoteTable: string): boolean {
   if (!TABLES_GUARD_EMPTY_REMOTE.has(remoteTable)) return true
@@ -78,6 +80,41 @@ function allowReplaceCacheWithEmptyRemote(remoteTable: string): boolean {
 function assertSupabase() {
   if (!supabase) throw new Error('Supabase não configurado.')
   return supabase
+}
+
+function readPendingProjectGraphSyncIds(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(PENDING_PROJECT_GRAPH_SYNC_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function writePendingProjectGraphSyncIds(ids: string[]): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(PENDING_PROJECT_GRAPH_SYNC_KEY, JSON.stringify(ids))
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function enqueuePendingProjectGraphSync(projectId: string): void {
+  if (!projectId) return
+  const ids = readPendingProjectGraphSyncIds()
+  if (ids.includes(projectId)) return
+  ids.push(projectId)
+  writePendingProjectGraphSyncIds(ids)
+}
+
+function dequeuePendingProjectGraphSync(projectId: string): void {
+  if (!projectId) return
+  const ids = readPendingProjectGraphSyncIds().filter((id) => id !== projectId)
+  writePendingProjectGraphSyncIds(ids)
 }
 
 function isOptionalTableError(err: unknown): boolean {
@@ -530,7 +567,22 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
       type: info.type,
       durationMs: Date.now() - startedAt,
     })
+    enqueuePendingProjectGraphSync(projectId)
     throw message
+  }
+}
+
+export async function flushPendingProjectGraphSyncQueue(): Promise<void> {
+  if (!supabase) return
+  const queue = readPendingProjectGraphSyncIds()
+  if (queue.length === 0) return
+  for (const projectId of queue) {
+    try {
+      await upsertProjectGraphFromDexie(projectId)
+      dequeuePendingProjectGraphSync(projectId)
+    } catch (err) {
+      console.warn('[Supabase] pending project graph sync still failing', { projectId, err })
+    }
   }
 }
 
@@ -1057,5 +1109,15 @@ export async function initializeSupabaseDexieBridge(): Promise<void> {
   } = await supabase.auth.getSession()
   if (!session?.user) return
   await refreshSupabaseDexieCache()
+  await flushPendingProjectGraphSyncQueue()
+  if (!pendingProjectGraphListenerInstalled && typeof window !== 'undefined') {
+    pendingProjectGraphListenerInstalled = true
+    window.addEventListener('online', () => {
+      void flushPendingProjectGraphSyncQueue()
+    })
+    window.addEventListener('focus', () => {
+      void flushPendingProjectGraphSyncQueue()
+    })
+  }
 }
 

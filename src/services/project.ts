@@ -1,7 +1,11 @@
 import { db } from '../db/database'
 import type { DbProject, KanbanColumn, PlanTypeKey } from '../db/types'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { upsertProjectGraphFromDexie, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
+import {
+  enqueuePendingProjectGraphSync,
+  upsertProjectGraphFromDexie,
+  withDexieSupabaseSyncMuted,
+} from '../sync/supabaseDexieBridge'
 import { uuid } from '../lib/uuid'
 import { syncLabelsForProject } from './labels'
 import { normalizeProjectPlacement } from './projectGovernance'
@@ -150,12 +154,9 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
       })
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Falha desconhecida'
-      if (detail.includes('PRJ_CREATE_')) {
-        throw new Error(detail)
-      }
-      throw new Error(
-        `PRJ_CREATE_CLOUD_SYNC|op=projects|type=unknown|reason=Projeto salvo no cache local, mas falhou a sincronização com o Supabase.|action=Verifique sessão, policies RLS e conectividade antes de tentar novamente.`,
-      )
+      enqueuePendingProjectGraphSync(projectId)
+      // Mantém a UX responsiva: salva local e agenda reenvio automático da estrutura na nuvem.
+      console.warn('[Supabase] projeto enfileirado para re-sync em background', { projectId, detail })
     }
   } else {
     await buildGraphInDexie()
