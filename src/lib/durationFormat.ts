@@ -64,6 +64,17 @@ export function formatDurationHFromHours(decimalHours: number): string {
 /**
  * Converte texto do usuário em horas decimais: `hh:mm:ss`, `mm:ss`, ou decimal `1,5`.
  */
+/** Exibe horas decimais no padrão BR para inputs (ex.: 1,5). */
+export function formatDecimalHoursForBrInput(h: number): string {
+  if (!Number.isFinite(h)) return ''
+  if (h === 0) return '0'
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+    useGrouping: false,
+  }).format(h)
+}
+
 export function parseDurationFlexibleToHours(raw: string): number {
   const t = raw.trim()
   if (!t) return NaN

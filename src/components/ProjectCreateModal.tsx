@@ -296,6 +296,26 @@ export function ProjectCreateModal({
       setErr('Informe o nome do projeto.')
       return
     }
+
+    /** Horas de contrato já validadas (plano avulso em edição). Confirmação roda antes de "Salvando…". */
+    let customHoursForPatch: number | undefined
+    if (projectToEdit?.planType === CUSTOM_PLAN_TYPE) {
+      let nextH = Math.max(0, Math.round(customContractHours))
+      const sumEst = await getBillableEstimatedSumForProject(projectToEdit.id)
+      if (nextH < sumEst) {
+        const ok = await requestConfirm({
+          title: 'Contrato abaixo das previsões',
+          message: `A soma das estimativas das tarefas não informativas é ${sumEst}h. O contrato não pode ficar menor que essa soma. Ajustar o contrato para ${sumEst}h?`,
+          confirmLabel: `Ajustar para ${sumEst}h`,
+          cancelLabel: 'Voltar',
+        })
+        if (!ok) return
+        nextH = sumEst
+        setCustomContractHours(nextH)
+      }
+      customHoursForPatch = nextH
+    }
+
     setSaving(true)
     try {
       const cnpj = cnpjDigits.length === 14 ? cnpjDigits : null
@@ -334,26 +354,11 @@ export function ProjectCreateModal({
           kanbanColumn: projectToEdit.kanbanColumn,
         })
         const patch: Record<string, unknown> = { ...common, ...placement }
-        if (projectToEdit.planType === CUSTOM_PLAN_TYPE) {
-          let nextH = Math.max(0, Math.round(customContractHours))
-          const sumEst = await getBillableEstimatedSumForProject(projectToEdit.id)
-          if (nextH < sumEst) {
-            const ok = await requestConfirm({
-              title: 'Contrato abaixo das previsões',
-              message: `A soma das estimativas das tarefas não informativas é ${sumEst}h. O contrato não pode ficar menor que essa soma. Ajustar o contrato para ${sumEst}h?`,
-              confirmLabel: `Ajustar para ${sumEst}h`,
-              cancelLabel: 'Voltar',
-            })
-            if (!ok) {
-              setSaving(false)
-              return
-            }
-            nextH = sumEst
-          }
-          patch.hoursContracted = nextH
+        if (projectToEdit.planType === CUSTOM_PLAN_TYPE && customHoursForPatch !== undefined) {
+          patch.hoursContracted = customHoursForPatch
           patch.planSnapshot = {
             ...projectToEdit.planSnapshot,
-            hoursContracted: nextH,
+            hoursContracted: customHoursForPatch,
           }
         }
         if (isSupabaseConfigured()) {
@@ -439,7 +444,11 @@ export function ProjectCreateModal({
         </nav>
 
         <div className="project-create-modal__body" ref={bodyRef}>
-          <form className="stack project-create-form" onSubmit={onSubmit}>
+          <form
+            id="vyntask-project-create-form"
+            className="stack project-create-form"
+            onSubmit={onSubmit}
+          >
             <section className="project-form-section" id="pf-empresa">
               <div className="project-form-section__head">
                 <Building2 className="project-form-section__icon" size={20} strokeWidth={1.75} aria-hidden />
@@ -731,17 +740,19 @@ export function ProjectCreateModal({
             </section>
 
             {lookupHint ? <p className="project-create-modal__hint muted">{lookupHint}</p> : null}
-            {err ? <p className="auth__error">{err}</p> : null}
-
-            <div className="modal__actions modal__actions--sticky">
-              <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn--primary" disabled={saving}>
-                {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar projeto'}
-              </button>
-            </div>
           </form>
+        </div>
+
+        <div className="project-create-modal__footer">
+          {err ? <p className="auth__error project-create-modal__footer-err">{err}</p> : null}
+          <div className="modal__actions">
+            <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn--primary" form="vyntask-project-create-form" disabled={saving}>
+              {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar projeto'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

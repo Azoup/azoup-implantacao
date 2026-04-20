@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import type { DbPlanTask } from '../db/types'
+import { formatDecimalHoursForBrInput, parseDurationFlexibleToHours } from '../lib/durationFormat'
 
 export type PlanTaskFormValues = {
   code: string
@@ -22,7 +23,7 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
   const [code, setCode] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [estimatedHours, setEstimatedHours] = useState(0)
+  const [estimatedHoursDraft, setEstimatedHoursDraft] = useState('')
   const [isInformational, setIsInformational] = useState(false)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -33,13 +34,15 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
       setCode(task.code)
       setTitle(task.title)
       setDescription(task.description)
-      setEstimatedHours(task.estimatedHours)
+      setEstimatedHoursDraft(
+        task.isInformational ? '0' : formatDecimalHoursForBrInput(task.estimatedHours),
+      )
       setIsInformational(task.isInformational)
     } else {
       setCode(defaultCode)
       setTitle('')
       setDescription('')
-      setEstimatedHours(0)
+      setEstimatedHoursDraft('1')
       setIsInformational(false)
     }
     setErr(null)
@@ -57,6 +60,20 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
       setErr('Informe o título.')
       return
     }
+    let estimatedHours = 0
+    if (!isInformational) {
+      const parsed = parseDurationFlexibleToHours(estimatedHoursDraft)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setErr('Horas inválidas. Use decimal com vírgula ou ponto (ex.: 1,5) ou relógio (1:30).')
+        return
+      }
+      if (parsed > 999) {
+        setErr('Horas estimadas no máximo 999.')
+        return
+      }
+      estimatedHours = parsed
+    }
+
     setSaving(true)
     setErr(null)
     try {
@@ -82,7 +99,7 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
       <div
-        className="modal modal--plan-form"
+        className="modal modal--plan-form modal--plan-task"
         role="dialog"
         aria-modal
         aria-labelledby="plan-task-modal-title"
@@ -97,7 +114,7 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
           </button>
         </div>
         <div className="modal-plan__body">
-          <form className="stack plan-new-form" onSubmit={onSubmit}>
+          <form id="vyntask-plan-task-form" className="stack plan-new-form" onSubmit={onSubmit}>
             <label className="field">
               <span>Código</span>
               <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="Ex: 1.1" />
@@ -124,27 +141,37 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
               />
               <span>Informativa (não consome horas)</span>
             </label>
-            <label className="field">
+            <label className={`field plan-task-modal__hours ${isInformational ? 'is-disabled' : ''}`}>
               <span>Horas estimadas</span>
               <input
-                type="number"
-                min={0}
-                max={999}
+                className="plan-task-modal__hours-input"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
                 disabled={isInformational}
-                value={isInformational ? 0 : estimatedHours}
-                onChange={(e) => setEstimatedHours(Number(e.target.value))}
+                placeholder="1,5 ou 1:30"
+                value={isInformational ? '—' : estimatedHoursDraft}
+                onChange={(e) => {
+                  if (isInformational) return
+                  setEstimatedHoursDraft(e.target.value)
+                }}
               />
+              <span className="field__hint muted">
+                Decimal com vírgula ou ponto (1,5 h) ou relógio 1:30 — até 999 h.
+              </span>
             </label>
-            {err ? <p className="auth__error">{err}</p> : null}
-            <div className="modal-plan__footer">
-              <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn--primary" disabled={saving}>
-                {saving ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
           </form>
+        </div>
+        <div className="modal-plan__footer">
+          {err ? <p className="auth__error modal-plan__footer-err">{err}</p> : null}
+          <div className="modal-plan__footer-actions">
+            <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn--primary" form="vyntask-plan-task-form" disabled={saving}>
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

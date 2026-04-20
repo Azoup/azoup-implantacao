@@ -3235,7 +3235,23 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0.85rem 1.35rem 1.25rem;
+  padding: 0.85rem 1.35rem 1.5rem;
+}
+
+.project-create-modal__footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding: 0.75rem 1.35rem 1.15rem;
+  border-radius: 0 0 14px 14px;
+}
+
+.project-create-modal__footer .modal__actions {
+  margin-top: 0;
+}
+
+.project-create-modal__footer-err {
+  margin: 0 0 0.65rem;
 }
 .project-create-form.stack {
   gap: 0;
@@ -4332,6 +4348,41 @@ body {
   overflow: hidden;
   border-radius: 14px;
 }
+/* Nova / editar tarefa: corpo rolável + rodapé fixo */
+.modal--plan-form.modal--plan-task {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88vh, 560px);
+}
+.modal--plan-form.modal--plan-task .modal-plan__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 1.35rem;
+}
+.modal--plan-form.modal--plan-task > .modal-plan__footer {
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 0.75rem 1.2rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 0 0 14px 14px;
+}
+.modal-plan__footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.modal-plan__footer-err {
+  margin: 0 0 0.55rem;
+}
+.plan-task-modal__hours-input {
+  font-variant-numeric: tabular-nums;
+}
+.plan-task-modal__hours.is-disabled .plan-task-modal__hours-input {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .modal--plan-form .modal__title {
   margin: 0;
   font-size: 1.12rem;
@@ -4370,7 +4421,7 @@ body {
   padding: 1.1rem 1.2rem 1.2rem;
 }
 .plan-new-form.stack {
-  gap: 0.85rem;
+  gap: 1rem;
 }
 .plan-new-form__hint {
   margin: 0;
@@ -4555,7 +4606,7 @@ body {
 }
 .plan-task-modal__toggle {
   align-items: center;
-  margin: 0.15rem 0;
+  margin: 0.1rem 0 0.65rem;
 }
 .plan-task-modal__toggle input {
   width: auto;
@@ -7888,8 +7939,8 @@ body {
 .ui-confirm-backdrop {
   position: fixed;
   inset: 0;
-  /* Acima de .modal-backdrop (10020) / .modal (10021) — confirmações abertas de dentro de modais */
-  z-index: 10030;
+  /* Acima de modais de formulário (.modal-backdrop 10020) — confirmação não pode ficar atrás do “Salvando…” */
+  z-index: 10200;
   display: grid;
   place-items: center;
   padding: 1.25rem;

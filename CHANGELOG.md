@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.3.3 (2026-04-20)
+
+- **Modal de projeto:** rodapé fora do formulário com `form` associado; estilos de `.project-create-modal__footer` e padding do corpo para evitar sobreposição; confirmação de UI com `z-index` acima do modal; ao ajustar contrato (plano avulso), o campo de horas sincroniza com o valor confirmado.
+- **Nova/editar tarefa (`PlanTaskModal`):** horas estimadas em decimal com vírgula ou ponto (ex.: `1,5`) ou relógio (`1:30`); helper `formatDecimalHoursForBrInput`; layout `modal--plan-task` com corpo rolável e rodapé fixo; espaçamento e dica de campo.
+
 ## v2.3.2 (2026-04-20)
 
 - **Correção:** erro React #310 ao abrir detalhe do projeto — `useRegisterUnsavedChanges` estava **depois** dos `return` de carregamento, mudando a quantidade de hooks entre renders. Hook e flags de “dirty” foram movidos para **antes** dos early returns; `enabled` considera `user` e `project`.
