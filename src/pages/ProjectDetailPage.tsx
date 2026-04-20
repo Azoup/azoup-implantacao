@@ -290,6 +290,34 @@ export function ProjectDetailPage() {
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
   const { toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason } = useUiFeedback()
 
+  const docBeingEdited = docEditingId ? docComments.find((c) => c.id === docEditingId) : undefined
+  const docEditingDirty = Boolean(
+    docEditingId && (docBeingEdited == null || docEditDraft !== docBeingEdited.content),
+  )
+  const docComposerDirty = Boolean(
+    docDraft.trim() ||
+      docPendingLinks.length > 0 ||
+      docPendingFiles.length > 0 ||
+      docLinkUrlDraft.trim() ||
+      docLinkLabelDraft.trim(),
+  )
+  const contactsFormDirty = Boolean(contactName.trim() || contactPhone.trim() || contactRole.trim())
+  const projectDetailDirty = docEditingDirty || docComposerDirty || contactsFormDirty
+
+  async function flushProjectUnsaved() {
+    if (!project) return
+    if (docEditingDirty) await onSaveDocumentationEdit()
+    if (docComposerDirty) await onAddDocumentation({ preventDefault() {} } as FormEvent)
+    if (contactsFormDirty) await onAddContact({ preventDefault() {} } as FormEvent)
+  }
+
+  useRegisterUnsavedChanges({
+    enabled: Boolean(user) && canEditProjects && Boolean(project),
+    isDirty: () => projectDetailDirty,
+    onSave: flushProjectUnsaved,
+    message: 'Há rascunhos na documentação ou no formulário de contatos que ainda não foram publicados.',
+  })
+
   if (!user) return null
   const me: DbUser = user
   if (!projectId) return <Navigate to="/projetos" replace />
@@ -662,33 +690,6 @@ export function ProjectDetailPage() {
       }
     }
   }
-
-  const docBeingEdited = docEditingId ? docComments.find((c) => c.id === docEditingId) : undefined
-  const docEditingDirty = Boolean(
-    docEditingId && (docBeingEdited == null || docEditDraft !== docBeingEdited.content),
-  )
-  const docComposerDirty = Boolean(
-    docDraft.trim() ||
-      docPendingLinks.length > 0 ||
-      docPendingFiles.length > 0 ||
-      docLinkUrlDraft.trim() ||
-      docLinkLabelDraft.trim(),
-  )
-  const contactsFormDirty = Boolean(contactName.trim() || contactPhone.trim() || contactRole.trim())
-  const projectDetailDirty = docEditingDirty || docComposerDirty || contactsFormDirty
-
-  async function flushProjectUnsaved() {
-    if (docEditingDirty) await onSaveDocumentationEdit()
-    if (docComposerDirty) await onAddDocumentation({ preventDefault() {} } as FormEvent)
-    if (contactsFormDirty) await onAddContact({ preventDefault() {} } as FormEvent)
-  }
-
-  useRegisterUnsavedChanges({
-    enabled: canEditProjects,
-    isDirty: () => projectDetailDirty,
-    onSave: flushProjectUnsaved,
-    message: 'Há rascunhos na documentação ou no formulário de contatos que ainda não foram publicados.',
-  })
 
   const activePhaseShort = currentPhaseName ? phaseNameShort(currentPhaseName) : '—'
 

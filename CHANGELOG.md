@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.3.2 (2026-04-20)
+
+- **Correção:** erro React #310 ao abrir detalhe do projeto — `useRegisterUnsavedChanges` estava **depois** dos `return` de carregamento, mudando a quantidade de hooks entre renders. Hook e flags de “dirty” foram movidos para **antes** dos early returns; `enabled` considera `user` e `project`.
+
 ## v2.3.1 (2026-04-20)
 
 - **Correção crítica (tela preta):** `useBlocker` no shell exige *data router*. A app voltou a usar `createBrowserRouter` + `RouterProvider` em vez de `BrowserRouter`, eliminando o crash ao entrar na área logada.
