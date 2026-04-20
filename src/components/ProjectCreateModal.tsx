@@ -44,10 +44,9 @@ function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
       unknown: 'Falha inesperada na sincronização com a nuvem.',
     }
     const headline = headlineByType[type.toLowerCase()] ?? headlineByType.unknown
-    const partial =
-      !isEdit && operation !== 'projects'
-        ? ' O projeto pode ter sido salvo parcialmente no cache local; valide a lista e tente sincronizar novamente.'
-        : ''
+    const partial = !isEdit
+      ? ' O projeto pode ter sido salvo no cache local; recarregue a tela para confirmar se entrou na nuvem e tente sincronizar novamente.'
+      : ''
     return `${headline} Etapa afetada: ${operationLabel}. ${reason.trim()} ${action.trim()}${partial} Código: ${code}.`
   }
 

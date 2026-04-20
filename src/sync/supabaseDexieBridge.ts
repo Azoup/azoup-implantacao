@@ -150,6 +150,7 @@ function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
 
 const PROJECT_WRITE_TIMEOUT_MS = 60_000
 const PROJECT_SYNC_RETRY_DELAY_MS = 500
+const PROJECT_SYNC_MAX_ATTEMPTS = 3
 
 type ProjectSyncOperation = 'projects' | 'phases' | 'tasks'
 type ProjectSyncFailureType = 'timeout' | 'policy' | 'auth' | 'network' | 'conflict' | 'unknown'
@@ -251,6 +252,11 @@ async function sleep(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function retryDelayMs(attempt: number): number {
+  const base = PROJECT_SYNC_RETRY_DELAY_MS * Math.pow(2, Math.max(0, attempt - 1))
+  return Math.min(base, 4_000)
+}
+
 async function runProjectSyncWrite(
   operation: ProjectSyncOperation,
   projectId: string | null,
@@ -258,7 +264,7 @@ async function runProjectSyncWrite(
 ): Promise<void> {
   const startedAt = Date.now()
   let attempts = 0
-  while (attempts < 2) {
+  while (attempts < PROJECT_SYNC_MAX_ATTEMPTS) {
     attempts++
     try {
       const { error } = await raceProjectWrite(write(), `sincronizar ${operation} na nuvem`)
@@ -273,9 +279,11 @@ async function runProjectSyncWrite(
         type: info.type,
         durationMs,
         attempts,
+        maxAttempts: PROJECT_SYNC_MAX_ATTEMPTS,
+        errorMessage: err instanceof Error ? err.message : String(err),
       })
-      if (attempts < 2 && info.canRetry) {
-        await sleep(PROJECT_SYNC_RETRY_DELAY_MS)
+      if (attempts < PROJECT_SYNC_MAX_ATTEMPTS && info.canRetry) {
+        await sleep(retryDelayMs(attempts))
         continue
       }
       const codeByType: Record<ProjectSyncFailureType, string> = {
