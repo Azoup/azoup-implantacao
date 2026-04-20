@@ -19,7 +19,11 @@ import {
   formatPhoneBrDisplay,
 } from '../lib/brazilFormat'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
+import {
+  enqueuePendingProjectGraphSync,
+  updateProjectPartialInSupabase,
+  withDexieSupabaseSyncMuted,
+} from '../sync/supabaseDexieBridge'
 import { createProjectFromPlan } from '../services/project'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
@@ -73,6 +77,15 @@ function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
       'Projeto salvo localmente, mas houve falha na sincronização com a nuvem (PRJ_CREATE_CLOUD_SYNC).',
   }
   return byCode[code] ?? `Falha ao criar projeto na nuvem (${code}).`
+}
+
+function isRetryableCloudSyncFailure(raw: unknown): boolean {
+  const message = raw instanceof Error ? raw.message : String(raw ?? '')
+  return (
+    message.includes('PRJ_CREATE_TIMEOUT') ||
+    message.includes('PRJ_CREATE_NETWORK') ||
+    message.includes('PRJ_CREATE_SYNC')
+  )
 }
 
 function emptyToNull(s: string): string | null {
@@ -314,8 +327,20 @@ export function ProjectCreateModal({
         const patch = { ...common, ...placement }
         if (isSupabaseConfigured()) {
           await withDexieSupabaseSyncMuted(async () => {
-            await updateProjectPartialInSupabase(projectToEdit.id, patch)
             await db.projects.update(projectToEdit.id, patch)
+            try {
+              await updateProjectPartialInSupabase(projectToEdit.id, patch)
+            } catch (syncErr) {
+              if (!isRetryableCloudSyncFailure(syncErr)) throw syncErr
+              enqueuePendingProjectGraphSync(projectToEdit.id)
+              console.warn('[Supabase] edição enfileirada para re-sync em background', {
+                projectId: projectToEdit.id,
+                error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+              })
+              setLookupHint(
+                'Alterações salvas localmente e enfileiradas para sincronizar com a nuvem quando a conexão estabilizar.',
+              )
+            }
           })
         } else {
           await db.projects.update(projectToEdit.id, patch)
