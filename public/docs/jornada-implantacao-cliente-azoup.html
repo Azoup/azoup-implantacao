@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jornada do Cliente — Processo de Implantação</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* Identidade visual Azoup (laranja #f38121) + VynTask */
+    :root {
+      --accent: #f38121;
+      --accent-hover: #e36209;
+      --accent-soft: #ffedd5;
+      --accent-ring: rgba(243, 129, 33, 0.38);
+      --text: #18181b;
+      --text-muted: #52525b;
+      --surface: #ffffff;
+      --bg: #f4f4f5;
+      --rail: #d4d4d8;
+      --on-pill: #ffffff;
+      --pill-shadow: 0 14px 36px rgba(227, 98, 9, 0.26);
+      --icon: #27272a;
+    }
+
+    @page {
+      size: A4;
+      margin: 10mm 12mm 12mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--text);
+      font-size: 9.5pt;
+      line-height: 1.45;
+      background:
+        radial-gradient(120% 80% at 100% 0%, rgba(243, 129, 33, 0.1), transparent 52%),
+        radial-gradient(90% 60% at 0% 100%, rgba(24, 24, 27, 0.05), transparent 48%),
+        linear-gradient(180deg, #fafafa 0%, var(--bg) 55%, #ececef 100%);
+      min-height: 100vh;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      max-width: 190mm;
+      margin: 0 auto;
+      padding: 8mm 6mm 10mm;
+    }
+
+    /* Cabeçalho marca Azoup — só gradientes e padrão (sem fotos ou banners de vídeo) */
+    .hero--azoup {
+      text-align: left;
+      padding: 0;
+      margin-bottom: 4mm;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(24, 24, 27, 0.1);
+      min-height: 34mm;
+      background-color: #141414;
+      background-image:
+        radial-gradient(ellipse 90% 70% at 0% 0%, rgba(243, 129, 33, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 100% 10%, rgba(243, 129, 33, 0.1) 0%, transparent 50%),
+        linear-gradient(165deg, #101010 0%, #1c1c1c 48%, #121212 100%);
+      position: relative;
+    }
+
+    .hero__mesh {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.5;
+      background-image: repeating-linear-gradient(
+        -18deg,
+        transparent 0,
+        transparent 11px,
+        rgba(255, 255, 255, 0.028) 11px,
+        rgba(255, 255, 255, 0.028) 12px
+      );
+    }
+
+    .hero--azoup::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(105deg, transparent 0%, rgba(10, 10, 10, 0.35) 55%, rgba(243, 129, 33, 0.18) 100%);
+      pointer-events: none;
+    }
+
+    .hero__inner {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 4mm;
+      padding: 4.5mm 5mm;
+    }
+
+    .hero__logo-wrap {
+      flex-shrink: 0;
+      width: 20mm;
+      height: 20mm;
+      line-height: 0;
+      border-radius: 2.2mm;
+      overflow: hidden;
+      filter: drop-shadow(0 2.5mm 7mm rgba(0, 0, 0, 0.5));
+      box-shadow: 0 0 0 0.45mm rgba(255, 255, 255, 0.22);
+    }
+
+    .hero__logo-wrap img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .hero__text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .hero__kicker {
+      margin: 0 0 1.2mm;
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-size: 6.8pt;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    .hero__kicker a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .hero__kicker a:hover {
+      text-decoration: underline;
+    }
+
+    .hero--azoup h1 {
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-weight: 800;
+      font-size: 17pt;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0;
+      color: #fff;
+      line-height: 1.08;
+      text-shadow: 0 2px 5mm rgba(0, 0, 0, 0.45);
+    }
+
+    .hero--azoup .sub {
+      margin: 1.8mm 0 0;
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-weight: 600;
+      font-size: 9pt;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.88);
+    }
+
+    .hero--azoup .tagline {
+      margin: 2.5mm 0 0;
+      max-width: 118mm;
+      font-size: 8.6pt;
+      color: rgba(255, 255, 255, 0.92);
+      font-weight: 500;
+      line-height: 1.42;
+    }
+
+    .accent-strip {
+      margin: 0 0 4mm;
+      border-radius: 12px;
+      padding: 2.2mm 3mm;
+      background: linear-gradient(180deg, #1a1a1a 0%, #111 100%);
+      border: 1px solid rgba(24, 24, 27, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .accent-strip::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 4.5mm,
+        rgba(255, 255, 255, 0.02) 4.5mm,
+        rgba(255, 255, 255, 0.02) 4.8mm
+      );
+      pointer-events: none;
+    }
+
+    .accent-strip__line {
+      position: relative;
+      z-index: 1;
+      display: block;
+      height: 2.6mm;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #e36209 0%, #f38121 38%, #ffc266 72%, #f38121 100%);
+      box-shadow: 0 0 5mm rgba(243, 129, 33, 0.35);
+    }
+
+    .intro-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+
+    .intro-card--full {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 640px) {
+      .intro-cards { grid-template-columns: 1fr; }
+      .intro-card--full { grid-column: auto; }
+    }
+
+    .intro-card {
+      background: var(--surface);
+      border: 1px solid rgba(24, 24, 27, 0.08);
+      border-radius: 14px;
+      padding: 11px 13px;
+      box-shadow: 0 8px 24px rgba(24, 24, 27, 0.06);
+    }
+
+    .intro-card strong {
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-size: 8.5pt;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-hover);
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .intro-card p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 8.8pt;
+    }
+
+    .intro-card a {
+      color: var(--accent-hover);
+      font-weight: 600;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .intro-card a:hover {
+      text-decoration: underline;
+    }
+
+    .pill .body a {
+      color: #fff7ed;
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    /* Timeline */
+    .timeline {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .timeline > li {
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr) 48px;
+      gap: 0 10px;
+      align-items: stretch;
+      margin-bottom: 11px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .timeline > li.phase {
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 8px;
+      padding-left: 6px;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .timeline > li.phase:first-child {
+      margin-top: 0;
+    }
+
+    .timeline > li:last-child:not(.phase) {
+      margin-bottom: 0;
+    }
+
+    .marker {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .num {
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #ffedd5 0%, #fed7aa 100%);
+      border: 2px solid rgba(243, 129, 33, 0.5);
+      color: var(--text);
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-weight: 800;
+      font-size: 14pt;
+      display: grid;
+      place-items: center;
+      z-index: 1;
+      box-shadow: 0 2px 0 rgba(255, 255, 255, 0.65) inset;
+    }
+
+    .rail {
+      flex: 1 1 auto;
+      width: 3px;
+      margin-top: 4px;
+      margin-bottom: -6px;
+      background: linear-gradient(180deg, var(--rail), rgba(212, 212, 216, 0.35));
+      border-radius: 999px;
+    }
+
+    .timeline > li:last-child .rail {
+      visibility: hidden;
+    }
+
+    .pill {
+      background: linear-gradient(125deg, var(--accent) 0%, var(--accent-hover) 92%);
+      color: var(--on-pill);
+      border-radius: 999px;
+      padding: 12px 18px 12px 20px;
+      box-shadow: var(--pill-shadow);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      min-height: 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .pill .title {
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-weight: 800;
+      font-size: 9.8pt;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 0 0 5px;
+      line-height: 1.2;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+    }
+
+    .pill .body {
+      margin: 0;
+      font-size: 8.9pt;
+      line-height: 1.42;
+      opacity: 0.96;
+      font-weight: 450;
+    }
+
+    .pill .body strong {
+      font-weight: 700;
+      opacity: 1;
+    }
+
+    .ico {
+      display: grid;
+      place-items: center;
+      align-self: center;
+    }
+
+    .ico svg {
+      width: 34px;
+      height: 34px;
+      stroke: var(--icon);
+      fill: none;
+      stroke-width: 1.85;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.92;
+    }
+
+    .phase span {
+      display: inline-block;
+      font-family: "Plus Jakarta Sans", Inter, sans-serif;
+      font-size: 7.6pt;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(24, 24, 27, 0.08);
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+
+    footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(24, 24, 27, 0.1);
+      text-align: center;
+      font-size: 7.8pt;
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--accent-hover);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media print {
+      body { background: #f4f4f5; }
+      .sheet { padding: 0; max-width: none; }
+      .hero--azoup { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <header class="hero hero--azoup">
+      <div class="hero__mesh" aria-hidden="true"></div>
+      <div class="hero__inner">
+        <div class="hero__logo-wrap">
+          <img src="branding/azoup-logo-laranja.png" width="160" height="160" alt="Azoup" />
+        </div>
+        <div class="hero__text">
+          <p class="hero__kicker"><a href="https://azoup.com.br/">Azoup tecnologia</a></p>
+          <h1>Jornada do Cliente</h1>
+          <p class="sub">Processo de Implantação</p>
+          <p class="tagline">
+            Fluxo operacional atual — da entrada do projeto à passagem ao suporte. Também no <strong>VynTask</strong> (aba <strong>Implantação</strong>), com exportação em PDF. Logotipo oficial Azoup; demais elementos são gradientes e padrões (sem fotos ou banners de vídeo).
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <div class="accent-strip" aria-hidden="true">
+      <span class="accent-strip__line"></span>
+    </div>
+
+    <div class="intro-cards">
+      <div class="intro-card">
+        <strong>Objetivo</strong>
+        <p>Registrar o método de implantação após contratação: contato, alinhamento, importação de dados, preparação da base, cronograma, execução e encerramento.</p>
+      </div>
+      <div class="intro-card">
+        <strong>Centro de controle</strong>
+        <p>
+          O <strong>VynTask</strong> concentra projeto, responsáveis, fases e tarefas. Antes o controle e a documentação dos projetos de implantação eram feitos no <strong>Trello</strong>; a referência oficial passa a ser o <strong>VynTask</strong>.
+        </p>
+      </div>
+      <div class="intro-card intro-card--full">
+        <strong>Ferramentas</strong>
+        <p>
+          E-mail corporativo em <a href="https://titan.hostgator.com.br/mail/">titan.hostgator.com.br/mail</a>; <strong>WhatsApp</strong> com o cliente; <strong>Google Agenda</strong> e <strong>Google Meet</strong>; <strong>FileZilla</strong> para envio da base; <strong>IBExpert</strong> para acesso à base .FDB; <strong>Notepad++</strong> para edição auxiliar de textos; <strong>Discord</strong> (comunicação interna e canal <strong>#infoclientes</strong>).
+        </p>
+      </div>
+    </div>
+
+    <ol class="timeline">
+      <li class="phase"><span>Entrada do projeto</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">1</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Verificação do e-mail</p>
+          <p class="body">Receber novos projetos de implantação por e-mail do <strong>financeiro/comercial Azoup</strong> na caixa em <a href="https://titan.hostgator.com.br/mail/">titan.hostgator.com.br/mail</a>. Conferir dados e anexos; abrir ou atualizar o projeto no <strong>VynTask</strong> para rastreabilidade.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/><path d="M4 8l8 5 8-5"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Primeiro contato</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">2</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Contato no WhatsApp</p>
+          <p class="body">Adicionar o contato do cliente no WhatsApp como canal ágil principal durante a implantação.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.9 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 8.5-8.5c4.7 0 8.5 3.8 8.5 8.5z"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">3</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Primeiro contato e apresentação</p>
+          <p class="body">Apresentar a equipe de implantação, o papel do implantador e os próximos passos esperados pelo cliente.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">4</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Formulário de boas-vindas</p>
+          <p class="body">Enviar o formulário de boas-vindas para coleta de informações iniciais e alinhamento de expectativas.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><path d="M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Alinhamento</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">5</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Agendamento da reunião de alinhamento</p>
+          <p class="body">Combinar data, participantes e pauta com <strong>Google Agenda</strong> (reuniões em <strong>Google Meet</strong> quando aplicável); registrar compromissos no cronograma no <strong>VynTask</strong> quando houver rascunho.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">6</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Reunião de alinhamento</p>
+          <p class="body">Realizar a reunião com o cliente (em geral por <strong>Google Meet</strong>): escopo, módulos, particularidades, riscos e combinados da implantação.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Dados para importação</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">7</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Planilha para preenchimento</p>
+          <p class="body">Enviar ao cliente a planilha com os dados necessários à importação no sistema.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">8</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Planilha preenchida pelo cliente</p>
+          <p class="body">Baixar e conferir o arquivo recebido; validar consistência básica antes de encaminhar à importação.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">9</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Ticket — Equipe de Desenvolvimento</p>
+          <p class="body">Abrir ticket para a <strong>Equipe de Desenvolvimento</strong> importar os dados das planilhas, com anexos e observações técnicas.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2M13 17v2M9 5v2M9 17v2"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Base e ambiente</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">10</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Criação da base .FDB</p>
+          <p class="body">Criar a base do cliente copiando das <strong>bases padrão</strong>, alinhada ao contratado.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">11</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Ajustes na tabela Empresa</p>
+          <p class="body">Com <strong>IBExpert</strong>, acessar a base e ajustar <strong>CNPJ</strong> e <strong>IE</strong> na tabela <strong>Empresa</strong> conforme o cliente. Use <strong>Notepad++</strong> para anotações ou arquivos de texto auxiliares, quando necessário.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">12</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Publicação da base (.FDB)</p>
+          <p class="body">Subir o arquivo no ambiente acordado com <strong>FileZilla</strong> (FTP/SFTP), seguindo o procedimento interno.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 21h16"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">13</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Documentação — #infoclientes (Discord)</p>
+          <p class="body">Documentar acesso à base e informações relevantes no <strong>Discord</strong>, canal <strong>#infoclientes</strong>, para a equipe.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Cronograma e execução</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">14</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Elaboração do cronograma</p>
+          <p class="body">Definir datas de instalação, configuração, treinamentos e viradas; publicar no <strong>VynTask</strong> como referência do projeto.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">15</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Execução das agendas</p>
+          <p class="body">Executar instalação remota, configurações, treinamentos por módulo e virada, conforme cronograma aprovado.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">16</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Documentação das agendas</p>
+          <p class="body">Registrar o realizado em cada agenda (evidências, pendências, próximos passos) no <strong>VynTask</strong> e no <strong>Discord</strong> quando couber.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h2"/></svg>
+        </div>
+      </li>
+
+      <li class="phase"><span>Encerramento</span></li>
+      <li>
+        <div class="marker">
+          <div class="num">17</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Validação de uso</p>
+          <p class="body">Validar uso com o cliente após treinamentos e virada; tirar dúvidas e confirmar aderência ao combinado.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">18</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Finalização do projeto</p>
+          <p class="body">Formalizar encerramento: comunicar partes, pendências registradas e status final no <strong>VynTask</strong>.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>
+        </div>
+      </li>
+      <li>
+        <div class="marker">
+          <div class="num">19</div>
+          <div class="rail"></div>
+        </div>
+        <div class="pill">
+          <p class="title">Passagem ao suporte técnico</p>
+          <p class="body">Repasse ao <strong>suporte técnico</strong> com particularidades do cliente, contatos e documentação para o dia a dia.</p>
+        </div>
+        <div class="ico" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3"/></svg>
+        </div>
+      </li>
+    </ol>
+
+    <footer>
+      Azoup tecnologia · Processo de implantação · PDF oficial — logotipo institucional + layout em gradientes (sem fotos de pessoal). Aba <strong>Implantação</strong> no VynTask. Site: <a href="https://azoup.com.br/">azoup.com.br</a>
+    </footer>
+  </div>
+</body>
+</html>

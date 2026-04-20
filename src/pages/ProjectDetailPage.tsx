@@ -13,7 +13,9 @@ import {
   CalendarCheck,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
+  ChevronUp,
   CircleCheck,
   Clock,
   Hourglass,
@@ -53,7 +55,7 @@ import { planLabelTabPillStyle, planLabelColorsFromCode, planPhaseAccentHex } fr
 import { normalizeDocLinkUrl } from '../lib/docUrls'
 import { compareTaskCode } from '../lib/taskCode'
 import { getPrimaryScheduledEventForTask } from '../lib/taskSchedule'
-import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { CUSTOM_PLAN_TYPE, planPillClass, planSummaryLabel } from '../constants/customPlan'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
 import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
@@ -259,10 +261,10 @@ export function ProjectDetailPage() {
 
   const phaseById = useMemo(() => new Map(sortedPhases.map((p) => [p.id, p])), [sortedPhases])
 
-  const { segments, currentPhaseName } = useMemo(
-    () => (projectId ? getPhaseSegments(phases, tasks, projectId) : { segments: [] as const, currentPhaseName: null }),
-    [phases, tasks, projectId],
-  )
+  const currentPhaseName = useMemo(() => {
+    if (!projectId) return null
+    return getPhaseSegments(phases, tasks, projectId).currentPhaseName
+  }, [phases, tasks, projectId])
 
   const pct = projectId ? projectProgressPercent(tasks, projectId) : 0
   const doneTasks = tasks.filter((t) => t.status === 'concluida').length
@@ -341,10 +343,7 @@ export function ProjectDetailPage() {
 
   const proj: DbProject = project
   const projectAnalyst = proj.analystId ? analystsAll.find((a) => a.id === proj.analystId) ?? null : null
-  const planName =
-    proj.planType === CUSTOM_PLAN_TYPE
-      ? CUSTOM_PLAN_LABEL
-      : plans.find((pl) => pl.key === proj.planType)?.name ?? proj.planType
+  const planName = planSummaryLabel(proj.planType)
   const isCustomPlan = proj.planType === CUSTOM_PLAN_TYPE
   const customBillableSumEst = isCustomPlan
     ? billableEstimatedSum(tasks.filter((t) => t.projectId === proj.id))
@@ -702,7 +701,12 @@ export function ProjectDetailPage() {
           </button>
           <div className="pd-header__titles">
             <h1 className="pd-title">{proj.projectName}</h1>
-            <span className="pd-plan-badge">{planName}</span>
+            <span
+              className={planPillClass(proj.planType)}
+              title={`Contrato: ${formatDurationHmFromHours(proj.hoursContracted)}`}
+            >
+              {planName}
+            </span>
             <span
               className="pd-analyst-badge"
               title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}
@@ -797,41 +801,6 @@ export function ProjectDetailPage() {
         </div>
       </section>
 
-      {segments.length > 0 ? (
-        <div className="pd-timeline" aria-hidden={false}>
-          <div
-            className="pd-timeline__bar"
-            style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0, 1fr))` }}
-          >
-            {segments.map((s, i) => (
-              <div
-                key={i}
-                className={'pd-timeline__seg pd-timeline__seg--' + s}
-                title={sortedPhases[i]?.name}
-                style={{
-                  ['--seg-base' as string]:
-                    sortedPhases[i]?.colorHex || planPhaseAccentHex(sortedPhases[i]?.orderIndex ?? 0),
-                }}
-              />
-            ))}
-          </div>
-          <div
-            className="pd-timeline__labels"
-            style={{ gridTemplateColumns: `repeat(${segments.length}, minmax(0, 1fr))` }}
-          >
-            {sortedPhases.map((ph) => (
-              <span
-                key={ph.id}
-                className="pd-timeline__label"
-                style={{ ['--seg-base' as string]: ph.colorHex || planPhaseAccentHex(ph.orderIndex) }}
-              >
-                {phaseNameShort(ph.name)}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       <div className="pd-tabs" role="tablist" aria-label="Seções do projeto">
         <button
           type="button"
@@ -913,7 +882,7 @@ export function ProjectDetailPage() {
                       <div className="pd-phase__custom-actions">
                         <button
                           type="button"
-                          className="btn btn--ghost btn--sm"
+                          className="btn btn--ghost btn--xs btn--icon"
                           onClick={() => {
                             void (async () => {
                               const code = await suggestNextProjectTaskCode(proj.id, phase.id)
@@ -923,37 +892,43 @@ export function ProjectDetailPage() {
                               setCustomTaskModalOpen(true)
                             })()
                           }}
+                          title="Nova tarefa nesta fase"
+                          aria-label="Nova tarefa nesta fase"
                         >
                           <Plus {...icSm} aria-hidden />
-                          Tarefa
                         </button>
                         <button
                           type="button"
-                          className="btn btn--ghost btn--sm"
+                          className="btn btn--ghost btn--xs btn--icon"
                           onClick={() => setCustomPhaseModal({ mode: 'edit', phase })}
+                          title="Editar fase"
+                          aria-label="Editar fase"
                         >
                           <Pencil {...icSm} aria-hidden />
-                          Fase
                         </button>
                         <button
                           type="button"
-                          className="btn btn--ghost btn--sm"
+                          className="btn btn--ghost btn--xs btn--icon"
                           onClick={() => void moveProjectPhase(proj.id, phase.id, 'up')}
                           title="Mover fase para cima"
+                          aria-label="Mover fase para cima"
                         >
-                          ↑
+                          <ChevronUp {...icSm} aria-hidden />
                         </button>
                         <button
                           type="button"
-                          className="btn btn--ghost btn--sm"
+                          className="btn btn--ghost btn--xs btn--icon"
                           onClick={() => void moveProjectPhase(proj.id, phase.id, 'down')}
                           title="Mover fase para baixo"
+                          aria-label="Mover fase para baixo"
                         >
-                          ↓
+                          <ChevronDown {...icSm} aria-hidden />
                         </button>
                         <button
                           type="button"
-                          className="btn btn--ghost btn--sm pd-phase__btn-danger"
+                          className="btn btn--ghost btn--xs btn--icon pd-phase__btn-danger"
+                          title="Excluir fase"
+                          aria-label="Excluir fase"
                           onClick={() => {
                             void (async () => {
                               const ok = await requestConfirm({
@@ -1051,11 +1026,12 @@ export function ProjectDetailPage() {
                           {doneTask ? (
                             <button
                               type="button"
-                              className="pd-task__reopen"
+                              className="pd-task__reopen pd-task__reopen--icon"
                               onClick={() => onTaskStatus(t.id, 'pendente')}
+                              title="Reabrir tarefa"
+                              aria-label="Reabrir tarefa"
                             >
                               <RotateCcw {...icSm} aria-hidden />
-                              Reabrir tarefa
                             </button>
                           ) : (
                             <>
@@ -1112,30 +1088,26 @@ export function ProjectDetailPage() {
                                 <p className="pd-task__desc">{t.description?.trim() || 'Sem descrição.'}</p>
                               ) : null}
                               {canAct || (isCustomPlan && canEditProjects) ? (
-                                <div
-                                  className={
-                                    'pd-task__actions' +
-                                    (informational ? ' pd-task__actions--no-register' : '')
-                                  }
-                                >
+                                <div className="pd-task__actions">
                                   {isCustomPlan && canEditProjects ? (
                                     <>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn"
                                         onClick={() => {
                                           setCustomTaskEditing(t)
                                           setCustomTaskPhaseId(phase.id)
                                           setCustomTaskDefaultCode(t.code)
                                           setCustomTaskModalOpen(true)
                                         }}
+                                        title="Editar tarefa"
+                                        aria-label="Editar tarefa"
                                       >
                                         <Pencil {...icSm} aria-hidden />
-                                        Editar
                                       </button>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn pd-task__btn--danger"
                                         onClick={() => {
                                           void (async () => {
                                             const ok = await requestConfirm({
@@ -1154,63 +1126,64 @@ export function ProjectDetailPage() {
                                             }
                                           })()
                                         }}
+                                        title="Excluir tarefa"
+                                        aria-label="Excluir tarefa"
                                       >
                                         <Trash2 {...icSm} aria-hidden />
-                                        Excluir
                                       </button>
                                     </>
                                   ) : null}
                                   {canAct && !informational ? (
                                     <button
                                       type="button"
-                                      className="btn btn--ghost btn--sm pd-task__btn"
+                                      className="btn btn--ghost btn--xs btn--icon pd-task__btn"
                                       onClick={() => setHoursTask(t)}
+                                      title="Registrar horas"
+                                      aria-label="Registrar horas"
                                     >
                                       <Clock {...icSm} aria-hidden />
-                                      Registrar
                                     </button>
                                   ) : null}
                                   {canAct ? (
                                     scheduledEv ? (
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm pd-task__btn pd-task__btn--scheduled"
+                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn pd-task__btn--scheduled"
                                         onClick={() =>
                                           navigate('/agenda', {
                                             state: { editEventId: scheduledEv.id },
                                           })
                                         }
                                         title="Abrir na agenda para editar o horário"
+                                        aria-label="Compromisso agendado — abrir na agenda"
                                       >
                                         <CalendarCheck {...icSm} aria-hidden />
-                                        Agendado
                                       </button>
                                     ) : (
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn"
                                         onClick={() =>
                                           navigate('/agenda', {
                                             state: { prefillTaskId: t.id, prefillProjectId: proj.id },
                                           })
                                         }
+                                        title="Agendar na agenda"
+                                        aria-label="Agendar na agenda"
                                       >
                                         <CalendarPlus {...icSm} aria-hidden />
-                                        Agendar
                                       </button>
                                     )
                                   ) : null}
                                   {canAct ? (
                                     <button
                                       type="button"
-                                      className={
-                                        'btn btn--primary btn--sm pd-task__btn' +
-                                        (informational ? '' : ' pd-task__btn--full')
-                                      }
+                                      className="btn btn--primary btn--xs btn--icon pd-task__btn pd-task__btn--conclude"
                                       onClick={() => onTaskStatus(t.id, 'concluida')}
+                                      title="Marcar como concluída"
+                                      aria-label="Marcar tarefa como concluída"
                                     >
                                       <CheckCircle2 {...icSm} aria-hidden />
-                                      Concluir
                                     </button>
                                   ) : null}
                                 </div>

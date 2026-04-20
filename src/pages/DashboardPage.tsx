@@ -28,7 +28,7 @@ import { projectProgressPercent } from '../lib/projectProgress'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
 import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
-import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { planPillClass, planSummaryLabel } from '../constants/customPlan'
 import { PlanLabelRow } from '../components/PlanLabelChips'
 import type { DbEvent, DbTask } from '../db/types'
 import { updateEventValidated } from '../services/events'
@@ -90,8 +90,6 @@ export function DashboardPage() {
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
   const events = useLiveQuery(() => db.events.toArray(), []) ?? []
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
-  const planModels = useLiveQuery(() => db.planModels.toArray(), []) ?? []
-
   useReconcileKanbanColumns(projects, phases, tasks)
 
   const todayTitle = useMemo(() => weekdayTitlePt(new Date()), [])
@@ -169,14 +167,6 @@ export function DashboardPage() {
     const ordered = sortProjects(filtered, projectSort)
     return ordered.slice(0, 12)
   }, [projects, phases, tasks, projectSort])
-
-  function planLabel(key: string) {
-    if (key === CUSTOM_PLAN_TYPE) return CUSTOM_PLAN_LABEL
-    const m = planModels.find((x) => x.key === key)
-    if (m) return m.name
-    if (key === 'pro') return 'Pró'
-    return key
-  }
 
   function startEditEvent(ev: DbEvent) {
     const startDt = new Date(ev.startTime)
@@ -470,7 +460,7 @@ export function DashboardPage() {
                             />
                           </span>
                         ) : null}
-                        <span className="dashboard-proj-card__plan">{planLabel(p.planType)}</span>
+                        <span className={planPillClass(p.planType)}>{planSummaryLabel(p.planType)}</span>
                       </div>
                     </div>
                     <PlanLabelRow

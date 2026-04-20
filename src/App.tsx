@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { PlanModelsPage } from './pages/PlanModelsPage'
 import { PlanPresentationsPage } from './pages/PlanPresentationsPage'
 import { AnalystsPage } from './pages/AnalystsPage'
+import { ImplantationJourneyPage } from './pages/ImplantationJourneyPage'
 import { AccessDeniedPage } from './pages/AccessDeniedPage'
 import { LogsPage } from './pages/LogsPage'
 import type { PermissionScope } from './db/types'
@@ -90,6 +91,14 @@ export const appRouter = createBrowserRouter(
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/projetos/:projectId']}>
               <ProjectDetailPage />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/implantacao"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/implantacao']}>
+              <ImplantationJourneyPage />
             </RequireScope>
           }
         />

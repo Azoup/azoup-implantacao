@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.4.1 (2026-04-20)
+
+- **Jornada de implantação (cliente Azoup):** nova rota `/implantacao` com leitura da jornada (HTML/PDF em `public/docs`), dados estruturados em `implantationJourney`, marca `AzoupLogoMark`, estilos dedicados.
+- **Navegação:** item “Implantação” na sidebar; escopo alinhado a `projects.view`; integrações leves em Dashboard, Visão Geral, Projetos e detalhe de projeto conforme o fluxo da jornada.
+- **Assets:** logos e cópias em `docs/` e `public/branding` / `public/docs` para referência e servir estático no deploy.
+
 ## v2.4.0 (2026-04-20)
 
 - **Sync multi-aba e tempo real (Supabase):** canal `BroadcastChannel` para outras abas dispararem pull incremental leve; inscrição Realtime em `projects`, `phases` e `tasks` aplicando mudanças no Dexie com mute nos hooks (evita loop Dexie→nuvem).

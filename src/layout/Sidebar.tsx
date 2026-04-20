@@ -18,6 +18,7 @@ import {
   Sparkles,
   Sun,
   UsersRound,
+  Workflow,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
@@ -31,6 +32,7 @@ const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Gauge, scope: 'dashboard.view' },
   { to: '/visao-geral', label: 'Visão Geral', icon: Kanban, scope: 'overview.view' },
   { to: '/projetos', label: 'Projetos', icon: Briefcase, scope: 'projects.view' },
+  { to: '/implantacao', label: 'Implantação', icon: Workflow, scope: 'projects.view' },
   { to: '/tarefas', label: 'Tarefas', icon: ClipboardList, scope: 'tasks.view' },
   { to: '/agenda', label: 'Agenda', icon: CalendarRange, scope: 'agenda.view' },
   { to: '/relatorios', label: 'Relatórios', icon: ChartColumnIncreasing, scope: 'reports.view' },

@@ -14,7 +14,7 @@ import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
-import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { planPillClass, planSummaryLabel } from '../constants/customPlan'
 
 const iconSmall = { size: 16, strokeWidth: 2 } as const
 
@@ -59,8 +59,6 @@ export function OverviewPage() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
-  const planModels = useLiveQuery(() => db.planModels.toArray(), []) ?? []
-
   const canEditProjects = user ? hasScope(user, 'projects.edit') : false
 
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
@@ -116,31 +114,6 @@ export function OverviewPage() {
     setJustification('')
     setModalError(null)
   }, [])
-
-  function planBadgeClass(planType: string) {
-    if (planType === 'master') return 'kanban-card__badge kanban-card__badge--master'
-    if (planType === 'pro') return 'kanban-card__badge kanban-card__badge--pro'
-    if (planType === 'basic') return 'kanban-card__badge kanban-card__badge--basic'
-    return 'kanban-card__badge kanban-card__badge--custom'
-  }
-
-  function planBadgeLabel(p: { planType: string; hoursContracted: number }) {
-    const m = planModels.find((x) => x.key === p.planType)
-    const tag =
-      p.planType === 'master'
-        ? 'MASTER'
-        : p.planType === 'pro'
-          ? 'PRO'
-          : p.planType === 'basic'
-            ? 'BASIC'
-            : p.planType === CUSTOM_PLAN_TYPE
-              ? 'AVULSO'
-              : (() => {
-                  const n = m?.name ?? p.planType
-                  return n.length > 16 ? `${n.slice(0, 14)}…` : n
-                })()
-    return `${tag} ${formatDurationHmFromHours(p.hoursContracted)}`
-  }
 
   return (
     <div className="page page--wide page--kanban">
@@ -259,7 +232,12 @@ export function OverviewPage() {
                                 />
                               </span>
                             ) : null}
-                            <span className={planBadgeClass(p.planType)}>{planBadgeLabel(p)}</span>
+                            <span
+                              className={planPillClass(p.planType)}
+                              title={`Contrato: ${formatDurationHmFromHours(p.hoursContracted)}`}
+                            >
+                              {planSummaryLabel(p.planType)}
+                            </span>
                           </div>
                           <PlanLabelRow
                             last={lastLabel}

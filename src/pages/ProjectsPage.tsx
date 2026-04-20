@@ -23,7 +23,7 @@ import {
   writeProjectSortConfig,
   type ProjectSortConfig,
 } from '../lib/projectSort'
-import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { planPillClass, planSummaryLabel } from '../constants/customPlan'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -238,8 +238,7 @@ export function ProjectsPage() {
           const pct = projectProgressPercent(tasks, p.id)
           const projectTasks = tasks.filter((t) => t.projectId === p.id)
           const done = projectTasks.filter((t) => t.status === 'concluida').length
-          const planName =
-            p.planType === CUSTOM_PLAN_TYPE ? CUSTOM_PLAN_LABEL : plans.find((pl) => pl.key === p.planType)?.name ?? p.planType
+          const planName = planSummaryLabel(p.planType)
           const { segments, currentPhaseName } = getPhaseSegments(phases, tasks, p.id)
           const phSorted = phases
             .filter((x) => x.projectId === p.id)
@@ -292,7 +291,7 @@ export function ProjectsPage() {
                       API {p.clientApiId}
                     </span>
                   ) : null}
-                  <span className="proj-card__badge proj-card__badge--plan" title={p.planType}>
+                  <span className={planPillClass(p.planType)} title={`Plano: ${planName}`}>
                     {planName}
                   </span>
                   <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
