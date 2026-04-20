@@ -1,3 +1,5 @@
+import { pickReadableText } from '../lib/analystColors'
+
 type AnalystAvatarProps = {
   name: string
   color: string
@@ -21,8 +23,17 @@ export function AnalystAvatar({ name, color, avatarUrl, size = 'md', className =
   if (avatarUrl?.trim()) {
     return <img src={avatarUrl} alt={name} className={cls} style={{ borderColor: color }} />
   }
+  const textColor = pickReadableText(color)
   return (
-    <span className={cls} style={{ background: color }} aria-hidden>
+    <span
+      className={cls}
+      style={{
+        background: `color-mix(in srgb, ${color} 24%, var(--surface))`,
+        borderColor: color,
+        color: textColor,
+      }}
+      aria-hidden
+    >
       {initialsFromName(name)}
     </span>
   )

@@ -162,6 +162,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [useSb, loadDexieUser])
 
+  /** Após muito tempo em segundo plano o access token pode expirar; revalidar ao voltar à aba reduz falhas em gravar/excluir. */
+  useEffect(() => {
+    if (!useSb || !supabase) return
+    const client = supabase
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return
+      void (async () => {
+        try {
+          const {
+            data: { session },
+          } = await client.auth.getSession()
+          if (!session) return
+          const expMs = session.expires_at ? session.expires_at * 1000 : null
+          const skewMs = 120_000
+          if (expMs != null && expMs < Date.now() + skewMs) {
+            const { error } = await client.auth.refreshSession()
+            if (error) console.warn('[Auth] refreshSession ao focar a aba:', error.message)
+          }
+        } catch (e) {
+          console.warn('[Auth] Falha ao revalidar sessão ao focar a aba.', e)
+        }
+      })()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [useSb])
+
   const login = useCallback(
     async (email: string, password: string) => {
       const normalized = email.trim().toLowerCase()

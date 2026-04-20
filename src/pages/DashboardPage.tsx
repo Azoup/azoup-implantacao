@@ -28,10 +28,12 @@ import { projectProgressPercent } from '../lib/projectProgress'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
 import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
+import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { PlanLabelRow } from '../components/PlanLabelChips'
 import type { DbEvent, DbTask } from '../db/types'
 import { updateEventValidated } from '../services/events'
 import { AnalystAvatar } from '../components/AnalystAvatar'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   readProjectSortConfig,
@@ -169,6 +171,7 @@ export function DashboardPage() {
   }, [projects, phases, tasks, projectSort])
 
   function planLabel(key: string) {
+    if (key === CUSTOM_PLAN_TYPE) return CUSTOM_PLAN_LABEL
     const m = planModels.find((x) => x.key === key)
     if (m) return m.name
     if (key === 'pro') return 'Pró'
@@ -228,6 +231,44 @@ export function DashboardPage() {
       toastError(err instanceof Error ? err.message : 'Não foi possível salvar a edição do evento.')
     }
   }
+
+  const editEventDraftDirty = useMemo(() => {
+    if (!editEventId) return false
+    const ev = events.find((e) => e.id === editEventId)
+    if (!ev) return true
+    const startDt = new Date(ev.startTime)
+    const endDt = new Date(ev.endTime)
+    return (
+      editTitle.trim() !== (ev.title ?? '').trim() ||
+      editDescription.trim() !== (ev.description ?? '').trim() ||
+      editStartDate !== toDateInput(startDt) ||
+      editStartTime !== toTimeInput(startDt) ||
+      editEndDate !== toDateInput(endDt) ||
+      editEndTime !== toTimeInput(endDt) ||
+      editMeetingLink.trim() !== (ev.meetingLink ?? '').trim() ||
+      editAnalystId !== (ev.analystId ?? '')
+    )
+  }, [
+    editEventId,
+    events,
+    editTitle,
+    editDescription,
+    editStartDate,
+    editStartTime,
+    editEndDate,
+    editEndTime,
+    editMeetingLink,
+    editAnalystId,
+  ])
+
+  useRegisterUnsavedChanges({
+    enabled: Boolean(editEventId),
+    isDirty: () => editEventDraftDirty,
+    onSave: async () => {
+      await saveEventEdit({ preventDefault() {} } as FormEvent)
+    },
+    message: 'Há alterações não gravadas neste evento da agenda.',
+  })
 
   async function markEventAsDone(eventId: string) {
     const ok = await requestConfirm({
@@ -419,6 +460,7 @@ export function DashboardPage() {
                           <span
                             className="dashboard-proj-card__analyst"
                             title={`Analista responsável: ${analyst.name}`}
+                            style={{ ['--analyst-color' as string]: analyst.color }}
                           >
                             <AnalystAvatar
                               name={analyst.name}

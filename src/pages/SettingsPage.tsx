@@ -8,6 +8,7 @@ import type { DbUser, PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   canOverrideDataModeRuntime,
@@ -100,21 +101,37 @@ export function SettingsPage() {
   async function savePermissions() {
     if (!permissionsUserId || !canManageUsers) return
     if (!supabase) {
-      setErr('Supabase não configurado.')
-      return
+      const msg = 'Supabase não configurado.'
+      setErr(msg)
+      throw new Error(msg)
     }
     const { error } = await supabase
       .from('profiles')
       .update({ permissions: permissionDraft })
       .eq('id', permissionsUserId)
     if (error) {
-      setErr(error.message || 'Não foi possível salvar permissões.')
-      return
+      const msg = error.message || 'Não foi possível salvar permissões.'
+      setErr(msg)
+      throw new Error(msg)
     }
     await loadUsersFromSupabase()
     void refreshSupabaseDexieCache().catch(() => undefined)
     closePermissions()
   }
+
+  const permissionsDraftDirty = useMemo(() => {
+    if (!permissionsOpen || !editingPermissionUser) return false
+    const draftKey = [...permissionDraft].sort().join('|')
+    const origKey = [...scopesForUser(editingPermissionUser)].sort().join('|')
+    return draftKey !== origKey
+  }, [permissionsOpen, editingPermissionUser, permissionDraft])
+
+  useRegisterUnsavedChanges({
+    enabled: permissionsOpen && canManageUsers,
+    isDirty: () => permissionsDraftDirty,
+    onSave: savePermissions,
+    message: 'Há alterações não gravadas nas permissões deste usuário.',
+  })
 
   function toggleScope(scope: PermissionScope, checked: boolean) {
     setPermissionDraft((prev) => {
@@ -560,7 +577,12 @@ export function SettingsPage() {
               <button type="button" className="btn btn--ghost" onClick={() => setPermissionDraft(defaultScopesForRole('admin'))}>
                 Preset Admin
               </button>
-              <button type="button" className="btn btn--primary" onClick={savePermissions} disabled={!canEditSettings}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void savePermissions().catch(() => undefined)}
+                disabled={!canEditSettings}
+              >
                 Salvar permissões
               </button>
             </div>

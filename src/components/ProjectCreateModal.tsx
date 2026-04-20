@@ -24,8 +24,11 @@ import {
   updateProjectPartialInSupabase,
   withDexieSupabaseSyncMuted,
 } from '../sync/supabaseDexieBridge'
-import { createProjectFromPlan } from '../services/project'
+import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { createCustomProject, createProjectFromPlan } from '../services/project'
+import { getBillableEstimatedSumForProject } from '../services/customProjectHours'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
@@ -122,12 +125,15 @@ export function ProjectCreateModal({
   initialKanbanColumn,
   projectToEdit = null,
 }: Props) {
+  const { requestConfirm } = useUiFeedback()
   const bodyRef = useRef<HTMLDivElement>(null)
   const plansRef = useRef(plans)
   plansRef.current = plans
 
   const [projectName, setProjectName] = useState('')
   const [planKey, setPlanKey] = useState<PlanTypeKey>('master')
+  /** Teto de horas (plano avulso — política híbrida B). */
+  const [customContractHours, setCustomContractHours] = useState(40)
   const [analystId, setAnalystId] = useState('')
   const [startDate, setStartDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [dueDate, setDueDate] = useState('')
@@ -190,6 +196,7 @@ export function ProjectCreateModal({
       setSecondaryRazaoSocial(edit.secondaryRazaoSocial ?? '')
       setModulesDescription(edit.modulesDescription ?? '')
       setProjectStatus(edit.status)
+      setCustomContractHours(Math.max(0, Math.round(edit.hoursContracted)))
       setErr(null)
       setLookupHint(null)
       return
@@ -220,11 +227,13 @@ export function ProjectCreateModal({
     setSecondaryRazaoSocial('')
     setModulesDescription('')
     setProjectStatus('ativo')
+    setCustomContractHours(40)
     setErr(null)
     setLookupHint(null)
   }, [open, projectToEdit?.id])
 
   useEffect(() => {
+    if (planKey === CUSTOM_PLAN_TYPE) return
     if (plans.length === 0) return
     if (!plans.some((p) => p.key === planKey)) setPlanKey(plans[0].key)
   }, [plans, planKey])
@@ -324,12 +333,34 @@ export function ProjectCreateModal({
           status: projectStatus,
           kanbanColumn: projectToEdit.kanbanColumn,
         })
-        const patch = { ...common, ...placement }
+        const patch: Record<string, unknown> = { ...common, ...placement }
+        if (projectToEdit.planType === CUSTOM_PLAN_TYPE) {
+          let nextH = Math.max(0, Math.round(customContractHours))
+          const sumEst = await getBillableEstimatedSumForProject(projectToEdit.id)
+          if (nextH < sumEst) {
+            const ok = await requestConfirm({
+              title: 'Contrato abaixo das previsões',
+              message: `A soma das estimativas das tarefas não informativas é ${sumEst}h. O contrato não pode ficar menor que essa soma. Ajustar o contrato para ${sumEst}h?`,
+              confirmLabel: `Ajustar para ${sumEst}h`,
+              cancelLabel: 'Voltar',
+            })
+            if (!ok) {
+              setSaving(false)
+              return
+            }
+            nextH = sumEst
+          }
+          patch.hoursContracted = nextH
+          patch.planSnapshot = {
+            ...projectToEdit.planSnapshot,
+            hoursContracted: nextH,
+          }
+        }
         if (isSupabaseConfigured()) {
           await withDexieSupabaseSyncMuted(async () => {
-            await db.projects.update(projectToEdit.id, patch)
+            await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
             try {
-              await updateProjectPartialInSupabase(projectToEdit.id, patch)
+              await updateProjectPartialInSupabase(projectToEdit.id, patch as Partial<DbProject>)
             } catch (syncErr) {
               if (!isRetryableCloudSyncFailure(syncErr)) throw syncErr
               enqueuePendingProjectGraphSync(projectToEdit.id)
@@ -343,8 +374,16 @@ export function ProjectCreateModal({
             }
           })
         } else {
-          await db.projects.update(projectToEdit.id, patch)
+          await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
         }
+      } else if (planKey === CUSTOM_PLAN_TYPE) {
+        await createCustomProject({
+          ...common,
+          hoursContracted: Math.max(0, Math.round(customContractHours)),
+          ownerId: user.id,
+          createdBy: user.id,
+          kanbanColumn: initialKanbanColumn,
+        })
       } else {
         await createProjectFromPlan({
           ...common,
@@ -381,7 +420,7 @@ export function ProjectCreateModal({
         <p className="muted project-create-modal__lead">
           {isEdit
             ? 'Altere dados cadastrais e operacionais. O plano contratado e as tarefas geradas não são recriados ao salvar.'
-            : 'Cadastro unificado: empresa, endereço, contrato e contato na operação. O plano gera fases e tarefas automaticamente.'}
+            : 'Cadastro unificado: empresa, endereço, contrato e contato na operação. Escolha um modelo de plano (fases/tarefas do catálogo) ou plano avulso (estrutura montada no projeto).'}
         </p>
 
         <nav className="project-create-modal__jump" aria-label="Ir para seção">
@@ -568,6 +607,11 @@ export function ProjectCreateModal({
                 <label className="field field--span2">
                   <span>Plano contratado</span>
                   <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} disabled={isEdit}>
+                    {!isEdit ? (
+                      <option value={CUSTOM_PLAN_TYPE}>
+                        Plano avulso — fases e tarefas no projeto · teto de horas configurável
+                      </option>
+                    ) : null}
                     {plans.map((pl) => (
                       <option key={pl.id} value={pl.key}>
                         {pl.name} — {formatDurationHmFromHours(pl.hoursContracted)} · {pl.phaseCount} fases
@@ -578,6 +622,38 @@ export function ProjectCreateModal({
                     <span className="field__hint muted">Troca de plano não altera tarefas já geradas; ajuste manual se necessário.</span>
                   ) : null}
                 </label>
+                {!isEdit && planKey === CUSTOM_PLAN_TYPE ? (
+                  <label className="field field--span2">
+                    <span>Horas contratadas (teto inicial)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={customContractHours}
+                      onChange={(e) => setCustomContractHours(Number(e.target.value))}
+                    />
+                    <span className="field__hint muted">
+                      Política híbrida: você define o teto; ao somar previsões nas tarefas, o app pede confirmação para
+                      elevá-lo quando ultrapassar o contrato ({formatDurationHmFromHours(customContractHours)}).
+                    </span>
+                  </label>
+                ) : null}
+                {isEdit && projectToEdit?.planType === CUSTOM_PLAN_TYPE ? (
+                  <label className="field field--span2">
+                    <span>Horas contratadas (teto)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={customContractHours}
+                      onChange={(e) => setCustomContractHours(Number(e.target.value))}
+                    />
+                    <span className="field__hint muted">
+                      Não pode ficar abaixo da soma das estimativas das tarefas operacionais; ao salvar, ajustamos se
+                      necessário.
+                    </span>
+                  </label>
+                ) : null}
                 {isEdit ? (
                   <label className="field field--span2">
                     <span>Situação do projeto</span>

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react'
@@ -237,23 +238,27 @@ export function PlanModelsPage() {
     [taskEditing, taskModalPhaseId, canEditPlanModels],
   )
 
-  async function onSaveMeta(e: FormEvent) {
-    e.preventDefault()
+  async function persistPlanMeta() {
     if (!canEditPlanModels) return
     if (!selected) return
     setMetaErr(null)
     setMetaOk(false)
+    const url = presentationUrl.trim() || null
+    await updatePlanModel(selected.id, {
+      name: name.trim(),
+      hoursContracted: Math.max(1, Math.round(hours)),
+      presentationUrl: url,
+      clientDescription: clientDescription.trim() || null,
+      active,
+    })
+    setMetaOk(true)
+    setTimeout(() => setMetaOk(false), 2400)
+  }
+
+  async function onSaveMeta(e: FormEvent) {
+    e.preventDefault()
     try {
-      const url = presentationUrl.trim() || null
-      await updatePlanModel(selected.id, {
-        name: name.trim(),
-        hoursContracted: Math.max(1, Math.round(hours)),
-        presentationUrl: url,
-        clientDescription: clientDescription.trim() || null,
-        active,
-      })
-      setMetaOk(true)
-      setTimeout(() => setMetaOk(false), 2400)
+      await persistPlanMeta()
     } catch (err) {
       setMetaErr(err instanceof Error ? err.message : 'Erro ao salvar')
     }
@@ -364,6 +369,32 @@ export function PlanModelsPage() {
     if (!ok) return
     await deletePlanTask(t.id)
   }
+
+  const structuralModalOpen = phaseModalOpen || taskModalOpen
+  const metaDirty = Boolean(
+    selected &&
+      (name.trim() !== selected.name.trim() ||
+        Math.max(1, Math.round(hours)) !== selected.hoursContracted ||
+        (presentationUrl.trim() || '') !== (selected.presentationUrl ?? '').trim() ||
+        (clientDescription.trim() || '') !== (selected.clientDescription ?? '').trim() ||
+        active !== selected.active),
+  )
+  const planModelsPageDirty = structuralModalOpen || metaDirty || newOpen
+
+  useRegisterUnsavedChanges({
+    enabled: canEditPlanModels,
+    isDirty: () => planModelsPageDirty,
+    onSave:
+      structuralModalOpen || newOpen
+        ? undefined
+        : async () => {
+            await persistPlanMeta()
+          },
+    message:
+      structuralModalOpen || newOpen
+        ? 'Há um fluxo aberto (novo plano ou modal de fase/tarefa). Feche-o ou use “Sair sem gravar”. Para metadados, use Salvar na tela.'
+        : 'Há alterações não gravadas no modelo de plano selecionado.',
+  })
 
   const builtin = selected && BUILTIN_PLAN_KEYS.has(selected.key)
 

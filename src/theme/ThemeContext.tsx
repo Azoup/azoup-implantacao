@@ -35,7 +35,7 @@ function readTheme(): ThemeMode {
   return 'light'
 }
 
-const DEFAULT_PALETTE: PaletteId = 'tech_graphite_orange'
+const DEFAULT_PALETTE: PaletteId = 'neo'
 
 function readPalette(): PaletteId {
   try {

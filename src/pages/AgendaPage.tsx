@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { addDays, addMonths, addWeeks, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -14,8 +14,10 @@ import { eventColorsFromAnalyst } from '../lib/analystColors'
 import { buildGoogleCalendarTemplateUrl } from '../lib/googleCalendarUrl'
 import { brDateTimeToIso, normalizeBrDateInput, normalizeTimeInput } from '../lib/dateTimeInput'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
-import type { DbEvent } from '../db/types'
-import { createEventValidated } from '../services/events'
+import { compareTaskCode } from '../lib/taskCode'
+import type { DbEvent, DbProject, DbTask } from '../db/types'
+import { createEventValidated, updateEventValidated } from '../services/events'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   assignLanes,
@@ -37,6 +39,22 @@ import {
 } from '../lib/calendarGrid'
 
 type ViewMode = 'week' | 'day'
+
+function agendaModalSnapshotArg(p: {
+  editingEventId: string | null
+  title: string
+  description: string
+  startDate: string
+  startTime: string
+  endDate: string
+  endTime: string
+  analystId: string
+  meetingLink: string
+  modalProjectId: string | null
+  modalTaskId: string | null
+}) {
+  return JSON.stringify(p)
+}
 
 function toDateInput(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -63,6 +81,7 @@ function clipSegment(ev: DbEvent): Segment | null {
 type AgendaLocationState = {
   prefillTaskId?: string
   prefillProjectId?: string
+  editEventId?: string
 }
 
 export function AgendaPage() {
@@ -71,7 +90,7 @@ export function AgendaPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const prefillConsumedKey = useRef<string | null>(null)
-  const { toast, toastError } = useUiFeedback()
+  const { toast, toastError, toastWarn } = useUiFeedback()
 
   const events = useLiveQuery(() => db.events.orderBy('startTime').toArray(), []) ?? []
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
@@ -83,6 +102,9 @@ export function AgendaPage() {
   const [monthCursor, setMonthCursor] = useState(() => startOfMonth(zonedNow()))
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [filter, setFilter] = useState<string>('all')
+  /** Filtra a grade e a lista de tarefas sem compromisso na lateral. */
+  const [agendaProjectFilterId, setAgendaProjectFilterId] = useState<string | null>(null)
+  const [unscheduledSearch, setUnscheduledSearch] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -95,11 +117,73 @@ export function AgendaPage() {
   const [meetingLink, setMeetingLink] = useState('')
   const [modalProjectId, setModalProjectId] = useState<string | null>(null)
   const [modalTaskId, setModalTaskId] = useState<string | null>(null)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [agendaModalBaseline, setAgendaModalBaseline] = useState<string | null>(null)
+
+  function prefillModalFromTask(task: DbTask, projectRow?: DbProject | null) {
+    if (!canEditAgenda) return
+    const now = new Date()
+    const end = new Date(now.getTime() + 60 * 60 * 1000)
+    const p = projectRow ?? projects.find((x) => x.id === task.projectId) ?? null
+    setEditingEventId(null)
+    setTitle(`${task.code} ${task.title}`.trim())
+    setDescription('')
+    setStartDate(toDateInput(now))
+    setStartTime(toTimeInput(now))
+    setEndDate(toDateInput(end))
+    setEndTime(toTimeInput(end))
+    setAnalystId(task.assignedTo ?? p?.analystId ?? '')
+    setMeetingLink('')
+    setModalProjectId(p?.id ?? task.projectId ?? null)
+    setModalTaskId(task.id)
+    setModalOpen(true)
+  }
 
   useEffect(() => {
     const st = location.state as AgendaLocationState | null
-    if (!st?.prefillTaskId) return
-    const token = `${location.key}:${st.prefillTaskId}`
+    if (!st) return
+
+    if (st.editEventId) {
+      const token = `${location.key}:edit:${st.editEventId}`
+      if (prefillConsumedKey.current === token) return
+      prefillConsumedKey.current = token
+      const eid = st.editEventId
+      navigate(location.pathname, { replace: true, state: {} })
+      void (async () => {
+        const ev = await db.events.get(eid)
+        if (!ev) {
+          toastError('Evento não encontrado na agenda.')
+          return
+        }
+        const startDt = new Date(ev.startTime)
+        const endDt = new Date(ev.endTime)
+        const zStart = toZonedTime(startDt, CAL_TZ)
+        setWeekMonday(mondayOfWeekContaining(zStart))
+        setActiveDay(zStart)
+        setMonthCursor(startOfMonth(zStart))
+        setViewMode('day')
+        if (!canEditAgenda) {
+          toastWarn('Sem permissão para editar a agenda.')
+          return
+        }
+        setEditingEventId(ev.id)
+        setTitle(ev.title)
+        setDescription(ev.description ?? '')
+        setStartDate(toDateInput(startDt))
+        setStartTime(toTimeInput(startDt))
+        setEndDate(toDateInput(endDt))
+        setEndTime(toTimeInput(endDt))
+        setAnalystId(ev.analystId ?? '')
+        setMeetingLink(ev.meetingLink ?? '')
+        setModalProjectId(ev.projectId)
+        setModalTaskId(ev.taskId)
+        setModalOpen(true)
+      })()
+      return
+    }
+
+    if (!st.prefillTaskId) return
+    const token = `${location.key}:prefill:${st.prefillTaskId}`
     if (prefillConsumedKey.current === token) return
     prefillConsumedKey.current = token
     const tid = st.prefillTaskId
@@ -109,20 +193,25 @@ export function AgendaPage() {
     void (async () => {
       const task = await db.tasks.get(tid)
       const project = await db.projects.get(pid ?? task?.projectId ?? '')
+      if (!task) {
+        toastError('Tarefa não encontrada.')
+        return
+      }
       const now = new Date()
       const end = new Date(now.getTime() + 60 * 60 * 1000)
-      if (task) setTitle(`${task.code} ${task.title}`.trim())
-      const aid = task?.assignedTo ?? project?.analystId ?? ''
+      setTitle(`${task.code} ${task.title}`.trim())
+      const aid = task.assignedTo ?? project?.analystId ?? ''
       setAnalystId(aid)
       setStartDate(toDateInput(now))
       setStartTime(toTimeInput(now))
       setEndDate(toDateInput(end))
       setEndTime(toTimeInput(end))
-      setModalProjectId(project?.id ?? task?.projectId ?? null)
-      setModalTaskId(task?.id ?? tid)
+      setModalProjectId(project?.id ?? task.projectId ?? null)
+      setModalTaskId(task.id)
+      setEditingEventId(null)
       setModalOpen(true)
     })()
-  }, [location.state, location.key, location.pathname, navigate, canEditAgenda])
+  }, [location.state, location.key, location.pathname, navigate, canEditAgenda, toastError])
 
   const todayKey = dayKey(zonedNow())
 
@@ -136,11 +225,42 @@ export function AgendaPage() {
     return formatSingleDayLong(activeDay)
   }, [viewMode, weekMonday, activeDay])
 
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks])
+
+  const projectNameById = useMemo(() => new Map(projects.map((p) => [p.id, p.projectName])), [projects])
+
+  const projectsForPickers = useMemo(
+    () =>
+      [...projects]
+        .filter((p) => p.status !== 'cancelado')
+        .sort((a, b) => a.projectName.localeCompare(b.projectName, 'pt')),
+    [projects],
+  )
+
   const filteredEvents = useMemo(() => {
-    if (filter === 'all') return events
-    if (filter === 'unassigned') return events.filter((e) => !e.analystId)
-    return events.filter((e) => e.analystId === filter)
-  }, [events, filter])
+    let list =
+      filter === 'all'
+        ? events
+        : filter === 'unassigned'
+          ? events.filter((e) => !e.analystId)
+          : events.filter((e) => e.analystId === filter)
+    if (agendaProjectFilterId) {
+      list = list.filter((ev) => {
+        const pid = ev.projectId ?? (ev.taskId ? taskById.get(ev.taskId)?.projectId : undefined)
+        return pid === agendaProjectFilterId
+      })
+    }
+    return list
+  }, [events, filter, agendaProjectFilterId, taskById])
+
+  const unscheduledSearchNorm = unscheduledSearch.trim().toLowerCase()
+
+  const openTasksForModalSelect = useMemo(() => {
+    if (!modalProjectId) return []
+    return tasks
+      .filter((t) => t.projectId === modalProjectId && t.status !== 'concluida' && t.status !== 'cancelado')
+      .sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
+  }, [tasks, modalProjectId])
 
   const dayKeysVisible = useMemo(() => new Set(displayDays.map((d) => dayKey(d))), [displayDays])
 
@@ -181,8 +301,24 @@ export function AgendaPage() {
 
   const unscheduled = useMemo(() => {
     const linked = new Set(events.map((e) => e.taskId).filter(Boolean) as string[])
-    return tasks.filter((t) => !linked.has(t.id) && t.status !== 'concluida' && t.status !== 'cancelado').slice(0, 50)
-  }, [tasks, events])
+    let list = tasks.filter((t) => !linked.has(t.id) && t.status !== 'concluida' && t.status !== 'cancelado')
+    if (agendaProjectFilterId) list = list.filter((t) => t.projectId === agendaProjectFilterId)
+    if (unscheduledSearchNorm) {
+      list = list.filter((t) => {
+        const pn = projectNameById.get(t.projectId) ?? ''
+        const hay = `${t.code} ${t.title} ${pn}`.toLowerCase()
+        return hay.includes(unscheduledSearchNorm)
+      })
+    }
+    list = [...list].sort((a, b) => {
+      const na = projectNameById.get(a.projectId) ?? ''
+      const nb = projectNameById.get(b.projectId) ?? ''
+      const c = na.localeCompare(nb, 'pt')
+      if (c !== 0) return c
+      return compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder
+    })
+    return list.slice(0, 150)
+  }, [tasks, events, agendaProjectFilterId, unscheduledSearchNorm, projectNameById])
 
   const nowTopPct = useMemo(() => {
     const n = new Date()
@@ -240,7 +376,22 @@ export function AgendaPage() {
     setViewMode('day')
   }, [])
 
-  async function addEvent(e: FormEvent) {
+  function closeEventModal() {
+    setModalOpen(false)
+    setModalProjectId(null)
+    setModalTaskId(null)
+    setEditingEventId(null)
+    setTitle('')
+    setDescription('')
+    setStartDate('')
+    setStartTime('')
+    setEndDate('')
+    setEndTime('')
+    setAnalystId('')
+    setMeetingLink('')
+  }
+
+  async function saveEventFromModal(e: FormEvent) {
     e.preventDefault()
     if (!canEditAgenda) return
     if (!startDate || !startTime || !endDate || !endTime) return
@@ -251,33 +402,120 @@ export function AgendaPage() {
       return
     }
     try {
-      await createEventValidated({
-        title: title.trim() || 'Evento',
-        description: description.trim(),
-        startTime: startIso,
-        endTime: endIso,
-        status: 'agendado',
-        projectId: modalProjectId,
-        taskId: modalTaskId,
-        analystId: analystId || null,
-        meetingLink: meetingLink.trim() || null,
-      })
+      if (editingEventId) {
+        const current = await db.events.get(editingEventId)
+        if (!current) {
+          toastError('Evento não encontrado.')
+          return
+        }
+        await updateEventValidated(editingEventId, {
+          title: title.trim() || 'Evento',
+          description: description.trim(),
+          startTime: startIso,
+          endTime: endIso,
+          status: current.status,
+          projectId: modalProjectId,
+          taskId: modalTaskId,
+          analystId: analystId || null,
+          meetingLink: meetingLink.trim() || null,
+        })
+      } else {
+        await createEventValidated({
+          title: title.trim() || 'Evento',
+          description: description.trim(),
+          startTime: startIso,
+          endTime: endIso,
+          status: 'agendado',
+          projectId: modalProjectId,
+          taskId: modalTaskId,
+          analystId: analystId || null,
+          meetingLink: meetingLink.trim() || null,
+        })
+      }
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Não foi possível salvar o evento.')
       return
     }
-    setTitle('')
-    setDescription('')
-    setStartDate('')
-    setStartTime('')
-    setEndDate('')
-    setEndTime('')
-    setAnalystId('')
-    setMeetingLink('')
-    setModalProjectId(null)
-    setModalTaskId(null)
-    setModalOpen(false)
+    closeEventModal()
   }
+
+  useLayoutEffect(() => {
+    if (!modalOpen) {
+      setAgendaModalBaseline(null)
+      return
+    }
+    setAgendaModalBaseline((prev) => {
+      if (prev !== null) return prev
+      return agendaModalSnapshotArg({
+        editingEventId,
+        title,
+        description,
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+        analystId,
+        meetingLink,
+        modalProjectId,
+        modalTaskId,
+      })
+    })
+  }, [
+    modalOpen,
+    editingEventId,
+    title,
+    description,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    analystId,
+    meetingLink,
+    modalProjectId,
+    modalTaskId,
+  ])
+
+  const agendaModalDirty = useMemo(() => {
+    if (!modalOpen || agendaModalBaseline === null) return false
+    return (
+      agendaModalSnapshotArg({
+        editingEventId,
+        title,
+        description,
+        startDate,
+        startTime,
+        endDate,
+        endTime,
+        analystId,
+        meetingLink,
+        modalProjectId,
+        modalTaskId,
+      }) !== agendaModalBaseline
+    )
+  }, [
+    modalOpen,
+    agendaModalBaseline,
+    editingEventId,
+    title,
+    description,
+    startDate,
+    startTime,
+    endDate,
+    endTime,
+    analystId,
+    meetingLink,
+    modalProjectId,
+    modalTaskId,
+  ])
+
+  useRegisterUnsavedChanges({
+    enabled: modalOpen,
+    isDirty: () => agendaModalDirty,
+    onSave: async () => {
+      await saveEventFromModal({ preventDefault() {} } as FormEvent)
+    },
+    message: 'Há alterações não gravadas neste evento da agenda.',
+  })
 
   const slots = hourSlots()
 
@@ -389,6 +627,11 @@ export function AgendaPage() {
                   if (!canEditAgenda) return
                   const now = new Date()
                   const end = new Date(now.getTime() + 60 * 60 * 1000)
+                  setEditingEventId(null)
+                  setTitle('')
+                  setDescription('')
+                  setAnalystId('')
+                  setMeetingLink('')
                   setStartDate(toDateInput(now))
                   setStartTime(toTimeInput(now))
                   setEndDate(toDateInput(end))
@@ -459,7 +702,7 @@ export function AgendaPage() {
                               ? projects.find((p) => p.id === task.projectId)
                               : undefined
                           const sub = proj?.projectName
-                          const { accent, bg } = eventColorsFromAnalyst(an?.color, cancelled)
+                          const { accent, bg, text } = eventColorsFromAnalyst(an?.color, cancelled)
                           const gCalUrl = buildGoogleCalendarTemplateUrl({
                             title: ev.title,
                             startIso: ev.startTime,
@@ -480,6 +723,7 @@ export function AgendaPage() {
                                 width: `${widthPct - 1.6}%`,
                                 ['--evt-accent' as string]: accent,
                                 ['--evt-bg' as string]: bg,
+                                ['--evt-text' as string]: text,
                               }}
                               title={ev.title}
                             >
@@ -531,11 +775,47 @@ export function AgendaPage() {
 
         <aside className="panel agenda-side agenda-side--gc">
           <h2 className="panel__title">Tarefas não agendadas</h2>
+          <p className="muted agenda-unsched-intro">
+            O mesmo filtro de projeto abaixo também limita os eventos na grade ao projeto escolhido. Clique numa
+            tarefa para abrir o compromisso já vinculado.
+          </p>
+          <label className="field agenda-unsched-field">
+            <span>Projeto</span>
+            <select
+              className="input agenda-unsched-select"
+              value={agendaProjectFilterId ?? ''}
+              onChange={(e) => setAgendaProjectFilterId(e.target.value || null)}
+            >
+              <option value="">Todos os projetos</option>
+              {projectsForPickers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field agenda-unsched-field">
+            <span>Buscar</span>
+            <input
+              className="input"
+              placeholder="Código, título ou nome do projeto…"
+              value={unscheduledSearch}
+              onChange={(e) => setUnscheduledSearch(e.target.value)}
+              aria-label="Buscar tarefas não agendadas"
+            />
+          </label>
           <div className="uns-list">
             {unscheduled.map((t) => {
               const p = projects.find((x) => x.id === t.projectId)
               return (
-                <div key={t.id} className="uns-card uns-card--gc">
+                <button
+                  key={t.id}
+                  type="button"
+                  className="uns-card uns-card--gc uns-card--interactive"
+                  disabled={!canEditAgenda}
+                  title={canEditAgenda ? 'Agendar esta tarefa' : 'Sem permissão para editar a agenda'}
+                  onClick={() => prefillModalFromTask(t, p ?? null)}
+                >
                   <span className="uns-card__accent" aria-hidden />
                   <div className="uns-card__inner">
                     <div className="uns-card__title">
@@ -546,11 +826,18 @@ export function AgendaPage() {
                       <span>{formatDurationHmFromHours(t.estimatedHours)}</span>
                     </div>
                     <div className="uns-card__proj">{p?.projectName ?? '—'}</div>
+                    <div className="uns-card__cta muted">Agendar…</div>
                   </div>
-                </div>
+                </button>
               )
             })}
-            {unscheduled.length === 0 ? <p className="muted">Tudo agendado ou concluído.</p> : null}
+            {unscheduled.length === 0 ? (
+              <p className="muted">
+                {agendaProjectFilterId || unscheduledSearchNorm
+                  ? 'Nenhuma tarefa pendente com esse filtro.'
+                  : 'Tudo agendado ou concluído.'}
+              </p>
+            ) : null}
           </div>
         </aside>
       </div>
@@ -559,24 +846,75 @@ export function AgendaPage() {
         <div
           className="modal-backdrop"
           role="presentation"
-          onClick={() => {
-            setModalOpen(false)
-            setModalProjectId(null)
-            setModalTaskId(null)
-          }}
+          onClick={closeEventModal}
         >
           <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__title">Novo evento</h2>
+            <h2 className="modal__title">{editingEventId ? 'Editar evento' : 'Novo evento'}</h2>
             <p className="muted">Fuso: {CAL_TZ}</p>
             {modalTaskId ? (
               <p className="agenda-modal__link-hint muted">
-                Vinculado à tarefa do projeto (mesmo analista da tarefa quando aplicável).
+                Vinculado a uma tarefa: o compromisso aparece no projeto e pode seguir o analista da tarefa.
               </p>
+            ) : modalProjectId ? (
+              <p className="agenda-modal__link-hint muted">Vinculado ao projeto (sem tarefa específica).</p>
             ) : null}
-            <form className="stack" onSubmit={addEvent}>
+            <form className="stack" onSubmit={saveEventFromModal}>
+              <label className="field">
+                <span>Projeto (opcional)</span>
+                <select
+                  value={modalProjectId ?? ''}
+                  autoFocus={!editingEventId}
+                  onChange={(e) => {
+                    const v = e.target.value || null
+                    setModalProjectId(v)
+                    setModalTaskId((cur) => {
+                      if (!cur || !v) return null
+                      const tk = tasks.find((t) => t.id === cur)
+                      return tk?.projectId === v ? cur : null
+                    })
+                  }}
+                >
+                  <option value="">— Nenhum</option>
+                  {projectsForPickers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.projectName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tarefa (opcional)</span>
+                <select
+                  value={modalTaskId ?? ''}
+                  disabled={!modalProjectId}
+                  onChange={(e) => {
+                    const v = e.target.value || null
+                    setModalTaskId(v)
+                    if (!v) return
+                    const task = tasks.find((t) => t.id === v)
+                    if (!task) return
+                    setModalProjectId(task.projectId)
+                    setTitle(`${task.code} ${task.title}`.trim())
+                    const proj = projects.find((pr) => pr.id === task.projectId)
+                    setAnalystId(task.assignedTo ?? proj?.analystId ?? '')
+                  }}
+                >
+                  <option value="">— Nenhuma</option>
+                  {openTasksForModalSelect.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.code} {t.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {!modalProjectId ? (
+                <p className="agenda-modal-field-hint muted">
+                  Escolha um projeto para listar tarefas em aberto e vincular ao cronograma.
+                </p>
+              ) : null}
               <label className="field">
                 <span>Título</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+                <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!!editingEventId} />
               </label>
               <label className="field">
                 <span>Descrição (opcional)</span>
@@ -654,15 +992,7 @@ export function AgendaPage() {
                 />
               </label>
               <div className="modal__actions">
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => {
-                    setModalOpen(false)
-                    setModalProjectId(null)
-                    setModalTaskId(null)
-                  }}
-                >
+                <button type="button" className="btn btn--ghost" onClick={closeEventModal}>
                   Fechar
                 </button>
                 <button type="submit" className="btn btn--primary" disabled={!canEditAgenda}>

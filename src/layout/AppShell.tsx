@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useBlocker } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
+import { UnsavedLeaveDialog } from '../components/UnsavedLeaveDialog'
+import { useUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { Sidebar } from './Sidebar'
 
 const SIDEBAR_COLLAPSED_KEY = 'vyntask_sidebar_collapsed_v1'
@@ -14,7 +16,32 @@ function readSidebarCollapsed(): boolean {
   }
 }
 
+function locationsDiffer(a: { pathname: string; search: string; hash: string }, b: typeof a) {
+  return a.pathname !== b.pathname || a.search !== b.search || a.hash !== b.hash
+}
+
 export function AppShell() {
+  const { getActive } = useUnsavedChanges()
+  const [leaveBusy, setLeaveBusy] = useState(false)
+
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+    const g = getActive()
+    if (!g?.isDirty()) return false
+    return locationsDiffer(currentLocation, nextLocation)
+  })
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const g = getActive()
+      if (g?.isDirty()) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [getActive])
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
@@ -69,6 +96,10 @@ export function AppShell() {
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
   const sidebarCollapsedEffective = sidebarCollapsed && !isMobileLayout
 
+  const blocked = blocker.state === 'blocked'
+  const activeGuard = blocked ? getActive() : null
+  const canSaveLeave = Boolean(activeGuard?.onSave)
+
   return (
     <div
       className={
@@ -100,6 +131,35 @@ export function AppShell() {
       <div className="shell__main">
         <Outlet />
       </div>
+
+      <UnsavedLeaveDialog
+        open={blocked}
+        busy={leaveBusy}
+        canSave={canSaveLeave}
+        message={activeGuard?.message}
+        onCancel={() => {
+          if (blocker.state === 'blocked') blocker.reset()
+        }}
+        onDiscard={() => {
+          if (blocker.state === 'blocked') blocker.proceed()
+        }}
+        onSaveAndLeave={async () => {
+          const g = getActive()
+          if (!g?.onSave) {
+            if (blocker.state === 'blocked') blocker.proceed()
+            return
+          }
+          setLeaveBusy(true)
+          try {
+            await g.onSave()
+            if (blocker.state === 'blocked') blocker.proceed()
+          } catch {
+            // Mantém o diálogo aberto para o usuário tentar de novo ou sair sem gravar
+          } finally {
+            setLeaveBusy(false)
+          }
+        }}
+      />
     </div>
   )
 }

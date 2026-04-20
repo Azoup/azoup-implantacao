@@ -1,35 +1,44 @@
-/* Padrão = tech_graphite_orange (antes do JS; visual moderno grafite + laranja) */
+/* Fallback mínimo: Neo (antes da hidratação do data-palette pelo ThemeProvider). */
 :root[data-theme='light'] {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Plus Jakarta Sans', var(--font-sans);
-  --bg: #f7f8fb;
+  --bg: #f9fafb;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #eef1f6;
-  --border: #d6dde8;
-  --text: #121723;
-  --text-muted: #5e687a;
-  --accent: #ff9f43;
-  --accent-dim: rgba(255, 159, 67, 0.14);
-  --accent-deep: #f97316;
-  --on-accent: #1f1300;
-  --accent-glow-strong: rgba(255, 159, 67, 0.3);
-  --accent-ring: rgba(255, 159, 67, 0.42);
-  --accent-ring-soft: rgba(255, 159, 67, 0.1);
-  --sidebar-cta-shadow: rgba(255, 159, 67, 0.28);
-  --danger: #dc2626;
-  --success: #059669;
-  --warning: #b45309;
-  --info: #2563eb;
-  --sidebar: #141414;
-  --sidebar-text: #f6f7fb;
-  --sidebar-muted: #a1a7b5;
-  --sidebar-active-bg: rgba(255, 159, 67, 0.16);
-  --shadow: 0 10px 30px rgba(11, 16, 28, 0.08);
-  --shadow-sm: 0 3px 10px rgba(11, 16, 28, 0.05);
-  --cal-event-default: rgba(255, 159, 67, 0.18);
+  --surface-2: #f3f4f6;
+  --card: #ffffff;
+  --hover: #f5f5f5;
+  --border: #e4e4e7;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --accent: #f97316;
+  --accent-hover: #ea580c;
+  --accent-active: #ea580c;
+  --accent-pressed: #c2410c;
+  --accent-soft: #fff7ed;
+  --accent-dim: var(--accent-soft);
+  --accent-deep: var(--accent-active);
+  --on-accent: #ffffff;
+  --accent-glow-strong: rgba(249, 115, 22, 0.24);
+  --accent-ring: rgba(249, 115, 22, 0.36);
+  --accent-ring-soft: rgba(249, 115, 22, 0.1);
+  --sidebar-cta-shadow: rgba(249, 115, 22, 0.24);
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --sidebar: #111111;
+  --sidebar-text: #fafafa;
+  --sidebar-muted: #a1a1aa;
+  --sidebar-active-bg: rgba(249, 115, 22, 0.15);
+  --shadow: 0 10px 30px rgba(24, 24, 27, 0.08);
+  --shadow-sm: 0 3px 10px rgba(24, 24, 27, 0.05);
+  --cal-event-default: rgba(249, 115, 22, 0.16);
   --agenda-event-bg: #ffffff;
-  --agenda-grid-line: rgba(0, 0, 0, 0.07);
+  --agenda-grid-line: rgba(24, 24, 27, 0.08);
+  --logo-primary: #f97316;
+  --logo-accent: #ea580c;
+  --logo-neutral: #18181b;
   --scroll-track: color-mix(in srgb, var(--surface-2) 88%, var(--bg));
   --scroll-thumb: color-mix(in srgb, var(--border) 55%, var(--text-muted) 45%);
   --scroll-thumb-hover: color-mix(in srgb, var(--accent) 28%, var(--scroll-thumb));
@@ -41,34 +50,43 @@
 :root[data-theme='dark'] {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Plus Jakarta Sans', var(--font-sans);
-  --bg: #0c0c0c;
-  --bg-elevated: #141414;
+  --bg: #0f0f0f;
+  --bg-elevated: #161616;
   --surface: #1a1a1a;
-  --surface-2: #252525;
-  --border: #3a3a3a;
-  --text: #f4f5f8;
-  --text-muted: #a9afbc;
-  --accent: #ff9f43;
-  --accent-dim: rgba(255, 159, 67, 0.16);
-  --accent-deep: #ff8f2b;
+  --surface-2: #222222;
+  --card: #222222;
+  --hover: #2a2a2a;
+  --border: #2f2f2f;
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --accent: #ff8b17;
+  --accent-hover: #ff9f3f;
+  --accent-active: #e67600;
+  --accent-pressed: #cc5f00;
+  --accent-soft: rgba(255, 139, 23, 0.14);
+  --accent-dim: var(--accent-soft);
+  --accent-deep: var(--accent-active);
   --on-accent: #1f1300;
-  --accent-glow-strong: rgba(255, 159, 67, 0.36);
-  --accent-ring: rgba(255, 159, 67, 0.46);
-  --accent-ring-soft: rgba(255, 159, 67, 0.12);
-  --sidebar-cta-shadow: rgba(255, 159, 67, 0.34);
-  --danger: #f87171;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --info: #60a5fa;
-  --sidebar: #090909;
-  --sidebar-text: #f4f5f8;
-  --sidebar-muted: #949bab;
-  --sidebar-active-bg: rgba(255, 159, 67, 0.14);
-  --shadow: 0 18px 52px rgba(0, 0, 0, 0.56);
-  --shadow-sm: 0 5px 15px rgba(0, 0, 0, 0.42);
-  --cal-event-default: rgba(255, 159, 67, 0.24);
+  --accent-glow-strong: rgba(255, 139, 23, 0.34);
+  --accent-ring: rgba(255, 139, 23, 0.46);
+  --accent-ring-soft: rgba(255, 139, 23, 0.12);
+  --sidebar-cta-shadow: rgba(255, 139, 23, 0.3);
+  --danger: #ef4444;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --sidebar: #101010;
+  --sidebar-text: #f4f4f5;
+  --sidebar-muted: #9ca3af;
+  --sidebar-active-bg: rgba(255, 139, 23, 0.14);
+  --shadow: 0 18px 52px rgba(0, 0, 0, 0.54);
+  --shadow-sm: 0 5px 15px rgba(0, 0, 0, 0.4);
+  --cal-event-default: rgba(255, 139, 23, 0.2);
   --agenda-event-bg: #1a1a1a;
   --agenda-grid-line: rgba(255, 255, 255, 0.08);
+  --logo-primary: #ff8b17;
+  --logo-accent: #ff9f3f;
+  --logo-neutral: #f4f4f5;
   --scroll-track: color-mix(in srgb, var(--bg) 92%, var(--surface));
   --scroll-thumb: color-mix(in srgb, var(--border) 50%, var(--text-muted) 50%);
   --scroll-thumb-hover: color-mix(in srgb, var(--accent) 38%, var(--scroll-thumb));
@@ -1647,6 +1665,14 @@ body {
 .dashboard-proj-card__analyst {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dashboard-proj-card__analyst .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
 }
 
 .dashboard-proj-card__progress-row {
@@ -2274,6 +2300,18 @@ body {
   gap: 0.3rem;
   margin-bottom: 0.45rem;
 }
+.kanban-card__analyst {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.kanban-card__analyst .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
+}
 .kanban-card__badge {
   font-size: 0.65rem;
   font-weight: 700;
@@ -2589,9 +2627,9 @@ body {
   flex-wrap: wrap;
 }
 .projects-page__analyst-chip {
-  width: 32px;
-  height: 32px;
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  width: 34px;
+  height: 34px;
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 48%, var(--border));
   background: color-mix(in srgb, var(--surface) 82%, var(--bg));
   border-radius: 999px;
   padding: 0;
@@ -2602,15 +2640,23 @@ body {
   color: var(--text-muted);
   opacity: 0.56;
 }
+.projects-page__analyst-chip .analyst-avatar,
+.projects-page__analyst-chip .analyst-avatar--sm {
+  width: 30px;
+  height: 30px;
+  border-width: 0;
+  box-shadow: none;
+  font-size: 0.58rem;
+}
 .projects-page__analyst-chip .analyst-avatar {
   filter: grayscale(0.4);
 }
 .projects-page__analyst-chip.is-selected {
   opacity: 1;
-  border-color: color-mix(in srgb, var(--accent) 68%, var(--border));
+  border-color: color-mix(in srgb, var(--analyst-color, var(--accent)) 78%, #fff 10%);
   color: var(--text);
   background: color-mix(in srgb, var(--accent) 16%, var(--surface));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: none;
 }
 .projects-page__analyst-chip.is-selected .analyst-avatar {
   filter: none;
@@ -2775,14 +2821,18 @@ body {
   justify-content: flex-end;
   flex-shrink: 0;
 }
+/* Anel único: borda só no wrapper; avatar sem borda interna (evita “dupla borda”). */
 .proj-card__analyst {
   display: flex;
   align-items: center;
   flex-shrink: 0;
   border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
   border-radius: 999px;
-  padding: 1px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--analyst-color, var(--accent)) 22%, transparent);
+  overflow: hidden;
+}
+.proj-card__analyst .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
 }
 
 .proj-card__badge {
@@ -3931,6 +3981,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.06rem;
+  color: var(--evt-text, var(--text));
 }
 .cal-event--gc .cal-event__foot {
   display: flex;
@@ -3939,8 +3990,9 @@ body {
   justify-content: flex-end;
   gap: 0.2rem;
   padding: 0.25rem 0.3rem;
-  border-left: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--evt-text, var(--text)) 8%, transparent);
   background: color-mix(in srgb, var(--evt-accent, var(--accent)) 8%, transparent);
+  color: var(--evt-text, var(--text));
 }
 .cal-event__icon-btn {
   display: inline-flex;
@@ -3979,6 +4031,53 @@ body {
 }
 .uns-card--gc .uns-card__inner {
   padding-left: 0.35rem;
+}
+
+.agenda-unsched-intro {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0 0 0.65rem;
+}
+
+.agenda-unsched-field {
+  margin-bottom: 0.55rem;
+}
+
+.agenda-unsched-field .input,
+.agenda-unsched-select {
+  width: 100%;
+}
+
+.uns-card--interactive {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.uns-card--interactive:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.uns-card--interactive:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.uns-card__cta {
+  margin-top: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.agenda-modal-field-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  margin: -0.15rem 0 0.35rem;
 }
 
 .chip {
@@ -5367,6 +5466,10 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.pd-analyst-badge .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
+}
 
 .pd-header__actions {
   display: flex;
@@ -6099,6 +6202,7 @@ body {
 
 .pd-phase__head {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-start;
   margin-bottom: 0.65rem;
@@ -6138,6 +6242,26 @@ body {
 .pd-phase__meta {
   margin: 0.2rem 0 0;
   font-size: 0.72rem;
+}
+
+.pd-phase__custom-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.pd-phase__btn-danger {
+  color: var(--danger, #c62828);
+}
+
+.pd-custom-plan-add-phase {
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
 }
 
 .pd-phase__lock-badge {
@@ -6268,6 +6392,23 @@ body {
   background: color-mix(in srgb, var(--task-phase-accent, var(--accent)) 14%, var(--surface));
   color: var(--task-phase-accent, var(--accent));
   border: 1px solid color-mix(in srgb, var(--task-phase-accent, var(--accent)) 32%, var(--border));
+}
+
+.pd-task__schedule-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.12rem 0.4rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--success) 18%, var(--surface));
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 38%, var(--border));
+}
+
+.pd-task__btn--scheduled {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+  color: color-mix(in srgb, var(--success) 92%, var(--text));
 }
 
 .pd-task__title {
@@ -6527,13 +6668,15 @@ body {
   border-radius: 999px;
   border: 2px solid var(--analyst-ring, var(--border));
   background: color-mix(in srgb, var(--surface-2) 48%, var(--surface));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--analyst-ring, var(--border)) 38%, transparent);
   flex-shrink: 0;
+  overflow: hidden;
 }
 .pd-task__analyst-inline .analyst-avatar--sm {
-  width: 20px;
-  height: 20px;
-  font-size: 0.6rem;
+  width: 24px;
+  height: 24px;
+  font-size: 0.58rem;
+  border-width: 0;
+  box-shadow: none;
 }
 
 .pd-task__analyst-row {
@@ -6564,6 +6707,8 @@ body {
   width: 20px;
   height: 20px;
   font-size: 0.58rem;
+  border-width: 0;
+  box-shadow: none;
 }
 
 .pd-timesheet {
@@ -7106,15 +7251,17 @@ body {
   border-radius: 999px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
   background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
   overflow: hidden;
 }
 
 .register-hours-modal__toolbar-avatar .analyst-avatar--sm {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   font-size: 0.62rem;
+  border-width: 0;
+  box-shadow: none;
 }
 
 .register-hours-modal__toolbar-avatar--empty {
@@ -7870,6 +8017,10 @@ body {
   transition:
     border-color 0.15s ease,
     background 0.15s ease;
+}
+.analyst-replace-option .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
 }
 
 .analyst-replace-option:hover {

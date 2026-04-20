@@ -15,6 +15,7 @@ import { AnalystAvatar } from '../components/AnalystAvatar'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import type { DbProject, KanbanColumn } from '../db/types'
 import { formatDurationHFromHours } from '../lib/durationFormat'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   readProjectSortConfig,
@@ -22,6 +23,7 @@ import {
   writeProjectSortConfig,
   type ProjectSortConfig,
 } from '../lib/projectSort'
+import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -45,6 +47,13 @@ export function ProjectsPage() {
   const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+
+  useRegisterUnsavedChanges({
+    enabled: open,
+    isDirty: () => open,
+    message:
+      'O formulário de criação ou edição de projeto está aberto. Feche-o após gravar, ou saia sem gravar para descartar.',
+  })
 
   const visibleProjects = useMemo(() => {
     const sorted = sortProjects(projects, projectSort)
@@ -180,6 +189,7 @@ export function ProjectsPage() {
                 key={a.id}
                 type="button"
                 className={'projects-page__analyst-chip' + (selected ? ' is-selected' : '')}
+                style={{ ['--analyst-color' as string]: a.color }}
                 onClick={() =>
                   setSelectedAnalystIds((prev) =>
                     prev.includes(a.id) ? prev.filter((id) => id !== a.id) : [...prev, a.id],
@@ -228,7 +238,8 @@ export function ProjectsPage() {
           const pct = projectProgressPercent(tasks, p.id)
           const projectTasks = tasks.filter((t) => t.projectId === p.id)
           const done = projectTasks.filter((t) => t.status === 'concluida').length
-          const planName = plans.find((pl) => pl.key === p.planType)?.name ?? p.planType
+          const planName =
+            p.planType === CUSTOM_PLAN_TYPE ? CUSTOM_PLAN_LABEL : plans.find((pl) => pl.key === p.planType)?.name ?? p.planType
           const { segments, currentPhaseName } = getPhaseSegments(phases, tasks, p.id)
           const phSorted = phases
             .filter((x) => x.projectId === p.id)

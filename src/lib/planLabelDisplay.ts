@@ -99,11 +99,12 @@ function titleForCode(tasks: DbTask[], code: string): string {
 }
 
 /**
- * Último código do plano totalmente encerrado (todas as tarefas operacionais concluídas ou canceladas,
+ * Último código do plano totalmente encerrado (todas as tarefas daquele código concluídas ou canceladas,
  * com ao menos uma concluída), na ordem do plano — equivale ao “último marco executado”.
+ * Inclui tarefas informativas (0.x na Fase 00), alinhado a {@link getActivePlanLabel}.
  */
 export function getLastCompletedPlanLabel(tasks: DbTask[], projectId: string): PlanLabelChip | null {
-  const mine = tasks.filter((t) => t.projectId === projectId && !t.isInformational)
+  const mine = tasks.filter((t) => t.projectId === projectId)
   if (mine.length === 0) return null
   const codes = [...new Set(mine.map((t) => t.code))].sort(compareTaskCode)
   let last: PlanLabelChip | null = null

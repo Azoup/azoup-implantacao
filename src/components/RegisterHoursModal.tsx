@@ -501,7 +501,11 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
             <div className="register-hours-modal__toolbar">
               <div className="register-hours-modal__toolbar-analyst">
                 {selectedAnalyst ? (
-                  <span className="register-hours-modal__toolbar-avatar" aria-hidden>
+                  <span
+                    className="register-hours-modal__toolbar-avatar"
+                    aria-hidden
+                    style={{ ['--analyst-color' as string]: selectedAnalyst.color }}
+                  >
                     <AnalystAvatar
                       name={selectedAnalyst.name}
                       color={selectedAnalyst.color}

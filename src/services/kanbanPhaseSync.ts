@@ -50,6 +50,9 @@ export function deriveKanbanColumnFromPlanState(
   const mine = sortedProjectPhases(project.id, phases)
   if (mine.length === 0) return 'novos'
 
+  const projectTasks = tasks.filter((t) => t.projectId === project.id)
+  if (projectTasks.length === 0) return 'novos'
+
   const cur = firstIncompletePhase(mine, tasks, project.id)
   if (!cur) return 'finalizados'
 

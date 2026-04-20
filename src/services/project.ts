@@ -1,5 +1,6 @@
 import { db } from '../db/database'
 import type { DbProject, KanbanColumn, PlanTypeKey } from '../db/types'
+import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
   enqueuePendingProjectGraphSync,
@@ -40,6 +41,88 @@ export type CreateProjectPayload = Pick<
   ownerId: string
   createdBy: string
   kanbanColumn?: KanbanColumn
+}
+
+export type CreateCustomProjectPayload = Omit<CreateProjectPayload, 'planKey'> & {
+  /** Teto inicial de horas (política híbrida B); pode ser elevado depois com confirmação. */
+  hoursContracted: number
+}
+
+export async function createCustomProject(opts: CreateCustomProjectPayload): Promise<string> {
+  const projectId = uuid()
+  const startDate = opts.startDate ?? new Date().toISOString()
+  const placement = normalizeProjectPlacement({
+    status: 'ativo',
+    kanbanColumn: opts.kanbanColumn ?? 'novos',
+  })
+  const now = new Date().toISOString()
+  const hrs = Math.max(0, Number(opts.hoursContracted) || 0)
+  const row: DbProject = {
+    id: projectId,
+    projectName: opts.projectName.trim(),
+    planType: CUSTOM_PLAN_TYPE,
+    hoursContracted: hrs,
+    hoursUsed: 0,
+    startDate,
+    dueDate: opts.dueDate,
+    status: placement.status,
+    ownerId: opts.ownerId,
+    analystId: opts.analystId,
+    createdBy: opts.createdBy,
+    createdAt: now,
+    kanbanColumn: placement.kanbanColumn,
+    cnpj: opts.cnpj,
+    razaoSocial: opts.razaoSocial,
+    tradeName: opts.tradeName,
+    cep: opts.cep,
+    addressStreet: opts.addressStreet,
+    addressNumber: opts.addressNumber,
+    addressComplement: opts.addressComplement,
+    addressNeighborhood: opts.addressNeighborhood,
+    addressCity: opts.addressCity,
+    addressState: opts.addressState,
+    implantationContactName: opts.implantationContactName,
+    implantationContactPhone: opts.implantationContactPhone,
+    corporateEmail: opts.corporateEmail,
+    clientApiId: opts.clientApiId,
+    internalNotes: opts.internalNotes,
+    stateRegistration: opts.stateRegistration,
+    secondaryCnpj: opts.secondaryCnpj,
+    secondaryRazaoSocial: opts.secondaryRazaoSocial,
+    modulesDescription: opts.modulesDescription,
+    planSnapshotCapturedAt: now,
+    planSnapshot: {
+      mode: 'custom',
+      modelId: null,
+      key: 'custom',
+      name: CUSTOM_PLAN_LABEL,
+      hoursContracted: hrs,
+      phaseCount: 0,
+      taskCount: 0,
+    },
+  }
+
+  const build = async () => {
+    await db.projects.add(row)
+  }
+
+  if (isSupabaseConfigured()) {
+    try {
+      await withDexieSupabaseSyncMuted(async () => {
+        await build()
+        await upsertProjectGraphFromDexie(projectId)
+      })
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : 'Falha desconhecida'
+      enqueuePendingProjectGraphSync(projectId)
+      console.warn('[Supabase] projeto avulso enfileirado para re-sync', { projectId, detail })
+    }
+  } else {
+    await build()
+  }
+
+  await syncLabelsForProject(projectId)
+  return projectId
 }
 
 export async function createProjectFromPlan(opts: CreateProjectPayload): Promise<string> {

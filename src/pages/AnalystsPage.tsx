@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, Edit3, Trash2, UserCheck, UserX } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
@@ -11,6 +11,7 @@ import { AnalystAvatar } from '../components/AnalystAvatar'
 import { AnalystAvatarCropper } from '../components/AnalystAvatarCropper'
 import { AnalystReplacementPickModal } from '../components/AnalystReplacementPickModal'
 import { reassignAnalystReferences } from '../services/analystAssignments'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const ANALYST_COLORS = ['#FF8B17', '#0EA5E9', '#8B5CF6', '#22C55E', '#EF4444', '#EC4899', '#14B8A6', '#6366F1']
@@ -41,6 +42,7 @@ export function AnalystsPage() {
   })
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [replacementFlow, setReplacementFlow] = useState<ReplacementFlowState>(null)
+  const [analystModalBaseline, setAnalystModalBaseline] = useState<string | null>(null)
 
   const activeCount = useMemo(() => analysts.filter((a) => a.active).length, [analysts])
 
@@ -137,6 +139,28 @@ export function AnalystsPage() {
     }
     closeModal()
   }
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setAnalystModalBaseline(null)
+      return
+    }
+    setAnalystModalBaseline((b) => b ?? JSON.stringify(draft))
+  }, [open, draft])
+
+  const analystsModalDirty = useMemo(() => {
+    if (!open || analystModalBaseline === null) return false
+    return JSON.stringify(draft) !== analystModalBaseline
+  }, [open, analystModalBaseline, draft])
+
+  useRegisterUnsavedChanges({
+    enabled: open && canEditAnalysts,
+    isDirty: () => analystsModalDirty,
+    onSave: async () => {
+      await onSave({ preventDefault() {} } as FormEvent)
+    },
+    message: 'Há alterações não gravadas neste analista.',
+  })
 
   /** `currentlyActive`: estado atual do analista no card (true = está ativo; botão Inativar). */
   async function toggleActive(id: string, currentlyActive: boolean) {

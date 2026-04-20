@@ -1,7 +1,16 @@
-import { FormEvent, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type ChangeEvent } from 'react'
+import {
+  FormEvent,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type ChangeEvent,
+} from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import {
+  CalendarCheck,
   CalendarPlus,
   CheckCircle2,
   ChevronLeft,
@@ -26,6 +35,8 @@ import {
 } from 'lucide-react'
 import { DocCommentBody } from '../components/DocCommentBody'
 import { AnalystAvatar } from '../components/AnalystAvatar'
+import { CustomPlanPhaseModal } from '../components/CustomPlanPhaseModal'
+import { PlanTaskModal, type PlanTaskFormValues } from '../components/PlanTaskModal'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
@@ -37,10 +48,12 @@ import { phaseNameShort } from '../lib/phaseDisplay'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { getPhaseSegments } from '../lib/projectPhaseUi'
 import { effectiveTaskIsInformational } from '../lib/effectiveTaskInformational'
-import { buildLabelsTabSections, type PlanBlueprintBlock } from '../lib/labelsTabFromPlan'
+import { buildCustomPlanBlueprintBlocks, buildLabelsTabSections, type PlanBlueprintBlock } from '../lib/labelsTabFromPlan'
 import { planLabelTabPillStyle, planLabelColorsFromCode, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { normalizeDocLinkUrl } from '../lib/docUrls'
 import { compareTaskCode } from '../lib/taskCode'
+import { getPrimaryScheduledEventForTask } from '../lib/taskSchedule'
+import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
 import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
@@ -49,6 +62,21 @@ import {
   deleteProjectDocumentation,
   updateProjectDocumentationContent,
 } from '../services/taskComments'
+import {
+  billableEstimatedSum,
+  projectedBillableSumAfterTaskChange,
+  raiseCustomProjectContractHours,
+} from '../services/customProjectHours'
+import {
+  addProjectPhase,
+  addProjectTask,
+  deleteProjectPhaseCascade,
+  deleteProjectTask,
+  moveProjectPhase,
+  suggestNextProjectTaskCode,
+  updateProjectPhase,
+  updateProjectTask,
+} from '../services/customProjectStructure'
 import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectConclude'
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -56,11 +84,14 @@ import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
+import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import type {
   DbComment,
   DbDocAttachment,
   DbDocLink,
+  DbEvent,
   DbPhase,
+  DbPlanTask,
   DbProject,
   DbProjectContact,
   DbTask,
@@ -113,6 +144,14 @@ export function ProjectDetailPage() {
     [projectId],
   ) ?? []
 
+  const projectEvents = useLiveQuery(
+    () =>
+      projectId
+        ? db.events.where('projectId').equals(projectId).toArray()
+        : Promise.resolve([] as DbEvent[]),
+    [projectId],
+  ) ?? []
+
   const phases = useLiveQuery(
     () => (projectId ? db.phases.where('projectId').equals(projectId).toArray() : Promise.resolve([] as DbPhase[])),
     [projectId],
@@ -150,10 +189,10 @@ export function ProjectDetailPage() {
 
   const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? []
 
-  const planBlueprint = useLiveQuery(async () => {
+  const catalogPlanBlueprint = useLiveQuery(async () => {
     if (!projectId) return null
     const pr = await db.projects.get(projectId)
-    if (!pr) return null
+    if (!pr || pr.planType === CUSTOM_PLAN_TYPE) return null
     const model = await db.planModels.where('key').equals(pr.planType).first()
     if (!model) return null
     const pps = await db.planPhases.where('planModelId').equals(model.id).sortBy('orderIndex')
@@ -187,10 +226,36 @@ export function ProjectDetailPage() {
   const [docEditDraft, setDocEditDraft] = useState('')
   const [docEditBusy, setDocEditBusy] = useState(false)
 
+  const [customPhaseModal, setCustomPhaseModal] = useState<
+    null | { mode: 'add' } | { mode: 'edit'; phase: DbPhase }
+  >(null)
+  const [customTaskModalOpen, setCustomTaskModalOpen] = useState(false)
+  const [customTaskPhaseId, setCustomTaskPhaseId] = useState<string | null>(null)
+  const [customTaskEditing, setCustomTaskEditing] = useState<DbTask | null>(null)
+  const [customTaskDefaultCode, setCustomTaskDefaultCode] = useState('1.1')
+
+  const scheduledEventByTaskId = useMemo(() => {
+    const m = new Map<string, DbEvent>()
+    for (const t of tasks) {
+      const ev = getPrimaryScheduledEventForTask(projectEvents, t.id)
+      if (ev) m.set(t.id, ev)
+    }
+    return m
+  }, [projectEvents, tasks])
+
   const sortedPhases = useMemo(
     () => [...phases].sort((a, b) => a.orderIndex - b.orderIndex),
     [phases],
   )
+
+  const planBlueprint = useMemo(() => {
+    if (!projectId || !project) return catalogPlanBlueprint ?? null
+    if (project.planType === CUSTOM_PLAN_TYPE) {
+      const sp = phases.filter((p) => p.projectId === projectId).sort((a, b) => a.orderIndex - b.orderIndex)
+      return { blocks: buildCustomPlanBlueprintBlocks(sp, tasks, projectId) }
+    }
+    return catalogPlanBlueprint ?? null
+  }, [projectId, project, phases, tasks, catalogPlanBlueprint])
 
   const phaseById = useMemo(() => new Map(sortedPhases.map((p) => [p.id, p])), [sortedPhases])
 
@@ -202,7 +267,6 @@ export function ProjectDetailPage() {
   const pct = projectId ? projectProgressPercent(tasks, projectId) : 0
   const doneTasks = tasks.filter((t) => t.status === 'concluida').length
   const saldo = project ? Math.max(0, project.hoursContracted - project.hoursUsed) : 0
-  const planName = project ? plans.find((pl) => pl.key === project.planType)?.name ?? project.planType : ''
 
   const commentsByTask = useMemo(() => {
     const m = new Map<string, DbComment[]>()
@@ -249,6 +313,70 @@ export function ProjectDetailPage() {
 
   const proj: DbProject = project
   const projectAnalyst = proj.analystId ? analystsAll.find((a) => a.id === proj.analystId) ?? null : null
+  const planName =
+    proj.planType === CUSTOM_PLAN_TYPE
+      ? CUSTOM_PLAN_LABEL
+      : plans.find((pl) => pl.key === proj.planType)?.name ?? proj.planType
+  const isCustomPlan = proj.planType === CUSTOM_PLAN_TYPE
+  const customBillableSumEst = isCustomPlan
+    ? billableEstimatedSum(tasks.filter((t) => t.projectId === proj.id))
+    : 0
+
+  function mapTaskToPlanModal(t: DbTask): DbPlanTask {
+    return {
+      id: t.id,
+      planPhaseId: t.phaseId,
+      code: t.code,
+      title: t.title,
+      description: t.description,
+      estimatedHours: t.estimatedHours,
+      isInformational: t.isInformational,
+      sortOrder: t.sortOrder,
+    }
+  }
+
+  async function ensureCustomContractForProjectedSum(taskId: string | null, values: PlanTaskFormValues): Promise<void> {
+    if (!isCustomPlan) return
+    const projected = projectedBillableSumAfterTaskChange(
+      tasks,
+      proj.id,
+      taskId,
+      values.estimatedHours,
+      values.isInformational,
+    )
+    if (projected <= proj.hoursContracted) return
+    const ok = await requestConfirm({
+      title: 'Previsões acima do contrato',
+      message: `Com esta alteração, a soma das estimativas (${projected}h) ultrapassa o contrato atual (${proj.hoursContracted}h). Elevar o contrato para ${projected}h?`,
+      confirmLabel: `Elevar para ${projected}h`,
+      cancelLabel: 'Cancelar',
+    })
+    if (!ok) throw new Error('Ajuste do contrato cancelado.')
+    await raiseCustomProjectContractHours(proj.id, projected)
+  }
+
+  async function onSaveCustomPhaseModal(name: string, colorHex: string | null) {
+    if (!customPhaseModal) return
+    if (customPhaseModal.mode === 'add') {
+      await addProjectPhase(proj.id, name, colorHex)
+      toast('Fase criada.')
+    } else {
+      await updateProjectPhase(customPhaseModal.phase.id, name, colorHex)
+      toast('Fase atualizada.')
+    }
+    setCustomPhaseModal(null)
+  }
+
+  async function onSaveCustomTaskModal(values: PlanTaskFormValues) {
+    await ensureCustomContractForProjectedSum(customTaskEditing?.id ?? null, values)
+    if (customTaskEditing) {
+      await updateProjectTask(customTaskEditing.id, values)
+      toast('Tarefa atualizada.')
+    } else if (customTaskPhaseId) {
+      await addProjectTask(proj.id, customTaskPhaseId, values, proj.analystId ?? null)
+      toast('Tarefa criada.')
+    }
+  }
 
   async function onCancelProject() {
     if (!canEditProjects) return
@@ -535,6 +663,33 @@ export function ProjectDetailPage() {
     }
   }
 
+  const docBeingEdited = docEditingId ? docComments.find((c) => c.id === docEditingId) : undefined
+  const docEditingDirty = Boolean(
+    docEditingId && (docBeingEdited == null || docEditDraft !== docBeingEdited.content),
+  )
+  const docComposerDirty = Boolean(
+    docDraft.trim() ||
+      docPendingLinks.length > 0 ||
+      docPendingFiles.length > 0 ||
+      docLinkUrlDraft.trim() ||
+      docLinkLabelDraft.trim(),
+  )
+  const contactsFormDirty = Boolean(contactName.trim() || contactPhone.trim() || contactRole.trim())
+  const projectDetailDirty = docEditingDirty || docComposerDirty || contactsFormDirty
+
+  async function flushProjectUnsaved() {
+    if (docEditingDirty) await onSaveDocumentationEdit()
+    if (docComposerDirty) await onAddDocumentation({ preventDefault() {} } as FormEvent)
+    if (contactsFormDirty) await onAddContact({ preventDefault() {} } as FormEvent)
+  }
+
+  useRegisterUnsavedChanges({
+    enabled: canEditProjects,
+    isDirty: () => projectDetailDirty,
+    onSave: flushProjectUnsaved,
+    message: 'Há rascunhos na documentação ou no formulário de contatos que ainda não foram publicados.',
+  })
+
   const activePhaseShort = currentPhaseName ? phaseNameShort(currentPhaseName) : '—'
 
   return (
@@ -547,7 +702,13 @@ export function ProjectDetailPage() {
           <div className="pd-header__titles">
             <h1 className="pd-title">{proj.projectName}</h1>
             <span className="pd-plan-badge">{planName}</span>
-            <span className="pd-analyst-badge" title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}>
+            <span
+              className="pd-analyst-badge"
+              title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}
+              style={
+                projectAnalyst ? { ['--analyst-color' as string]: projectAnalyst.color } : undefined
+              }
+            >
               {projectAnalyst ? (
                 <>
                   <AnalystAvatar
@@ -615,6 +776,14 @@ export function ProjectDetailPage() {
           <span className="pd-kpi__label">Saldo de horas</span>
           <span className="pd-kpi__value">{formatDurationHmFromHours(saldo)}</span>
         </div>
+        {isCustomPlan ? (
+          <div className="pd-kpi">
+            <span className="pd-kpi__label">Soma das previsões</span>
+            <span className="pd-kpi__value">
+              {formatDurationHmFromHours(customBillableSumEst)} / contrato {formatDurationHmFromHours(proj.hoursContracted)}
+            </span>
+          </div>
+        ) : null}
         <div className="pd-kpi">
           <span className="pd-kpi__label">Tarefas</span>
           <span className="pd-kpi__value">
@@ -739,9 +908,78 @@ export function ProjectDetailPage() {
                         ) : null}
                       </p>
                     </div>
+                    {isCustomPlan && canEditProjects ? (
+                      <div className="pd-phase__custom-actions">
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => {
+                            void (async () => {
+                              const code = await suggestNextProjectTaskCode(proj.id, phase.id)
+                              setCustomTaskDefaultCode(code)
+                              setCustomTaskPhaseId(phase.id)
+                              setCustomTaskEditing(null)
+                              setCustomTaskModalOpen(true)
+                            })()
+                          }}
+                        >
+                          <Plus {...icSm} aria-hidden />
+                          Tarefa
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => setCustomPhaseModal({ mode: 'edit', phase })}
+                        >
+                          <Pencil {...icSm} aria-hidden />
+                          Fase
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => void moveProjectPhase(proj.id, phase.id, 'up')}
+                          title="Mover fase para cima"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          onClick={() => void moveProjectPhase(proj.id, phase.id, 'down')}
+                          title="Mover fase para baixo"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm pd-phase__btn-danger"
+                          onClick={() => {
+                            void (async () => {
+                              const ok = await requestConfirm({
+                                title: 'Excluir fase',
+                                message: `Excluir a fase "${phase.name}" e todas as suas tarefas?`,
+                                confirmLabel: 'Excluir',
+                                cancelLabel: 'Cancelar',
+                                danger: true,
+                              })
+                              if (!ok) return
+                              try {
+                                await deleteProjectPhaseCascade(phase.id)
+                                toast('Fase excluída.')
+                              } catch (e) {
+                                toastError(e instanceof Error ? e.message : 'Não foi possível excluir a fase.')
+                              }
+                            })()
+                          }}
+                        >
+                          <Trash2 {...icSm} aria-hidden />
+                        </button>
+                      </div>
+                    ) : null}
                   </header>
                   <div className="pd-phase__tasks">
                     {list.map((t) => {
+                      const scheduledEv = scheduledEventByTaskId.get(t.id)
                       const taskComments = commentsByTask.get(t.id) ?? []
                       const showDesc = expandedDesc[t.id]
                       const canAct = canEditProjects && !locked && t.status !== 'concluida' && t.status !== 'cancelado'
@@ -777,6 +1015,11 @@ export function ProjectDetailPage() {
                                 <span className="pd-task__code">{t.code}</span>
                                 {informational ? (
                                   <span className="pd-task__info-badge">Informativa</span>
+                                ) : null}
+                                {scheduledEv ? (
+                                  <span className="pd-task__schedule-badge" title="Compromisso na agenda">
+                                    Agendada
+                                  </span>
                                 ) : null}
                               </div>
                               <span className="pd-task__title">{t.title}</span>
@@ -867,14 +1110,56 @@ export function ProjectDetailPage() {
                               {showDesc ? (
                                 <p className="pd-task__desc">{t.description?.trim() || 'Sem descrição.'}</p>
                               ) : null}
-                              {canAct ? (
+                              {canAct || (isCustomPlan && canEditProjects) ? (
                                 <div
                                   className={
                                     'pd-task__actions' +
                                     (informational ? ' pd-task__actions--no-register' : '')
                                   }
                                 >
-                                  {!informational ? (
+                                  {isCustomPlan && canEditProjects ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        onClick={() => {
+                                          setCustomTaskEditing(t)
+                                          setCustomTaskPhaseId(phase.id)
+                                          setCustomTaskDefaultCode(t.code)
+                                          setCustomTaskModalOpen(true)
+                                        }}
+                                      >
+                                        <Pencil {...icSm} aria-hidden />
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        onClick={() => {
+                                          void (async () => {
+                                            const ok = await requestConfirm({
+                                              title: 'Excluir tarefa',
+                                              message: `Excluir "${t.code} ${t.title}"?`,
+                                              confirmLabel: 'Excluir',
+                                              cancelLabel: 'Cancelar',
+                                              danger: true,
+                                            })
+                                            if (!ok) return
+                                            try {
+                                              await deleteProjectTask(t.id)
+                                              toast('Tarefa excluída.')
+                                            } catch (e) {
+                                              toastError(e instanceof Error ? e.message : 'Falha ao excluir.')
+                                            }
+                                          })()
+                                        }}
+                                      >
+                                        <Trash2 {...icSm} aria-hidden />
+                                        Excluir
+                                      </button>
+                                    </>
+                                  ) : null}
+                                  {canAct && !informational ? (
                                     <button
                                       type="button"
                                       className="btn btn--ghost btn--sm pd-task__btn"
@@ -884,29 +1169,49 @@ export function ProjectDetailPage() {
                                       Registrar
                                     </button>
                                   ) : null}
-                                  <button
-                                    type="button"
-                                    className="btn btn--ghost btn--sm pd-task__btn"
-                                    onClick={() =>
-                                      navigate('/agenda', {
-                                        state: { prefillTaskId: t.id, prefillProjectId: proj.id },
-                                      })
-                                    }
-                                  >
-                                    <CalendarPlus {...icSm} aria-hidden />
-                                    Agendar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={
-                                      'btn btn--primary btn--sm pd-task__btn' +
-                                      (informational ? '' : ' pd-task__btn--full')
-                                    }
-                                    onClick={() => onTaskStatus(t.id, 'concluida')}
-                                  >
-                                    <CheckCircle2 {...icSm} aria-hidden />
-                                    Concluir
-                                  </button>
+                                  {canAct ? (
+                                    scheduledEv ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm pd-task__btn pd-task__btn--scheduled"
+                                        onClick={() =>
+                                          navigate('/agenda', {
+                                            state: { editEventId: scheduledEv.id },
+                                          })
+                                        }
+                                        title="Abrir na agenda para editar o horário"
+                                      >
+                                        <CalendarCheck {...icSm} aria-hidden />
+                                        Agendado
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="btn btn--ghost btn--sm pd-task__btn"
+                                        onClick={() =>
+                                          navigate('/agenda', {
+                                            state: { prefillTaskId: t.id, prefillProjectId: proj.id },
+                                          })
+                                        }
+                                      >
+                                        <CalendarPlus {...icSm} aria-hidden />
+                                        Agendar
+                                      </button>
+                                    )
+                                  ) : null}
+                                  {canAct ? (
+                                    <button
+                                      type="button"
+                                      className={
+                                        'btn btn--primary btn--sm pd-task__btn' +
+                                        (informational ? '' : ' pd-task__btn--full')
+                                      }
+                                      onClick={() => onTaskStatus(t.id, 'concluida')}
+                                    >
+                                      <CheckCircle2 {...icSm} aria-hidden />
+                                      Concluir
+                                    </button>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </>
@@ -919,6 +1224,18 @@ export function ProjectDetailPage() {
               )
             })}
           </div>
+          {isCustomPlan && canEditProjects ? (
+            <div className="pd-custom-plan-add-phase">
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={() => setCustomPhaseModal({ mode: 'add' })}
+              >
+                <Plus {...ic} aria-hidden />
+                Nova fase
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -1194,9 +1511,18 @@ export function ProjectDetailPage() {
       {tab === 'labels' ? (
         <div className="pd-tab-panel">
           <p className="pd-labels-hint muted">
-            A lista segue as <strong>fases e tarefas do plano</strong> vinculado ao projeto (incluindo a fase 00,
-            quando existir no modelo). O status reflete as tarefas reais; clique em um item não concluído para
-            confirmar a conclusão.
+            {isCustomPlan ? (
+              <>
+                A lista segue as <strong>fases e tarefas deste projeto</strong> (plano avulso). O status reflete as
+                tarefas reais; clique em um item não concluído para confirmar a conclusão.
+              </>
+            ) : (
+              <>
+                A lista segue as <strong>fases e tarefas do plano</strong> vinculado ao projeto (incluindo a fase 00,
+                quando existir no modelo). O status reflete as tarefas reais; clique em um item não concluído para
+                confirmar a conclusão.
+              </>
+            )}
           </p>
           {planBlueprint === undefined ? (
             <p className="muted">Carregando estrutura do plano…</p>
@@ -1206,7 +1532,11 @@ export function ProjectDetailPage() {
               catálogo em Modelos de planos.
             </p>
           ) : labelsTabSections.length === 0 ? (
-            <p className="muted">Este plano ainda não possui fases/tarefas cadastradas no modelo.</p>
+            <p className="muted">
+              {isCustomPlan
+                ? 'Adicione fases e tarefas na aba Fases & tarefas para preencher as labels aqui.'
+                : 'Este plano ainda não possui fases/tarefas cadastradas no modelo.'}
+            </p>
           ) : (
             <div className="pd-label-groups">
               {labelsTabSections.map((section) => (
@@ -1284,6 +1614,27 @@ export function ProjectDetailPage() {
         busy={deleteProjectBusy}
         onCancel={() => setDeleteProjectOpen(false)}
         onConfirm={confirmDeleteProject}
+      />
+
+      <CustomPlanPhaseModal
+        open={customPhaseModal !== null}
+        heading={customPhaseModal?.mode === 'edit' ? 'Editar fase' : 'Nova fase'}
+        initialName={customPhaseModal?.mode === 'edit' ? customPhaseModal.phase.name : ''}
+        initialColorHex={customPhaseModal?.mode === 'edit' ? customPhaseModal.phase.colorHex ?? '' : ''}
+        onClose={() => setCustomPhaseModal(null)}
+        onSave={onSaveCustomPhaseModal}
+      />
+
+      <PlanTaskModal
+        open={customTaskModalOpen}
+        onClose={() => {
+          setCustomTaskModalOpen(false)
+          setCustomTaskEditing(null)
+          setCustomTaskPhaseId(null)
+        }}
+        task={customTaskEditing ? mapTaskToPlanModal(customTaskEditing) : null}
+        defaultCode={customTaskDefaultCode}
+        onSave={onSaveCustomTaskModal}
       />
     </div>
   )

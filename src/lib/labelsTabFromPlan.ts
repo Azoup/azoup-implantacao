@@ -77,3 +77,39 @@ export function buildLabelsTabSections(
     return { planPhase, projectPhase, orderIndex: planPhase.orderIndex, rows }
   })
 }
+
+/** Plano avulso: monta blocos compatíveis com `buildLabelsTabSections` a partir das fases/tarefas reais do projeto. */
+export function buildCustomPlanBlueprintBlocks(
+  sortedProjectPhases: DbPhase[],
+  tasks: DbTask[],
+  projectId: string,
+): PlanBlueprintBlock[] {
+  const defaultHex = (orderIndex: number) => {
+    const palette = ['#f97316', '#3b82f6', '#22c55e', '#a855f7', '#eab308', '#64748b']
+    return palette[orderIndex % palette.length] ?? '#64748b'
+  }
+
+  return sortedProjectPhases.map((ph) => {
+    const planPhase: DbPlanPhase = {
+      id: `custom:${ph.id}`,
+      planModelId: 'custom',
+      name: ph.name,
+      orderIndex: ph.orderIndex,
+      colorHex: ph.colorHex ?? defaultHex(ph.orderIndex),
+    }
+    const list = tasks
+      .filter((t) => t.projectId === projectId && t.phaseId === ph.id)
+      .sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
+    const planTasks: DbPlanTask[] = list.map((t) => ({
+      id: `custom:${t.id}`,
+      planPhaseId: planPhase.id,
+      code: t.code,
+      title: t.title,
+      description: t.description,
+      estimatedHours: t.estimatedHours,
+      isInformational: t.isInformational,
+      sortOrder: t.sortOrder,
+    }))
+    return { planPhase, planTasks }
+  })
+}

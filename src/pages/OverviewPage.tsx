@@ -14,6 +14,7 @@ import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
+import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 
 const iconSmall = { size: 16, strokeWidth: 2 } as const
 
@@ -132,10 +133,12 @@ export function OverviewPage() {
           ? 'PRO'
           : p.planType === 'basic'
             ? 'BASIC'
-            : (() => {
-                const n = m?.name ?? p.planType
-                return n.length > 16 ? `${n.slice(0, 14)}…` : n
-              })()
+            : p.planType === CUSTOM_PLAN_TYPE
+              ? 'AVULSO'
+              : (() => {
+                  const n = m?.name ?? p.planType
+                  return n.length > 16 ? `${n.slice(0, 14)}…` : n
+                })()
     return `${tag} ${formatDurationHmFromHours(p.hoursContracted)}`
   }
 
@@ -243,7 +246,11 @@ export function OverviewPage() {
                           </div>
                           <div className="kanban-card__badges">
                             {analyst ? (
-                              <span className="kanban-card__analyst" title={`Analista responsável: ${analyst.name}`}>
+                              <span
+                                className="kanban-card__analyst"
+                                title={`Analista responsável: ${analyst.name}`}
+                                style={{ ['--analyst-color' as string]: analyst.color }}
+                              >
                                 <AnalystAvatar
                                   name={analyst.name}
                                   color={analyst.color}

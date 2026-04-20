@@ -164,15 +164,33 @@ export interface DbProject {
   /** Momento em que o plano contratado foi congelado no projeto. */
   planSnapshotCapturedAt: string
   /** Foto do plano na criação do projeto (baseline contratual). */
-  planSnapshot: {
-    modelId: string
-    key: string
-    name: string
-    hoursContracted: number
-    phaseCount: number
-    taskCount: number
-  }
+  planSnapshot: DbProjectPlanSnapshot
 }
+
+/** Catálogo: modelo de plano. `mode` omitido = catálogo (compatível com dados antigos). */
+export type DbProjectPlanSnapshotCatalog = {
+  mode?: 'catalog'
+  modelId: string
+  key: string
+  name: string
+  hoursContracted: number
+  phaseCount: number
+  taskCount: number
+}
+
+/** Plano avulso: sem modelo no catálogo; `hoursContracted` é teto negocial (ajustável com confirmação). */
+export type DbProjectPlanSnapshotCustom = {
+  mode: 'custom'
+  /** Sem modelo real; use string vazia ou placeholder na serialização. */
+  modelId: string | null
+  key: 'custom'
+  name: string
+  hoursContracted: number
+  phaseCount: number
+  taskCount: number
+}
+
+export type DbProjectPlanSnapshot = DbProjectPlanSnapshotCatalog | DbProjectPlanSnapshotCustom
 
 export interface DbProjectContact {
   id: string

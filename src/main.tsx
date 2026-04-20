@@ -5,6 +5,7 @@ import './index.css'
 import './theme/palettes.css'
 import App from './App.tsx'
 import { AuthProvider } from './auth/AuthContext'
+import { UnsavedChangesProvider } from './navigation/UnsavedChangesContext'
 import { ThemeProvider } from './theme/ThemeContext'
 import { UiFeedbackProvider } from './ui/UiFeedbackContext'
 import { isSupabaseConfigured } from './lib/supabaseClient'
@@ -24,7 +25,9 @@ createRoot(document.getElementById('root')!).render(
       <UiFeedbackProvider>
         <AuthProvider>
           <BrowserRouter>
-            <App />
+            <UnsavedChangesProvider>
+              <App />
+            </UnsavedChangesProvider>
           </BrowserRouter>
         </AuthProvider>
       </UiFeedbackProvider>
