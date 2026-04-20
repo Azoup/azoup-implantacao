@@ -1,7 +1,7 @@
 import { db } from '../db/database'
 import type { DbProject, KanbanColumn, PlanTypeKey } from '../db/types'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { upsertProjectGraphFromDexie } from '../sync/supabaseDexieBridge'
+import { upsertProjectGraphFromDexie, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { uuid } from '../lib/uuid'
 import { syncLabelsForProject } from './labels'
 import { normalizeProjectPlacement } from './projectGovernance'
@@ -100,48 +100,67 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
     },
   }
 
-  await db.transaction('rw', db.projects, db.phases, db.tasks, db.planTasks, async () => {
-    await db.projects.add(row)
+  const buildGraphInDexie = async () => {
+    await db.transaction('rw', db.projects, db.phases, db.tasks, db.planTasks, async () => {
+      await db.projects.add(row)
 
-    let idx = 0
-    for (const pp of planPhases) {
-      const phaseId = uuid()
-      await db.phases.add({
-        id: phaseId,
-        projectId,
-        name: pp.name,
-        orderIndex: pp.orderIndex,
-        status: idx++ === 0 ? 'ativa' : 'bloqueada',
-        colorHex: pp.colorHex ?? null,
-      })
-
-      const planTasks = await db.planTasks.where('planPhaseId').equals(pp.id).sortBy('sortOrder')
-      let so = 0
-      for (const pt of planTasks) {
-        await db.tasks.add({
-          id: uuid(),
-          title: pt.title,
-          description: pt.description,
+      let idx = 0
+      for (const pp of planPhases) {
+        const phaseId = uuid()
+        await db.phases.add({
+          id: phaseId,
           projectId,
-          phaseId,
-          status: 'pendente',
-          priority: 'media',
-          estimatedHours: pt.estimatedHours,
-          actualHours: 0,
-          assignedTo: opts.analystId,
-          dueDate: null,
-          isInformational: pt.isInformational,
-          createdAt: new Date().toISOString(),
-          code: pt.code,
-          sortOrder: so++,
+          name: pp.name,
+          orderIndex: pp.orderIndex,
+          status: idx++ === 0 ? 'ativa' : 'bloqueada',
+          colorHex: pp.colorHex ?? null,
         })
+
+        const planTasks = await db.planTasks.where('planPhaseId').equals(pp.id).sortBy('sortOrder')
+        let so = 0
+        for (const pt of planTasks) {
+          await db.tasks.add({
+            id: uuid(),
+            title: pt.title,
+            description: pt.description,
+            projectId,
+            phaseId,
+            status: 'pendente',
+            priority: 'media',
+            estimatedHours: pt.estimatedHours,
+            actualHours: 0,
+            assignedTo: opts.analystId,
+            dueDate: null,
+            isInformational: pt.isInformational,
+            createdAt: new Date().toISOString(),
+            code: pt.code,
+            sortOrder: so++,
+          })
+        }
       }
+    })
+  }
+
+  if (isSupabaseConfigured()) {
+    // Evita tempestade de requests (hooks por linha + sync explícito do grafo).
+    try {
+      await withDexieSupabaseSyncMuted(async () => {
+        await buildGraphInDexie()
+        await upsertProjectGraphFromDexie(projectId)
+      })
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : 'Falha desconhecida'
+      if (detail.includes('PRJ_CREATE_')) {
+        throw new Error(detail)
+      }
+      throw new Error(
+        `PRJ_CREATE_CLOUD_SYNC|op=projects|type=unknown|reason=Projeto salvo no cache local, mas falhou a sincronização com o Supabase.|action=Verifique sessão, policies RLS e conectividade antes de tentar novamente.`,
+      )
     }
-  })
+  } else {
+    await buildGraphInDexie()
+  }
 
   await syncLabelsForProject(projectId)
-  if (isSupabaseConfigured()) {
-    await upsertProjectGraphFromDexie(projectId)
-  }
   return projectId
 }

@@ -149,6 +149,147 @@ function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
 }
 
 const PROJECT_WRITE_TIMEOUT_MS = 60_000
+const PROJECT_SYNC_RETRY_DELAY_MS = 500
+
+type ProjectSyncOperation = 'projects' | 'phases' | 'tasks'
+type ProjectSyncFailureType = 'timeout' | 'policy' | 'auth' | 'network' | 'conflict' | 'unknown'
+
+function formatProjectSyncErrorMessage(args: {
+  code: string
+  operation: ProjectSyncOperation
+  type: ProjectSyncFailureType
+  reason: string
+  action: string
+}): string {
+  const { code, operation, type, reason, action } = args
+  return `${code}|op=${operation}|type=${type}|reason=${reason}|action=${action}`
+}
+
+function classifyProjectSyncError(err: unknown): {
+  type: ProjectSyncFailureType
+  reason: string
+  action: string
+  canRetry: boolean
+} {
+  const e = err as { message?: string; code?: string; status?: number; details?: string; hint?: string }
+  const code = String(e?.code ?? '').toUpperCase()
+  const message = String(e?.message ?? '')
+  const details = String(e?.details ?? '')
+  const hint = String(e?.hint ?? '')
+  const status = typeof e?.status === 'number' ? e.status : null
+  const body = `${message} ${details} ${hint}`.toLowerCase()
+
+  if (message.includes('Tempo esgotado')) {
+    return {
+      type: 'timeout',
+      reason: 'Tempo limite da operação atingido.',
+      action: 'Verifique a rede e se o projeto Supabase está ativo; tente novamente.',
+      canRetry: true,
+    }
+  }
+  if (status === 401 || code === 'PGRST301' || body.includes('jwt') || body.includes('not authenticated')) {
+    return {
+      type: 'auth',
+      reason: 'Sessão inválida ou expirada.',
+      action: 'Entre novamente no sistema e repita a operação.',
+      canRetry: false,
+    }
+  }
+  if (status === 403 || code === '42501' || body.includes('policy') || body.includes('permission denied')) {
+    return {
+      type: 'policy',
+      reason: 'Permissão negada pelas policies (RLS).',
+      action: 'Confirme vínculo do usuário/analista ao projeto e regras RLS.',
+      canRetry: false,
+    }
+  }
+  if (status === 409 || code === '23505') {
+    return {
+      type: 'conflict',
+      reason: 'Conflito de dados na escrita.',
+      action: 'Atualize os dados locais e tente novamente.',
+      canRetry: false,
+    }
+  }
+  if (
+    status === 429 ||
+    (status !== null && status >= 500) ||
+    body.includes('fetch failed') ||
+    body.includes('network') ||
+    body.includes('failed to fetch') ||
+    body.includes('timeout')
+  ) {
+    return {
+      type: 'network',
+      reason: 'Instabilidade de rede ou indisponibilidade temporária do Supabase.',
+      action: 'Aguarde alguns segundos e tente novamente.',
+      canRetry: true,
+    }
+  }
+  return {
+    type: 'unknown',
+    reason: 'Falha inesperada ao sincronizar com o Supabase.',
+    action: 'Revise conexão, sessão e permissões; se persistir, acione suporte.',
+    canRetry: false,
+  }
+}
+
+function toProjectSyncError(code: string, operation: ProjectSyncOperation, err: unknown): Error {
+  const info = classifyProjectSyncError(err)
+  return new Error(
+    formatProjectSyncErrorMessage({
+      code,
+      operation,
+      type: info.type,
+      reason: info.reason,
+      action: info.action,
+    }),
+  )
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runProjectSyncWrite(
+  operation: ProjectSyncOperation,
+  projectId: string | null,
+  write: () => Promise<{ error: { message: string } | null }>,
+): Promise<void> {
+  const startedAt = Date.now()
+  let attempts = 0
+  while (attempts < 2) {
+    attempts++
+    try {
+      const { error } = await raceProjectWrite(write(), `sincronizar ${operation} na nuvem`)
+      if (!error) return
+      throw error
+    } catch (err) {
+      const info = classifyProjectSyncError(err)
+      const durationMs = Date.now() - startedAt
+      console.warn('[Supabase] project sync failure', {
+        operation,
+        projectId,
+        type: info.type,
+        durationMs,
+        attempts,
+      })
+      if (attempts < 2 && info.canRetry) {
+        await sleep(PROJECT_SYNC_RETRY_DELAY_MS)
+        continue
+      }
+      const codeByType: Record<ProjectSyncFailureType, string> = {
+        timeout: 'PRJ_CREATE_TIMEOUT',
+        policy: 'PRJ_CREATE_RLS',
+        auth: 'PRJ_CREATE_AUTH',
+        network: 'PRJ_CREATE_NETWORK',
+        conflict: 'PRJ_CREATE_CONFLICT',
+        unknown: 'PRJ_CREATE_SYNC',
+      }
+      throw toProjectSyncError(codeByType[info.type] ?? 'PRJ_CREATE_SYNC', operation, err)
+    }
+  }
+}
 
 async function raceProjectWrite<T>(promise: Promise<T>, opLabel: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -225,11 +366,7 @@ export async function updateProjectPartialInSupabase(projectId: string, patch: P
   const client = assertSupabase()
   const body = dbProjectPartialToSupabaseUpdate(patch)
   if (Object.keys(body).length === 0) return
-  const { error } = await raceProjectWrite(
-    Promise.resolve(client.from('projects').update(body).eq('id', projectId)),
-    'atualizar o projeto na nuvem',
-  )
-  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+  await runProjectSyncWrite('projects', projectId, async () => await client.from('projects').update(body).eq('id', projectId))
 }
 
 /** Payload REST/Postgres para `projects` (usado pelo bridge e por gravação explícita na nuvem). */
@@ -307,11 +444,7 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
 export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
   const client = assertSupabase()
   const payload = dbProjectToSupabaseRow(project)
-  const { error } = await raceProjectWrite(
-    Promise.resolve(client.from('projects').upsert(payload)),
-    'salvar o projeto completo na nuvem',
-  )
-  if (error) throw new Error(`Não foi possível salvar o projeto na nuvem: ${error.message}`)
+  await runProjectSyncWrite('projects', project.id, async () => await client.from('projects').upsert(payload))
 }
 
 /**
@@ -332,15 +465,21 @@ export async function withDexieSupabaseSyncMuted<T>(fn: () => Promise<T>): Promi
 export async function upsertPhasesToSupabase(phases: DbPhase[]): Promise<void> {
   if (phases.length === 0) return
   const client = assertSupabase()
-  const { error } = await client.from('phases').upsert(phases.map(dbPhaseToSupabaseRow))
-  if (error) throw new Error(`Não foi possível salvar fases na nuvem: ${error.message}`)
+  await runProjectSyncWrite(
+    'phases',
+    phases[0]?.projectId ?? null,
+    async () => await client.from('phases').upsert(phases.map(dbPhaseToSupabaseRow)),
+  )
 }
 
 export async function upsertTasksToSupabase(tasks: DbTask[]): Promise<void> {
   if (tasks.length === 0) return
   const client = assertSupabase()
-  const { error } = await client.from('tasks').upsert(tasks.map(dbTaskToSupabaseRow))
-  if (error) throw new Error(`Não foi possível salvar tarefas na nuvem: ${error.message}`)
+  await runProjectSyncWrite(
+    'tasks',
+    tasks[0]?.projectId ?? null,
+    async () => await client.from('tasks').upsert(tasks.map(dbTaskToSupabaseRow)),
+  )
 }
 
 /** Projeto + fases + tarefas do projeto (após criação ou mutação ampla em Dexie). */
@@ -348,11 +487,43 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
   if (!supabase) return
   const p = await db.projects.get(projectId)
   if (!p) return
-  await upsertProjectToSupabase(p)
-  const phases = await db.phases.where('projectId').equals(projectId).toArray()
-  await upsertPhasesToSupabase(phases)
-  const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
-  await upsertTasksToSupabase(tasks)
+  const startedAt = Date.now()
+  let failedOperation: ProjectSyncOperation = 'projects'
+  try {
+    failedOperation = 'projects'
+    await runProjectSyncWrite('projects', projectId, async () => {
+      const payload = dbProjectToSupabaseRow(p)
+      const client = assertSupabase()
+      return await client.from('projects').upsert(payload)
+    })
+    const phases = await db.phases.where('projectId').equals(projectId).toArray()
+    failedOperation = 'phases'
+    await upsertPhasesToSupabase(phases)
+    const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
+    failedOperation = 'tasks'
+    await upsertTasksToSupabase(tasks)
+  } catch (err) {
+    const info = classifyProjectSyncError(err)
+    const codeByType: Record<ProjectSyncFailureType, string> = {
+      timeout: 'PRJ_CREATE_TIMEOUT',
+      policy: 'PRJ_CREATE_RLS',
+      auth: 'PRJ_CREATE_AUTH',
+      network: 'PRJ_CREATE_NETWORK',
+      conflict: 'PRJ_CREATE_CONFLICT',
+      unknown: 'PRJ_CREATE_SYNC',
+    }
+    const message = toProjectSyncError(
+      codeByType[info.type],
+      failedOperation,
+      err,
+    )
+    console.error('[Supabase] project graph sync failed', {
+      projectId,
+      type: info.type,
+      durationMs: Date.now() - startedAt,
+    })
+    throw message
+  }
 }
 
 const defs: BridgeDef<unknown>[] = [

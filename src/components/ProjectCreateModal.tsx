@@ -26,6 +26,56 @@ import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 
+function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
+  const fallback = isEdit ? 'Erro ao salvar projeto.' : 'Erro ao criar projeto.'
+  const message = raw instanceof Error ? raw.message : ''
+  if (!message) return fallback
+
+  const diagnostic = message.match(/(PRJ_CREATE_[A-Z_]+)\|op=([a-z]+)\|type=([a-z]+)\|reason=([^|]+)\|action=(.+)$/i)
+  if (diagnostic) {
+    const [, code, operation, type, reason, action] = diagnostic
+    const operationLabel = operation === 'projects' ? 'projeto' : operation === 'phases' ? 'fases' : 'tarefas'
+    const headlineByType: Record<string, string> = {
+      timeout: 'Sincronização com a nuvem excedeu o tempo limite.',
+      policy: 'Permissão negada para sincronizar com a nuvem (RLS).',
+      auth: 'Sessão expirada ou inválida para sincronização com a nuvem.',
+      network: 'Falha de rede ou indisponibilidade temporária do Supabase.',
+      conflict: 'Conflito de dados durante a sincronização na nuvem.',
+      unknown: 'Falha inesperada na sincronização com a nuvem.',
+    }
+    const headline = headlineByType[type.toLowerCase()] ?? headlineByType.unknown
+    const partial =
+      !isEdit && operation !== 'projects'
+        ? ' O projeto pode ter sido salvo parcialmente no cache local; valide a lista e tente sincronizar novamente.'
+        : ''
+    return `${headline} Etapa afetada: ${operationLabel}. ${reason.trim()} ${action.trim()}${partial} Código: ${code}.`
+  }
+
+  if (!message.includes('PRJ_CREATE_')) {
+    return message
+  }
+
+  const codeMatch = message.match(/PRJ_CREATE_[A-Z_]+/)
+  const code = codeMatch?.[0] ?? 'PRJ_CREATE_SYNC'
+  const byCode: Record<string, string> = {
+    PRJ_CREATE_TIMEOUT:
+      'Não foi possível concluir o cadastro no tempo esperado (PRJ_CREATE_TIMEOUT). Verifique sua conexão e se o projeto Supabase está ativo.',
+    PRJ_CREATE_RLS:
+      'Permissão negada para gravar no Supabase (PRJ_CREATE_RLS). Confirme as policies RLS e o vínculo do seu perfil.',
+    PRJ_CREATE_AUTH:
+      'Sua sessão expirou ou não está autenticada (PRJ_CREATE_AUTH). Entre novamente e tente criar o projeto.',
+    PRJ_CREATE_NETWORK:
+      'Falha de rede ao sincronizar com o Supabase (PRJ_CREATE_NETWORK). Aguarde alguns segundos e tente de novo.',
+    PRJ_CREATE_CONFLICT:
+      'Conflito de dados na sincronização (PRJ_CREATE_CONFLICT). Atualize os dados e tente novamente.',
+    PRJ_CREATE_SYNC:
+      'Erro inesperado ao sincronizar o cadastro com a nuvem (PRJ_CREATE_SYNC). Se persistir, acione o suporte.',
+    PRJ_CREATE_CLOUD_SYNC:
+      'Projeto salvo localmente, mas houve falha na sincronização com a nuvem (PRJ_CREATE_CLOUD_SYNC).',
+  }
+  return byCode[code] ?? `Falha ao criar projeto na nuvem (${code}).`
+}
+
 function emptyToNull(s: string): string | null {
   const t = s.trim()
   return t ? t : null
@@ -282,7 +332,7 @@ export function ProjectCreateModal({
       }
       onClose()
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : projectToEdit ? 'Erro ao salvar' : 'Erro ao criar')
+      setErr(mapProjectCreateError(ex, !!projectToEdit))
     } finally {
       setSaving(false)
     }
