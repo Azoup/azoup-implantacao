@@ -71,6 +71,13 @@ export function SettingsPage() {
   const editingPermissionUser = permissionsUserId ? users.find((u) => u.id === permissionsUserId) ?? null : null
   const { requestConfirm, toast, toastError } = useUiFeedback()
 
+  function formatSupabaseError(err: unknown, fallback: string): string {
+    if (!err || typeof err !== 'object') return fallback
+    const e = err as { message?: string; code?: string; details?: string; hint?: string }
+    const parts = [e.message, e.code ? `code=${e.code}` : null, e.details, e.hint].filter(Boolean)
+    return parts.length > 0 ? parts.join(' | ') : fallback
+  }
+
   async function loadUsersFromSupabase() {
     if (!supabase) return
     const { data, error } = await supabase
@@ -131,12 +138,12 @@ export function SettingsPage() {
       setErr(msg)
       throw new Error(msg)
     }
-    const { error } = await supabase
-      .from('profiles')
-      .update({ permissions: permissionDraft })
-      .eq('id', permissionsUserId)
+    const { error } = await supabase.rpc('admin_set_profile_permissions', {
+      p_target_user_id: permissionsUserId,
+      p_permissions: permissionDraft,
+    })
     if (error) {
-      const msg = error.message || 'Não foi possível salvar permissões.'
+      const msg = formatSupabaseError(error, 'Não foi possível salvar permissões.')
       setErr(msg)
       throw new Error(msg)
     }
@@ -177,7 +184,10 @@ export function SettingsPage() {
     setErr(null)
     setUsersBusy(userId)
     try {
-      const { error } = await supabase.from('profiles').update({ status: nextStatus }).eq('id', userId)
+      const { error } = await supabase.rpc('admin_set_profile_status', {
+        p_target_user_id: userId,
+        p_status: nextStatus,
+      })
       if (error) throw error
       await loadUsersFromSupabase()
       void refreshSupabaseDexieCache().catch(() => undefined)
@@ -185,7 +195,7 @@ export function SettingsPage() {
       else if (nextStatus === 'pending') toast('Usuário movido para pendente.')
       else toast('Usuário aprovado/reativado.')
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Falha ao atualizar status do usuário.')
+      toastError(formatSupabaseError(e, 'Falha ao atualizar status do usuário.'))
     } finally {
       setUsersBusy(null)
     }
@@ -210,7 +220,10 @@ export function SettingsPage() {
       const { error } = await supabase.from('profiles').delete().eq('id', userId)
       if (error) {
         // Se houver vínculo histórico (FK/RLS), converte exclusão em inativação para manter governança.
-        const fallback = await supabase.from('profiles').update({ status: 'inactive' }).eq('id', userId)
+        const fallback = await supabase.rpc('admin_set_profile_status', {
+          p_target_user_id: userId,
+          p_status: 'inactive',
+        })
         if (fallback.error) throw error
         await loadUsersFromSupabase()
         void refreshSupabaseDexieCache().catch(() => undefined)
@@ -221,7 +234,7 @@ export function SettingsPage() {
       void refreshSupabaseDexieCache().catch(() => undefined)
       toast('Login excluído com sucesso.')
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Falha ao excluir login.')
+      toastError(formatSupabaseError(e, 'Falha ao excluir login.'))
     } finally {
       setUsersBusy(null)
     }

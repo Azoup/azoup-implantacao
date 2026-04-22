@@ -21,6 +21,7 @@ import {
   parseDurationFlexibleToHours,
 } from '../lib/durationFormat'
 import { AnalystAvatar } from './AnalystAvatar'
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 type Props = {
   open: boolean
@@ -66,6 +67,12 @@ class RegisterHoursModalErrorBoundary extends Component<{ children: ReactNode; o
   state = { hasError: false }
   componentDidCatch(err: unknown) {
     console.error('[RegisterHoursModal] Error:', err)
+    pushRuntimeDiagnostic({
+      source: 'register-hours-modal',
+      level: 'error',
+      message: 'Erro de render no modal de atendimento.',
+      details: err instanceof Error ? err.message : String(err),
+    })
     this.setState({ hasError: true })
   }
   render() {
@@ -98,6 +105,23 @@ class RegisterHoursModalErrorBoundary extends Component<{ children: ReactNode; o
 }
 
 function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
+  function errorToMessage(err: unknown, fallback: string): string {
+    if (err instanceof Error) return err.message || fallback
+    return String(err || fallback)
+  }
+
+  async function withTimeout<T>(promise: Promise<T>, label: string, ms = 35_000): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Tempo limite ao ${label}. Tente novamente.`)), ms)
+      })
+      return await Promise.race([promise, timeoutPromise])
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+  }
+
   const { toast, toastError, requestDestructiveWithReason } = useUiFeedback()
   const [attendanceKind, setAttendanceKind] = useState<AttendanceKind>('ocorreu')
   const [activeTab, setActiveTab] = useState<RegTab>('manual')
@@ -290,7 +314,14 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
       setEditingSessionId(null)
       setEditingHours('')
     } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Não foi possível atualizar o registro.')
+      const msg = errorToMessage(err, 'Não foi possível atualizar o registro.')
+      pushRuntimeDiagnostic({
+        source: 'register-hours-modal',
+        level: 'warn',
+        message: 'Falha ao editar sessão de tempo.',
+        details: msg,
+      })
+      toastError(msg)
     }
   }
 
@@ -309,7 +340,14 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
       await deleteTimeSession(sessionId, user.id, reason)
       toast('Registro excluído.')
     } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Não foi possível excluir o registro.')
+      const msg = errorToMessage(err, 'Não foi possível excluir o registro.')
+      pushRuntimeDiagnostic({
+        source: 'register-hours-modal',
+        level: 'warn',
+        message: 'Falha ao excluir sessão de tempo.',
+        details: msg,
+      })
+      toastError(msg)
     }
   }
 
@@ -369,19 +407,22 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     }
     setBusy(true)
     try {
-      await registerTaskAttendance({
-        taskId: task.id,
-        actorUserId: user.id,
-        attendanceKind,
-        entryMode,
-        manualHours: isTimerFlow ? 0 : hFromField,
-        notes,
-        executionDate,
-        executionTime,
-        analystId: analystId || null,
-        taskStatus: attendanceKind === 'ocorreu' ? taskStatus : undefined,
-        newDate: newDate || null,
-      })
+      await withTimeout(
+        registerTaskAttendance({
+          taskId: task.id,
+          actorUserId: user.id,
+          attendanceKind,
+          entryMode,
+          manualHours: isTimerFlow ? 0 : hFromField,
+          notes,
+          executionDate,
+          executionTime,
+          analystId: analystId || null,
+          taskStatus: attendanceKind === 'ocorreu' ? taskStatus : undefined,
+          newDate: newDate || null,
+        }),
+        'registrar atendimento',
+      )
       const docAttachments: DbDocAttachment[] = docPendingFiles.map((p) => ({
         id: crypto.randomUUID(),
         fileName: p.file.name || 'arquivo',
@@ -389,16 +430,26 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
         blob: p.file,
       }))
       if (notes.trim() || docAttachments.length > 0) {
-        await addProjectDocumentation({
-          projectId: task.projectId,
-          authorId: user.id,
-          content: notes.trim(),
-          docAttachments,
-        })
+        await withTimeout(
+          addProjectDocumentation({
+            projectId: task.projectId,
+            authorId: user.id,
+            content: notes.trim(),
+            docAttachments,
+          }),
+          'salvar documentação do atendimento',
+        )
       }
       onClose()
     } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Não foi possível registrar')
+      const msg = errorToMessage(err, 'Não foi possível registrar')
+      pushRuntimeDiagnostic({
+        source: 'register-hours-modal',
+        level: 'error',
+        message: 'Falha no registro de atendimento.',
+        details: msg,
+      })
+      toastError(msg)
     } finally {
       setBusy(false)
     }

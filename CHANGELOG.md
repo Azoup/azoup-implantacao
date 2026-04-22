@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.5.2 (2026-04-22)
+
+- **Bugfix (Configurações/Permissões):** ajustes de permissões e status de usuário agora usam RPCs administrativas (`admin_set_profile_permissions` e `admin_set_profile_status`), evitando falhas por trigger/RLS no update direto de `profiles`.
+- **Bugfix (Registrar atendimento):** erros de gravação no modal de atendimento agora aparecem de forma confiável em tela (`toast`) e também são enviados ao Console Admin (diagnóstico runtime), sem depender de F12.
+- **Resiliência de UX:** operações críticas do registro de atendimento ganharam timeout defensivo para evitar estado preso em `Salvando...`.
+- **Operação Supabase:** novo script `supabase/sql/maintenance/E_admin_profile_rpc.sql`.
+
 ## v2.5.1 (2026-04-22)
 
 - **Auth híbrido e governança:** novos cadastros entram como `pending`; login bloqueia usuário pendente/inativo com mensagem explícita; fluxo de aprovação centralizado para admin.
