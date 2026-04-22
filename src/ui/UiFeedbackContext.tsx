@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { SYNC_FAILURE_EVENT, type SyncFailureDetail } from '../sync/syncFailure'
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 export type ToastTone = 'info' | 'error' | 'warn'
 
@@ -162,6 +163,32 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
     window.addEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
     return () => window.removeEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
   }, [toastWarn])
+
+  useEffect(() => {
+    const onUnhandledRejection = (ev: PromiseRejectionEvent) => {
+      const reason = ev.reason instanceof Error ? ev.reason.message : String(ev.reason ?? 'Erro desconhecido')
+      pushRuntimeDiagnostic({
+        source: 'window.unhandledrejection',
+        level: 'error',
+        message: 'Promise rejeitada sem tratamento.',
+        details: reason,
+      })
+    }
+    const onWindowError = (ev: ErrorEvent) => {
+      pushRuntimeDiagnostic({
+        source: 'window.error',
+        level: 'error',
+        message: ev.message || 'Erro global capturado',
+        details: ev.filename ? `${ev.filename}:${ev.lineno}:${ev.colno}` : undefined,
+      })
+    }
+    window.addEventListener('unhandledrejection', onUnhandledRejection)
+    window.addEventListener('error', onWindowError)
+    return () => {
+      window.removeEventListener('unhandledrejection', onUnhandledRejection)
+      window.removeEventListener('error', onWindowError)
+    }
+  }, [])
 
   useEffect(() => {
     if (activeDialog?.kind === 'destructiveReason') {

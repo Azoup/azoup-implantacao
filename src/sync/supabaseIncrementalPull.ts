@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabaseClient'
 import { applyRemoteRowFromSupabase } from './supabaseDexieBridge'
 import { bumpSyncCursor, getSyncCursor } from './syncCursors'
 import { broadcastDexieSyncHint } from './crossTabSync'
+import { pushRuntimeDiagnostic, setIncrementalRuntimeStatus } from '../diagnostics/runtimeDiagnostics'
 
 const DOMAIN_TABLES = ['projects', 'phases', 'tasks'] as const
 
@@ -20,6 +21,8 @@ export async function runIncrementalDomainSync(): Promise<void> {
   if (!session?.user) return
 
   let appliedAny = false
+  let appliedRows = 0
+  setIncrementalRuntimeStatus({ lastRunAt: new Date().toISOString(), lastError: null, appliedRows: 0 })
 
   for (const table of DOMAIN_TABLES) {
     const cursor = getSyncCursor(table)
@@ -52,6 +55,7 @@ export async function runIncrementalDomainSync(): Promise<void> {
         for (const r of rows) {
           await applyRemoteRowFromSupabase(table, r, 'UPDATE')
           appliedAny = true
+          appliedRows += 1
           const u = typeof r.updated_at === 'string' ? r.updated_at : null
           if (u && u > maxSeen) maxSeen = u
         }
@@ -61,8 +65,17 @@ export async function runIncrementalDomainSync(): Promise<void> {
       if (maxSeen > cursor) bumpSyncCursor(table, maxSeen)
     } catch (e) {
       console.warn('[Supabase] Falha no pull incremental.', { table, e })
+      const msg = e instanceof Error ? e.message : String(e)
+      setIncrementalRuntimeStatus({ lastError: `${table}: ${msg}` })
+      pushRuntimeDiagnostic({
+        source: 'incremental-pull',
+        level: 'warn',
+        message: `Falha no pull incremental (${table}).`,
+        details: msg,
+      })
     }
   }
 
+  setIncrementalRuntimeStatus({ appliedRows })
   if (appliedAny) broadcastDexieSyncHint()
 }

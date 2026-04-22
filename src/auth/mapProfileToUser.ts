@@ -20,6 +20,7 @@ function toRole(r: string): UserRole {
 }
 
 function toStatus(s: string): UserStatus {
+  if (s === 'pending') return 'pending'
   return s === 'inactive' ? 'inactive' : 'active'
 }
 

@@ -5,12 +5,24 @@ import { seedDatabase } from './seed'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { initializeSupabaseDexieBridge } from '../sync/supabaseDexieBridge'
 import { startLiveSyncAfterBridgeReady } from '../sync/liveSyncController'
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 let initPromise: Promise<void> | null = null
 const LOCAL_SANDBOX_SEEDED_KEY = 'vyntask.localSandboxSeeded.v1'
 
 function browserStorage(): Storage | null {
-  return typeof window !== 'undefined' ? window.localStorage : null
+  if (typeof window === 'undefined') return null
+  try {
+    return window.localStorage
+  } catch (e) {
+    pushRuntimeDiagnostic({
+      source: 'db-init',
+      level: 'warn',
+      message: 'localStorage indisponível durante bootstrap.',
+      details: e instanceof Error ? e.message : String(e),
+    })
+    return null
+  }
 }
 
 async function ensureLocalSandboxProjects(): Promise<void> {

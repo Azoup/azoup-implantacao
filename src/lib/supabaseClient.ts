@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 const rawUrl = import.meta.env.VITE_SUPABASE_URL
 const rawAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -60,8 +61,13 @@ function readOverrideMode(): DataMode | null {
   try {
     const raw = window.localStorage.getItem(OVERRIDE_KEY)?.trim().toLowerCase()
     if (raw === 'local' || raw === 'cloud') return raw
-  } catch {
-    // ignore
+  } catch (e) {
+    pushRuntimeDiagnostic({
+      source: 'supabase-client',
+      level: 'warn',
+      message: 'Falha ao ler override de modo em localStorage.',
+      details: e instanceof Error ? e.message : String(e),
+    })
   }
   return null
 }
@@ -122,6 +128,15 @@ export function getDataModeOverrideRuntime(): DataMode | null {
 
 export function setDataModeOverrideRuntime(next: DataMode | null): void {
   if (!shouldAllowRuntimeOverride() || typeof window === 'undefined') return
-  if (next === null) window.localStorage.removeItem(OVERRIDE_KEY)
-  else window.localStorage.setItem(OVERRIDE_KEY, next)
+  try {
+    if (next === null) window.localStorage.removeItem(OVERRIDE_KEY)
+    else window.localStorage.setItem(OVERRIDE_KEY, next)
+  } catch (e) {
+    pushRuntimeDiagnostic({
+      source: 'supabase-client',
+      level: 'warn',
+      message: 'Falha ao persistir override de modo.',
+      details: e instanceof Error ? e.message : String(e),
+    })
+  }
 }

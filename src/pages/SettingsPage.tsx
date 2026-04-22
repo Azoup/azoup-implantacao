@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Cloud, DatabaseZap, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users } from 'lucide-react'
+import { Check, Cloud, DatabaseZap, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users, Wrench } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
@@ -21,8 +21,18 @@ import {
 } from '../lib/supabaseClient'
 import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 import { mapProfileToUser, type ProfileRow } from '../auth/mapProfileToUser'
+import { runIncrementalDomainSync } from '../sync/supabaseIncrementalPull'
+import { startSupabaseRealtimeDomainSync, stopSupabaseRealtimeDomainSync } from '../sync/supabaseRealtimeBridge'
+import { flushPendingProjectGraphSyncQueue, getPendingProjectGraphSyncIds } from '../sync/supabaseDexieBridge'
+import {
+  clearRuntimeDiagnostics,
+  getBrowserCapabilitySnapshot,
+  getRuntimeSyncSnapshot,
+  listRuntimeDiagnostics,
+  type RuntimeDiagEntry,
+} from '../diagnostics/runtimeDiagnostics'
 
-type SettingsTab = 'geral' | 'usuarios' | 'aparencia'
+type SettingsTab = 'geral' | 'usuarios' | 'aparencia' | 'console'
 
 const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -51,6 +61,10 @@ export function SettingsPage() {
     override: getDataModeOverrideRuntime(),
     canOverride: canOverrideDataModeRuntime(),
   })
+  const [diag, setDiag] = useState<RuntimeDiagEntry[]>([])
+  const [runtimeSync, setRuntimeSync] = useState(getRuntimeSyncSnapshot())
+  const [pendingSyncCount, setPendingSyncCount] = useState(0)
+  const [diagBusy, setDiagBusy] = useState<string | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
   const users = remoteUsers ?? cachedUsers
@@ -82,6 +96,18 @@ export function SettingsPage() {
     return () => {
       cancelled = true
     }
+  }, [canManageUsers])
+
+  useEffect(() => {
+    if (!canManageUsers) return
+    const pull = () => {
+      setDiag(listRuntimeDiagnostics())
+      setRuntimeSync(getRuntimeSyncSnapshot())
+      setPendingSyncCount(getPendingProjectGraphSyncIds().length)
+    }
+    pull()
+    const t = window.setInterval(pull, 2500)
+    return () => window.clearInterval(t)
   }, [canManageUsers])
 
   function openPermissions(userId: string) {
@@ -142,7 +168,7 @@ export function SettingsPage() {
     })
   }
 
-  async function updateUserStatus(userId: string, nextStatus: 'active' | 'inactive') {
+  async function updateUserStatus(userId: string, nextStatus: 'active' | 'inactive' | 'pending') {
     if (!canManageUsers || !supabase) return
     if (current?.id === userId && nextStatus === 'inactive') {
       setErr('Você não pode inativar o próprio acesso.')
@@ -155,7 +181,9 @@ export function SettingsPage() {
       if (error) throw error
       await loadUsersFromSupabase()
       void refreshSupabaseDexieCache().catch(() => undefined)
-      toast(nextStatus === 'inactive' ? 'Usuário inativado.' : 'Usuário reativado.')
+      if (nextStatus === 'inactive') toast('Usuário inativado.')
+      else if (nextStatus === 'pending') toast('Usuário movido para pendente.')
+      else toast('Usuário aprovado/reativado.')
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Falha ao atualizar status do usuário.')
     } finally {
@@ -267,6 +295,20 @@ export function SettingsPage() {
             Aparência
           </span>
         </button>
+        {canManageUsers ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'console'}
+            className={'settings-tabs__btn' + (tab === 'console' ? ' is-active' : '')}
+            onClick={() => setTab('console')}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Wrench {...icTab} aria-hidden />
+              Console Admin
+            </span>
+          </button>
+        ) : null}
       </div>
 
       {tab === 'aparencia' ? (
@@ -437,8 +479,8 @@ export function SettingsPage() {
                       <span className={'pill' + (u.role === 'admin' ? ' pill--accent' : '')}>{u.role}</span>
                     </td>
                     <td>
-                      <span className={'pill' + (u.status === 'active' ? ' pill--ok' : '')}>
-                        {u.status === 'active' ? 'ativo' : 'inativo'}
+                      <span className={'pill' + (u.status === 'active' ? ' pill--ok' : u.status === 'pending' ? ' pill--warn' : '')}>
+                        {u.status === 'active' ? 'ativo' : u.status === 'pending' ? 'pendente' : 'inativo'}
                       </span>
                     </td>
                     <td>{formatDatePt(u.createdAt)}</td>
@@ -458,6 +500,16 @@ export function SettingsPage() {
                             >
                               <UserX size={14} strokeWidth={2} />
                               Inativar
+                            </button>
+                          ) : u.status === 'pending' ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              onClick={() => void updateUserStatus(u.id, 'active')}
+                              disabled={usersBusy === u.id}
+                            >
+                              <UserCheck size={14} strokeWidth={2} />
+                              Aprovar
                             </button>
                           ) : (
                             <button
@@ -497,6 +549,177 @@ export function SettingsPage() {
         </section>
       ) : null}
 
+      {tab === 'console' && canManageUsers ? (
+        <section className="panel panel--stack">
+          <div className="page__header page__header--split" style={{ padding: 0, border: 0 }}>
+            <div>
+              <h2 className="panel__title">Console Admin de Diagnóstico</h2>
+              <p className="muted panel__lead">
+                Estado de auth/sync em tempo real, fila pendente e falhas recentes por navegador.
+              </p>
+            </div>
+          </div>
+
+          <div className="settings-console-kpis">
+            <div className="settings-console-kpi">
+              <strong>Modo de dados</strong>
+              <span>{dataModeState.mode === 'cloud' ? 'Cloud (Supabase)' : 'Local (Dexie)'}</span>
+            </div>
+            <div className="settings-console-kpi">
+              <strong>Realtime</strong>
+              <span>{runtimeSync.realtimeStatus}</span>
+            </div>
+            <div className="settings-console-kpi">
+              <strong>Fila pendente</strong>
+              <span>{pendingSyncCount}</span>
+            </div>
+            <div className="settings-console-kpi">
+              <strong>Pull incremental</strong>
+              <span>
+                {runtimeSync.incrementalLastRunAt
+                  ? `${formatDatePt(runtimeSync.incrementalLastRunAt, 'dd/MM/yyyy HH:mm')}`
+                  : 'nunca'}
+              </span>
+            </div>
+          </div>
+
+          <div className="settings-console-actions">
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={diagBusy === 'refresh'}
+              onClick={() => {
+                void (async () => {
+                  setDiagBusy('refresh')
+                  try {
+                    await refreshSupabaseDexieCache()
+                    toast('Cache Supabase atualizado.')
+                  } catch (e) {
+                    toastError(e instanceof Error ? e.message : 'Falha ao atualizar cache.')
+                  } finally {
+                    setDiagBusy(null)
+                  }
+                })()
+              }}
+            >
+              Forçar refresh cache
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={diagBusy === 'pull'}
+              onClick={() => {
+                void (async () => {
+                  setDiagBusy('pull')
+                  try {
+                    await runIncrementalDomainSync()
+                    toast('Pull incremental executado.')
+                  } catch (e) {
+                    toastError(e instanceof Error ? e.message : 'Falha no pull incremental.')
+                  } finally {
+                    setDiagBusy(null)
+                  }
+                })()
+              }}
+            >
+              Forçar pull incremental
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={diagBusy === 'rt'}
+              onClick={() => {
+                setDiagBusy('rt')
+                stopSupabaseRealtimeDomainSync()
+                startSupabaseRealtimeDomainSync()
+                setTimeout(() => setDiagBusy(null), 300)
+                toast('Canal realtime reiniciado.')
+              }}
+            >
+              Reabrir realtime
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={diagBusy === 'queue'}
+              onClick={() => {
+                void (async () => {
+                  setDiagBusy('queue')
+                  try {
+                    await flushPendingProjectGraphSyncQueue()
+                    toast('Fila pendente processada.')
+                  } catch (e) {
+                    toastError(e instanceof Error ? e.message : 'Falha ao processar fila.')
+                  } finally {
+                    setDiagBusy(null)
+                  }
+                })()
+              }}
+            >
+              Processar fila pendente
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => {
+                clearRuntimeDiagnostics()
+                setDiag([])
+                toast('Diagnóstico limpo.')
+              }}
+            >
+              Limpar diagnósticos
+            </button>
+          </div>
+
+          <div className="settings-console-browser">
+            <h3 style={{ margin: 0 }}>Saúde do navegador atual</h3>
+            {(() => {
+              const cap = getBrowserCapabilitySnapshot()
+              return (
+                <ul className="muted" style={{ margin: 0 }}>
+                  <li>localStorage: {cap.hasLocalStorage ? 'ok' : 'indisponível'}</li>
+                  <li>sessionStorage: {cap.hasSessionStorage ? 'ok' : 'indisponível'}</li>
+                  <li>IndexedDB: {cap.hasIndexedDb ? 'ok' : 'indisponível'}</li>
+                  <li>BroadcastChannel: {cap.hasBroadcastChannel ? 'ok' : 'indisponível'}</li>
+                  <li>WebSocket: {cap.hasWebSocket ? 'ok' : 'indisponível'}</li>
+                </ul>
+              )
+            })()}
+          </div>
+
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>Fonte</th>
+                  <th>Nível</th>
+                  <th>Mensagem</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diag.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="muted">
+                      Sem ocorrências registradas.
+                    </td>
+                  </tr>
+                ) : (
+                  diag.slice(0, 50).map((d) => (
+                    <tr key={d.id}>
+                      <td>{formatDatePt(d.at, 'dd/MM/yyyy HH:mm:ss')}</td>
+                      <td>{d.source}</td>
+                      <td>{d.level}</td>
+                      <td title={d.details ?? ''}>{d.message}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       {open && canManageUsers ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
           <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
@@ -510,7 +733,7 @@ export function SettingsPage() {
                 <li>Admin cria em Authentication → Users (painel Supabase).</li>
               </ol>
               <p className="muted" style={{ margin: 0 }}>
-                Depois ajuste permissões nesta tela (botão <strong>Permissões</strong>).
+                Todo novo cadastro entra como <strong>pendente</strong>. Depois aprove e ajuste permissões nesta tela.
               </p>
               <div className="modal__actions">
                 <button type="button" className="btn btn--primary" onClick={() => setOpen(false)}>

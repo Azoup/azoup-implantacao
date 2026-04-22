@@ -43,35 +43,37 @@ alter table public.project_deletion_logs enable row level security;
 
 drop policy if exists audit_logs_select on public.audit_logs;
 create policy audit_logs_select on public.audit_logs
-  for select to authenticated using (auth.uid() is not null);
+  for select to authenticated using (public.profile_is_active());
 
 drop policy if exists audit_logs_insert on public.audit_logs;
 create policy audit_logs_insert on public.audit_logs
-  for insert to authenticated with check (auth.uid() is not null and user_id = auth.uid());
+  for insert to authenticated with check (public.profile_is_active() and user_id = auth.uid());
 
 drop policy if exists audit_logs_update on public.audit_logs;
 create policy audit_logs_update on public.audit_logs
-  for update to authenticated using (auth.uid() is not null) with check (auth.uid() is not null);
+  for update to authenticated using (public.profile_is_active() and public.is_admin())
+  with check (public.profile_is_active() and public.is_admin());
 
 drop policy if exists audit_logs_delete on public.audit_logs;
 create policy audit_logs_delete on public.audit_logs
-  for delete to authenticated using (auth.uid() is not null);
+  for delete to authenticated using (public.profile_is_active() and public.is_admin());
 
 drop policy if exists project_deletion_logs_select on public.project_deletion_logs;
 create policy project_deletion_logs_select on public.project_deletion_logs
-  for select to authenticated using (auth.uid() is not null);
+  for select to authenticated using (public.profile_is_active());
 
 drop policy if exists project_deletion_logs_insert on public.project_deletion_logs;
 create policy project_deletion_logs_insert on public.project_deletion_logs
-  for insert to authenticated with check (auth.uid() is not null and deleted_by_user_id = auth.uid());
+  for insert to authenticated with check (public.profile_is_active() and deleted_by_user_id = auth.uid());
 
 drop policy if exists project_deletion_logs_update on public.project_deletion_logs;
 create policy project_deletion_logs_update on public.project_deletion_logs
-  for update to authenticated using (auth.uid() is not null) with check (auth.uid() is not null);
+  for update to authenticated using (public.profile_is_active() and public.is_admin())
+  with check (public.profile_is_active() and public.is_admin());
 
 drop policy if exists project_deletion_logs_delete on public.project_deletion_logs;
 create policy project_deletion_logs_delete on public.project_deletion_logs
-  for delete to authenticated using (auth.uid() is not null);
+  for delete to authenticated using (public.profile_is_active() and public.is_admin());
 
 grant select, insert, update, delete on table public.audit_logs to authenticated;
 grant select, insert, update, delete on table public.project_deletion_logs to authenticated;

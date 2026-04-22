@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'user'
-export type UserStatus = 'active' | 'inactive'
+export type UserStatus = 'active' | 'inactive' | 'pending'
 export type PermissionScope =
   | 'dashboard.view'
   | 'overview.view'

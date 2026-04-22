@@ -1,3 +1,4 @@
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 const CHANNEL_NAME = 'vyntask-dexie-sync-v1'
 
 type SyncMessage = { v: 1; kind: 'incremental-pull' }
@@ -26,8 +27,13 @@ export function broadcastDexieSyncHint(): void {
       })()
     const msg: SyncMessage = { v: 1, kind: 'incremental-pull' }
     ch.postMessage(msg)
-  } catch {
-    // ignore
+  } catch (e) {
+    pushRuntimeDiagnostic({
+      source: 'cross-tab',
+      level: 'warn',
+      message: 'Falha ao publicar hint de sync entre abas.',
+      details: e instanceof Error ? e.message : String(e),
+    })
   }
 }
 
@@ -40,9 +46,15 @@ export function startCrossTabDexieSync(handler: () => void): void {
     channel.onmessage = (ev: MessageEvent<SyncMessage>) => {
       if (ev.data?.v === 1 && ev.data.kind === 'incremental-pull') scheduleIncremental()
     }
-  } catch {
+  } catch (e) {
     channel = null
     onIncremental = null
+    pushRuntimeDiagnostic({
+      source: 'cross-tab',
+      level: 'warn',
+      message: 'BroadcastChannel indisponível para sync entre abas.',
+      details: e instanceof Error ? e.message : String(e),
+    })
   }
 }
 

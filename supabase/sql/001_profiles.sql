@@ -11,7 +11,7 @@ create table if not exists public.profiles (
   name text not null,
   role text not null default 'user' check (role in ('admin', 'user')),
   permissions text[] null,
-  status text not null default 'active' check (status in ('active', 'inactive')),
+  status text not null default 'pending' check (status in ('active', 'inactive', 'pending')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   last_login_at timestamptz null
@@ -34,11 +34,42 @@ begin
 end;
 $$;
 
+create or replace function public.guard_profile_privileged_update()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    if auth.uid() is null or auth.uid() <> old.id then
+      raise exception 'Sem permissão para alterar este perfil.';
+    end if;
+    if new.role is distinct from old.role then
+      raise exception 'Apenas admin pode alterar role.';
+    end if;
+    if new.status is distinct from old.status then
+      raise exception 'Apenas admin pode alterar status.';
+    end if;
+    if new.permissions is distinct from old.permissions then
+      raise exception 'Apenas admin pode alterar permissões.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
 drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at
   before update on public.profiles
   for each row
   execute function public.set_updated_at();
+
+drop trigger if exists profiles_guard_privileged_update on public.profiles;
+create trigger profiles_guard_privileged_update
+  before update on public.profiles
+  for each row
+  execute function public.guard_profile_privileged_update();
 
 -- ---------------------------------------------------------------------------
 -- 3) Ao criar usuário no Auth, cria linha em profiles (SECURITY DEFINER)
@@ -62,7 +93,7 @@ begin
     ),
     -- Sempre 'user' no cadastro público; promoção a admin só via SQL/Dashboard (nunca confiar em metadata do cliente).
     'user',
-    'active'
+    'pending'
   )
   on conflict (id) do nothing;
   return new;
@@ -120,7 +151,7 @@ create policy "profiles_update_own"
 -- ---------------------------------------------------------------------------
 revoke update on table public.profiles from authenticated;
 grant select on table public.profiles to authenticated;
-grant update (name, permissions, last_login_at) on table public.profiles to authenticated;
+grant update (name, permissions, status, role, last_login_at) on table public.profiles to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Opcional: backfill — usuários em auth.users sem linha em profiles

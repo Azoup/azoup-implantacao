@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import { applyRemoteRowFromSupabase } from './supabaseDexieBridge'
 import { broadcastDexieSyncHint } from './crossTabSync'
+import { pushRuntimeDiagnostic, setRealtimeRuntimeStatus } from '../diagnostics/runtimeDiagnostics'
 
 let channel: RealtimeChannel | null = null
 
@@ -32,6 +33,7 @@ function handleDomain(table: 'projects' | 'phases' | 'tasks', payload: PgChangeP
 
 export function startSupabaseRealtimeDomainSync(): void {
   if (!supabase || channel) return
+  setRealtimeRuntimeStatus('subscribing')
   const client = supabase
   const ch = client
     .channel('vyntask-domain-realtime')
@@ -45,8 +47,19 @@ export function startSupabaseRealtimeDomainSync(): void {
       handleDomain('tasks', payload as PgChangePayload),
     )
     .subscribe((status, err) => {
+      if (status === 'SUBSCRIBED') {
+        setRealtimeRuntimeStatus('subscribed')
+      }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn('[Supabase] Realtime:', status, err ?? '')
+        const msg = err ? String((err as { message?: string }).message ?? err) : status
+        setRealtimeRuntimeStatus(status === 'TIMED_OUT' ? 'timed_out' : 'error', msg)
+        pushRuntimeDiagnostic({
+          source: 'realtime',
+          level: 'warn',
+          message: `Canal realtime em falha: ${status}`,
+          details: msg,
+        })
       }
     })
   channel = ch
@@ -56,4 +69,5 @@ export function stopSupabaseRealtimeDomainSync(): void {
   if (!supabase || !channel) return
   void supabase.removeChannel(channel)
   channel = null
+  setRealtimeRuntimeStatus('stopped')
 }

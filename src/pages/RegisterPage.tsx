@@ -10,7 +10,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [done, setDone] = useState<{ needsEmailConfirmation: boolean } | null>(null)
+  const [done, setDone] = useState<{ needsEmailConfirmation: boolean; pendingApproval: boolean } | null>(null)
 
   if (!ready) {
     return (
@@ -55,10 +55,12 @@ export function RegisterPage() {
       <AuthCardShell subtitle="Cadastro recebido">
         {done.needsEmailConfirmation ? (
           <p className="muted" style={{ margin: 0 }}>
-            Enviamos um link de confirmação para o seu e-mail. Abra a mensagem e confirme antes de entrar.
+            Enviamos um link de confirmação para o seu e-mail. Após confirmar, seu acesso ficará pendente de aprovação do admin.
           </p>
         ) : (
-          <p className="muted" style={{ margin: 0 }}>Sua conta está pronta. Você já pode entrar.</p>
+          <p className="muted" style={{ margin: 0 }}>
+            Cadastro criado. Seu acesso está pendente de aprovação do administrador.
+          </p>
         )}
         <p className="auth__footer-link">
           <Link to="/login">Ir para o login</Link>

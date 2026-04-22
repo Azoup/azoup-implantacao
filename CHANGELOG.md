@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.5.1 (2026-04-22)
+
+- **Auth híbrido e governança:** novos cadastros entram como `pending`; login bloqueia usuário pendente/inativo com mensagem explícita; fluxo de aprovação centralizado para admin.
+- **Segurança de permissões/RLS:** hardening em `profiles` (proteção de alteração de `role/status/permissions`) e auditoria (`audit_logs`/`project_deletion_logs`) com update/delete restrito para admin ativo.
+- **Console Admin de diagnóstico:** nova aba em Configurações com status de sessão/sync/realtime, fila pendente, ações de recuperação (refresh cache, pull incremental, reabrir realtime) e stream de erros operacionais.
+- **Robustez cross-browser:** instrumentação de falhas em storage/cursors/BroadcastChannel/WebSocket, captura global de erros JS e diagnóstico de capacidades do navegador para troubleshooting em Comet/Brave/Chrome.
+- **Operação Supabase:** scripts de manutenção para correção de CRUD em documentação, hardening de auth/auditoria e promoção de admins por e-mail.
+
 ## v2.4.7 (2026-04-21)
 
 - **Implantação:** correção de crash em `splitUrls` / `IntroRich` quando texto vem `undefined` (página da jornada não quebra mais).

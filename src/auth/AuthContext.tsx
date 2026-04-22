@@ -30,7 +30,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
-  signUp: (email: string, password: string, fullName: string) => Promise<{ needsEmailConfirmation: boolean }>
+  signUp: (email: string, password: string, fullName: string) => Promise<{ needsEmailConfirmation: boolean; pendingApproval: boolean }>
   requestPasswordReset: (email: string) => Promise<void>
   updatePassword: (newPassword: string) => Promise<void>
 }
@@ -61,13 +61,19 @@ async function fetchProfileUser(userId: string): Promise<DbUser | null> {
     .maybeSingle()
   if (error || !data) return null
   const u = mapProfileToUser(data as ProfileRow)
-  if (u.status !== 'active') return null
   return u
 }
 
 async function touchLastLogin(userId: string) {
   if (!supabase) return
   await supabase.from('profiles').update({ last_login_at: new Date().toISOString() }).eq('id', userId)
+}
+
+function profileBlockedMessage(status: DbUser['status']): string {
+  if (status === 'pending') {
+    return 'Seu cadastro foi recebido e está pendente de aprovação do administrador.'
+  }
+  return 'Seu perfil está inativo. Procure o administrador para reativação.'
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -103,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (session?.user) {
             const u = await fetchProfileUser(session.user.id)
             if (cancelled) return
-            if (u) {
+            if (u?.status === 'active') {
               setUser(u)
               try {
                 await refreshSupabaseDexieCache()
@@ -132,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
             const u = await fetchProfileUser(session.user.id)
             if (cancelled) return
-            if (u) {
+            if (u?.status === 'active') {
               setUser(u)
               try {
                 stopLiveSyncOnLogout()
@@ -212,6 +218,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut()
           throw new Error('Perfil indisponível ou inativo.')
         }
+        if (u.status !== 'active') {
+          await supabase.auth.signOut()
+          throw new Error(profileBlockedMessage(u.status))
+        }
         await touchLastLogin(session.user.id)
         setUser({ ...u, lastLogin: new Date().toISOString() })
         await refreshSupabaseDexieCache()
@@ -248,7 +258,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } = await supabase.auth.getSession()
       if (session?.user) {
         const u = await fetchProfileUser(session.user.id)
-        setUser(u)
+        setUser(u?.status === 'active' ? u : null)
       } else {
         setUser(null)
       }
@@ -271,7 +281,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (error) throw new Error(error.message || 'Falha no cadastro.')
       const needsEmailConfirmation = !data.session
-      return { needsEmailConfirmation }
+      if (data.session?.user) {
+        await supabase.auth.signOut()
+      }
+      return { needsEmailConfirmation, pendingApproval: true }
     },
     [useSb],
   )

@@ -24,6 +24,7 @@ import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgr
 import { broadcastDexieSyncHint } from './crossTabSync'
 import { dispatchSyncFailure } from './syncFailure'
 import { bumpSyncCursor, isIncrementalRemoteTable, setSyncCursor } from './syncCursors'
+import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 type BridgeDef<TLocal> = {
   localTable: keyof typeof db
@@ -95,6 +96,10 @@ function readPendingProjectGraphSyncIds(): string[] {
   } catch {
     return []
   }
+}
+
+export function getPendingProjectGraphSyncIds(): string[] {
+  return readPendingProjectGraphSyncIds()
 }
 
 function writePendingProjectGraphSyncIds(ids: string[]): void {
@@ -1110,6 +1115,12 @@ async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown)
     if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
   }
   dispatchSyncFailure({ table: def.remoteTable, operation: 'upsert', message: lastMsg })
+  pushRuntimeDiagnostic({
+    source: 'dexie-bridge',
+    level: 'warn',
+    message: `Falha em upsert remoto (${def.remoteTable}).`,
+    details: lastMsg,
+  })
 }
 
 async function deleteRemoteWithRetry(def: BridgeDef<unknown>, id: string): Promise<void> {
@@ -1126,6 +1137,12 @@ async function deleteRemoteWithRetry(def: BridgeDef<unknown>, id: string): Promi
     if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
   }
   dispatchSyncFailure({ table: def.remoteTable, operation: 'delete', message: lastMsg })
+  pushRuntimeDiagnostic({
+    source: 'dexie-bridge',
+    level: 'warn',
+    message: `Falha em delete remoto (${def.remoteTable}).`,
+    details: lastMsg,
+  })
 }
 
 function installHooks() {
