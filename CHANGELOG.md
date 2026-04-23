@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.6.0 (2026-04-23)
+
+- **Reestruturação frontend:** rotas em lazy loading com fallback dedicado, divisão de estilos em módulos (`src/styles/part*.css`) e cleanup de imports dinâmicos no Dexie.
+- **Qualidade de código:** migração para ESLint flat + Vitest, warning budget zerado (`eslint . --max-warnings 0`) e pipeline CI no GitHub Actions rodando lint/test/build em push/PR.
+- **Portal cliente e tipagem:** novas páginas/serviços do portal, tipos dedicados para payloads de submissão/arquivos e redução de `any` em pontos críticos.
+- **Relatórios:** botão de exportação CSV por aba (executivo, operação, horas) para compartilhamento rápido de indicadores.
+- **Operação/migração:** script `backup_unique_files.ps1` para backup deduplicado por hash na troca de notebook.
+
 ## v2.5.2 (2026-04-22)
 
 - **Bugfix (Configurações/Permissões):** ajustes de permissões e status de usuário agora usam RPCs administrativas (`admin_set_profile_permissions` e `admin_set_profile_status`), evitando falhas por trigger/RLS no update direto de `profiles`.
