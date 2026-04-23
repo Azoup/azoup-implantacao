@@ -1,5 +1,6 @@
 import {
   FormEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,7 @@ import {
   Send,
   Tag,
   Trash2,
+  UserCircle2,
   X,
   XCircle,
 } from 'lucide-react'
@@ -43,6 +45,17 @@ import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyComments,
+  emptyContacts,
+  emptyEvents,
+  emptyPhases,
+  emptyPlanModels,
+  emptyProjects,
+  emptyTasks,
+  emptyUsers,
+} from '../lib/stableDexieEmpty'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { formatDatePt } from '../lib/dates'
@@ -83,6 +96,14 @@ import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectCo
 import { setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
+import {
+  fetchWelcomeSubmissionsForProject,
+  getPortalProjectFileDownloadUrl,
+  listPortalProjectFiles,
+  type PortalProjectFile,
+  type WelcomeSubmissionForProjectRow,
+} from '../services/clientPortal'
+import { AZOUP_WELCOME_FORM_FIELDS } from '../constants/azoupWelcomeForm'
 import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
@@ -103,7 +124,7 @@ import type {
   TaskStatus,
 } from '../db/types'
 
-type DetailTab = 'fases' | 'contatos' | 'docs' | 'labels'
+type DetailTab = 'fases' | 'contatos' | 'docs' | 'labels' | 'portal'
 
 const ic = { size: 16, strokeWidth: 2, absoluteStrokeWidth: true } as const
 const icSm = { size: 14, strokeWidth: 2, absoluteStrokeWidth: true } as const
@@ -137,14 +158,15 @@ export function ProjectDetailPage() {
   const { user } = useAuth()
   const { running: runningTimerSession, liveSeconds: runningLiveSeconds } = useRunningTimerSession(user?.id)
   const canEditProjects = hasScope(user, 'projects.edit')
+  const canViewPortalIntel = Boolean(user) && isSupabaseConfigured() && hasScope(user, 'projects.view')
 
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
   const project = projectId ? projects.find((p) => p.id === projectId) : undefined
 
   const tasks = useLiveQuery(
     () => (projectId ? db.tasks.where('projectId').equals(projectId).toArray() : Promise.resolve([] as DbTask[])),
     [projectId],
-  ) ?? []
+  ) ?? emptyTasks
 
   const projectEvents = useLiveQuery(
     () =>
@@ -152,12 +174,12 @@ export function ProjectDetailPage() {
         ? db.events.where('projectId').equals(projectId).toArray()
         : Promise.resolve([] as DbEvent[]),
     [projectId],
-  ) ?? []
+  ) ?? emptyEvents
 
   const phases = useLiveQuery(
     () => (projectId ? db.phases.where('projectId').equals(projectId).toArray() : Promise.resolve([] as DbPhase[])),
     [projectId],
-  ) ?? []
+  ) ?? emptyPhases
 
   const allComments = useLiveQuery(async () => {
     if (!projectId) return [] as DbComment[]
@@ -169,7 +191,7 @@ export function ProjectDetailPage() {
     for (const c of direct) merged.set(c.id, c)
     for (const c of byTask) merged.set(c.id, c)
     return [...merged.values()]
-  }, [projectId]) ?? []
+  }, [projectId]) ?? emptyComments
   const taskCommentsOnly = useMemo(() => allComments.filter((c) => c.taskId != null), [allComments])
   const docComments = useMemo(
     () =>
@@ -179,7 +201,7 @@ export function ProjectDetailPage() {
     [allComments, projectId],
   )
 
-  const users = useLiveQuery(() => db.users.toArray(), []) ?? []
+  const users = useLiveQuery(() => db.users.toArray(), []) ?? emptyUsers
 
   const contacts = useLiveQuery(
     () =>
@@ -187,9 +209,9 @@ export function ProjectDetailPage() {
         ? db.projectContacts.where('projectId').equals(projectId).toArray()
         : Promise.resolve([] as DbProjectContact[]),
     [projectId],
-  ) ?? []
+  ) ?? emptyContacts
 
-  const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? []
+  const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? emptyPlanModels
 
   const catalogPlanBlueprint = useLiveQuery(async () => {
     if (!projectId) return null
@@ -205,10 +227,14 @@ export function ProjectDetailPage() {
     }
     return { blocks }
   }, [projectId])
-  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const analysts = useMemo(() => analystsAll.filter((a) => a.active), [analystsAll])
 
   const [tab, setTab] = useState<DetailTab>('fases')
+  const [portalSubmissions, setPortalSubmissions] = useState<WelcomeSubmissionForProjectRow[]>([])
+  const [portalFiles, setPortalFiles] = useState<PortalProjectFile[]>([])
+  const [portalLoad, setPortalLoad] = useState(false)
+  const [portalErr, setPortalErr] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [hoursTask, setHoursTask] = useState<DbTask | null>(null)
   const [expandedDesc, setExpandedDesc] = useState<Record<string, boolean>>({})
@@ -290,7 +316,40 @@ export function ProjectDetailPage() {
   }, [planBlueprint, sortedPhases, tasks, projectId])
 
   const userNameById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users])
+  const azoupFieldLabel = useMemo(() => new Map(AZOUP_WELCOME_FORM_FIELDS.map((f) => [f.id, f.label])), [])
   const { toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason } = useUiFeedback()
+
+  useEffect(() => {
+    if (tab === 'portal' && !canViewPortalIntel) setTab('fases')
+  }, [tab, canViewPortalIntel])
+
+  useEffect(() => {
+    if (tab !== 'portal' || !projectId || !canViewPortalIntel) return
+    let alive = true
+    void (async () => {
+      setPortalLoad(true)
+      setPortalErr(null)
+      try {
+        const [subs, files] = await Promise.all([
+          fetchWelcomeSubmissionsForProject(projectId),
+          listPortalProjectFiles(projectId),
+        ])
+        if (!alive) return
+        setPortalSubmissions(subs)
+        setPortalFiles(files)
+      } catch (e) {
+        if (!alive) return
+        setPortalErr(e instanceof Error ? e.message : 'Falha ao carregar dados do portal.')
+        setPortalSubmissions([])
+        setPortalFiles([])
+      } finally {
+        if (alive) setPortalLoad(false)
+      }
+    })()
+    return () => {
+      alive = false
+    }
+  }, [tab, projectId, canViewPortalIntel])
 
   const docBeingEdited = docEditingId ? docComments.find((c) => c.id === docEditingId) : undefined
   const docEditingDirty = Boolean(
@@ -319,6 +378,15 @@ export function ProjectDetailPage() {
     onSave: flushProjectUnsaved,
     message: 'Há rascunhos na documentação ou no formulário de contatos que ainda não foram publicados.',
   })
+
+  async function onPortalFileDownload(fileId: string) {
+    try {
+      const url = await getPortalProjectFileDownloadUrl(fileId)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Falha ao baixar arquivo.')
+    }
+  }
 
   if (!user) return null
   const me: DbUser = user
@@ -842,6 +910,18 @@ export function ProjectDetailPage() {
           <Tag className="pd-tabs__ic" aria-hidden size={18} strokeWidth={2} />
           <span>Labels</span>
         </button>
+        {canViewPortalIntel ? (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'portal'}
+            className={'pd-tabs__btn' + (tab === 'portal' ? ' is-active' : '')}
+            onClick={() => setTab('portal')}
+          >
+            <UserCircle2 className="pd-tabs__ic" aria-hidden size={18} strokeWidth={2} />
+            <span>Portal cliente</span>
+          </button>
+        ) : null}
       </div>
 
       {tab === 'fases' ? (
@@ -1568,6 +1648,136 @@ export function ProjectDetailPage() {
               ))}
             </div>
           )}
+        </div>
+      ) : null}
+
+      {tab === 'portal' && canViewPortalIntel ? (
+        <div className="pd-tab-panel pd-portal">
+          <p className="muted pd-portal__lead">
+            Respostas do formulário de boas-vindas e arquivos trocados pelo portal (Supabase). Útil para implantação e
+            encaminhamento ao time técnico.
+          </p>
+          {portalLoad ? <p className="muted">Carregando dados do portal…</p> : null}
+          {portalErr ? <p className="auth__error">{portalErr}</p> : null}
+
+          <section className="pd-portal__block">
+            <h3 className="pd-portal__block-title">Formulários (boas-vindas)</h3>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Quando</th>
+                    <th>Status</th>
+                    <th>Cliente (cadastro)</th>
+                    <th>Enviado por</th>
+                    <th>Template</th>
+                    <th>Respostas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portalSubmissions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="muted">
+                        Nenhuma submissão registrada para este projeto.
+                      </td>
+                    </tr>
+                  ) : (
+                    portalSubmissions.map((row) => {
+                      const answers = row.answers && typeof row.answers === 'object' ? (row.answers as Record<string, unknown>) : {}
+                      const keys = Object.keys(answers).filter((k) => {
+                        const v = answers[k]
+                        if (v == null) return false
+                        if (Array.isArray(v)) return v.length > 0
+                        return String(v).trim().length > 0
+                      })
+                      const tplName =
+                        row.welcome_form_templates && typeof row.welcome_form_templates === 'object'
+                          ? String((row.welcome_form_templates as { name?: string }).name ?? '—')
+                          : '—'
+                      const clientName =
+                        row.clients && typeof row.clients === 'object'
+                          ? String((row.clients as { name?: string }).name ?? '—')
+                          : '—'
+                      const byId = String(row.submitted_by ?? '')
+                      const byName = userNameById.get(byId) ?? (byId ? `${byId.slice(0, 8)}…` : '—')
+                      return (
+                        <tr key={String(row.id)}>
+                          <td>{row.created_at ? formatDatePt(String(row.created_at), 'dd/MM/yyyy HH:mm') : '—'}</td>
+                          <td>
+                            <span className={'pill' + (row.status === 'submitted' ? ' pill--ok' : '')}>
+                              {String(row.status ?? '')}
+                            </span>
+                          </td>
+                          <td>{clientName}</td>
+                          <td>{byName}</td>
+                          <td>{tplName}</td>
+                          <td>
+                            <details className="pd-portal__details">
+                              <summary className="pd-portal__summary">
+                                {keys.length} campo(s) · ver detalhe
+                              </summary>
+                              <dl className="pd-portal__answers">
+                                {keys.map((k) => {
+                                  const raw = answers[k]
+                                  const text = Array.isArray(raw) ? (raw as string[]).join(', ') : String(raw ?? '')
+                                  return (
+                                    <div key={k} className="pd-portal__answer-row">
+                                      <dt>{azoupFieldLabel.get(k) ?? k}</dt>
+                                      <dd>{text}</dd>
+                                    </div>
+                                  )
+                                })}
+                              </dl>
+                            </details>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="pd-portal__block">
+            <h3 className="pd-portal__block-title">Arquivos (modelos e envios)</h3>
+            <div className="table-wrap">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Arquivo</th>
+                    <th>Tipo</th>
+                    <th>Tamanho</th>
+                    <th>Quando</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {portalFiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="muted">
+                        Nenhum arquivo no portal para este projeto.
+                      </td>
+                    </tr>
+                  ) : (
+                    portalFiles.map((f) => (
+                      <tr key={f.id}>
+                        <td>{f.originalName}</td>
+                        <td>{f.kind === 'template' ? 'Modelo (equipe)' : 'Envio do cliente'}</td>
+                        <td>{Math.round((f.sizeBytes / 1024) * 10) / 10} KB</td>
+                        <td>{f.createdAt ? formatDatePt(f.createdAt, 'dd/MM/yyyy HH:mm') : '—'}</td>
+                        <td>
+                          <button type="button" className="btn btn--ghost btn--sm" onClick={() => void onPortalFileDownload(f.id)}>
+                            Baixar
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       ) : null}
 

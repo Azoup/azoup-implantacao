@@ -4,6 +4,13 @@ import { Link, useLocation } from 'react-router-dom'
 import { ArrowDownAZ, CalendarDays, ChevronDown, ChevronUp, Clock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyPhases,
+  emptyPlanModels,
+  emptyProjects,
+  emptyTasks,
+} from '../lib/stableDexieEmpty'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { deleteProjectCascade, recordProjectDeletionLog } from '../services/projectDelete'
@@ -32,12 +39,12 @@ export function ProjectsPage() {
   const { user } = useAuth()
   const location = useLocation()
   const openedRef = useRef(false)
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const analystsAll = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const analysts = useMemo(() => analystsAll.filter((a) => a.active), [analystsAll])
-  const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? []
+  const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? emptyPlanModels
 
   const [open, setOpen] = useState(false)
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')

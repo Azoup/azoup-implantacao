@@ -33,6 +33,19 @@ type BridgeDef<TLocal> = {
   toRemote: (row: TLocal) => Record<string, unknown>
 }
 
+/** Tabela Dexie acessada por nome dinâmico; tipos de `hook()` não unificam entre eventos. */
+type DexieTableForSyncHooks = {
+  hook(type: 'creating', fn: (_pk: unknown, obj: unknown) => void): void
+  hook(
+    type: 'updating',
+    fn: (mods: Record<string, unknown>, _pk: unknown, obj: Record<string, unknown>) => void,
+  ): void
+  hook(type: 'deleting', fn: (pk: unknown) => void): void
+  count(): Promise<number>
+  clear(): Promise<void>
+  bulkPut(items: unknown[]): Promise<unknown>
+}
+
 let hooksInstalled = false
 let syncingMuted = false
 /** Permite refresh + salvamento explícito sem “empilhar” mute de forma incorreta. */
@@ -1150,7 +1163,7 @@ function installHooks() {
   hooksInstalled = true
 
   for (const def of defs) {
-    const table = (db as Record<string, any>)[def.localTable]
+    const table = db.table(def.localTable as string) as unknown as DexieTableForSyncHooks
     // Dexie 4: hooks creating/updating não aguardam Promise; retornar Promise quebrava o sync e a UI “salvava” só no IndexedDB.
     table.hook('creating', function (_primaryKey: unknown, obj: unknown) {
       if (syncingMuted) return
@@ -1176,6 +1189,7 @@ async function hydrateUsersFromProfiles() {
     name: String(r.name ?? ''),
     email: String(r.email ?? ''),
     role: String(r.role ?? 'user') === 'admin' ? 'admin' : 'user',
+    userType: String(r.user_type ?? 'internal') === 'client' ? 'client' : 'internal',
     permissions:
       toStringArrayOrNull(r.permissions)?.filter((s): s is PermissionScope => validScopes.has(s)) ?? null,
     status: String(r.status ?? 'active') === 'inactive' ? 'inactive' : 'active',
@@ -1201,7 +1215,7 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
   pushSyncMute()
   try {
     for (const def of defs) {
-      const table = (db as Record<string, any>)[def.localTable]
+      const table = db.table(def.localTable as string) as unknown as DexieTableForSyncHooks
       try {
         const rows = await fetchAll(def.remoteTable)
         const mapped = rows.map(def.fromRemote)

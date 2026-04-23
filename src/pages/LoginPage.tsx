@@ -34,7 +34,7 @@ export function LoginPage() {
     )
   }
 
-  if (user) return <Navigate to="/dashboard" replace />
+  if (user) return <Navigate to={user.userType === 'client' ? '/portal' : '/dashboard'} replace />
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -44,7 +44,7 @@ export function LoginPage() {
       await login(email, password)
       if (rememberMe) localStorage.setItem(REMEMBER_EMAIL_KEY, email.trim().toLowerCase())
       else localStorage.removeItem(REMEMBER_EMAIL_KEY)
-      navigate('/dashboard', { replace: true })
+      navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha no login.')
     } finally {

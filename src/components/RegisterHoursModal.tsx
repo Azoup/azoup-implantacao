@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { Check, Clock, History, ImagePlus, Paperclip, Pause, Play, X } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
+import { emptyAnalysts, emptyTimeLogs, emptyTimeSessions } from '../lib/stableDexieEmpty'
 import type { DbDocAttachment, DbTask, DbTimeLog, DbTimeSession, DbUser, TaskStatus, TimeLogType } from '../db/types'
 import { addProjectDocumentation } from '../services/taskComments'
 import { deleteTimeSession, getRunningSessionForUser, updateSessionDurationSeconds } from '../services/timeSessions'
@@ -139,6 +140,8 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
   const [tick, setTick] = useState(0)
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const onCloseRef = useRef(onClose)
+  const onSubmitRef = useRef<(e: FormEvent) => Promise<void>>(async () => {})
 
   const running = useLiveQuery(async () => getRunningSessionForUser(user.id), [user.id])
   const runningHere = running?.taskId === task?.id ? running : null
@@ -152,15 +155,15 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
           : Promise.resolve(''),
       [task?.projectId],
     ) ?? ''
-  const analysts = (useLiveQuery(() => db.analysts.toArray(), []) ?? []).filter((a) => a.active)
+  const analysts = (useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts).filter((a) => a.active)
   const taskSessions =
     useLiveQuery(
       async () => (task?.id ? db.timeSessions.where('taskId').equals(task.id).reverse().sortBy('createdAt') : []),
       [task?.id, busy],
-    ) ?? []
+    ) ?? emptyTimeSessions
   const taskLogs =
     useLiveQuery(async () => (task?.id ? db.timeLogs.where('taskId').equals(task.id).toArray() : []), [task?.id, busy]) ??
-    []
+    emptyTimeLogs
   const userNames = useLiveQuery(async () => {
     const users = await db.users.toArray()
     const m: Record<string, string> = {}
@@ -216,12 +219,12 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     setDocPendingFiles([])
     setEditingSessionId(null)
     setEditingHours('')
-  }, [open, task?.id, projectAnalystId])
+  }, [open, task, projectAnalystId])
 
   useEffect(() => {
     if (!open || !task || attendanceKind !== 'ocorreu') return
     if (runningHere) setHours(MANUAL_DURATION_ZERO)
-  }, [open, task?.id, attendanceKind, runningHere?.id])
+  }, [open, task, attendanceKind, runningHere])
 
   useEffect(() => {
     if (!task) return
@@ -234,7 +237,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     } else if (attendanceKind === 'nao_compareceu_avisou') {
       setHours(MANUAL_DURATION_ZERO)
     }
-  }, [attendanceKind, task?.id])
+  }, [attendanceKind, task])
 
   useEffect(() => {
     if (attendanceKind !== 'ocorreu') {
@@ -246,23 +249,26 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     if (!runningHere) return
     const id = window.setInterval(() => setTick((x) => x + 1), 1000)
     return () => window.clearInterval(id)
-  }, [runningHere?.id])
+  }, [runningHere])
+
+  onCloseRef.current = onClose
+  onSubmitRef.current = onSubmit
 
   useEffect(() => {
     if (!open || !task) return
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         ev.preventDefault()
-        if (!busy) onClose()
+        if (!busy) onCloseRef.current()
       } else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
         ev.preventDefault()
         const fakeEvt = { preventDefault() {} } as FormEvent
-        void onSubmit(fakeEvt)
+        void onSubmitRef.current(fakeEvt)
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, busy, task?.id, runningHere?.id, hours, notes, executionDate, activeTab])
+  }, [open, busy, task, runningHere, hours, notes, executionDate, activeTab])
 
   if (!open || !task) return null
   if (task.isInformational) return null

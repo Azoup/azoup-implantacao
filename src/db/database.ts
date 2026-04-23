@@ -1,6 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { defaultScopesForRole } from '../auth/permissions'
 import { DEFAULT_PLAN_PRESENTATION_URLS, STATIC_PLAN_PRESENTATIONS } from '../constants/planPresentations'
 import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
+import { recalculateAllProjectHours } from '../services/hoursAccounting'
+import { syncAllTaskInformationalFromPlan } from '../services/syncTaskInformationalFromPlan'
+import { syncBuiltinPlanTemplates } from './builtinPlans'
 import type {
   DbAnalyst,
   DbAuditLog,
@@ -159,7 +163,6 @@ export class VyntaskDB extends Dexie {
         labels: 'id, projectId, code',
       })
       .upgrade(async () => {
-        const { syncBuiltinPlanTemplates } = await import('./builtinPlans')
         await syncBuiltinPlanTemplates()
       })
     this.version(6)
@@ -180,7 +183,6 @@ export class VyntaskDB extends Dexie {
         labels: 'id, projectId, code',
       })
       .upgrade(async () => {
-        const { recalculateAllProjectHours } = await import('../services/hoursAccounting')
         await recalculateAllProjectHours()
       })
     this.version(7)
@@ -201,7 +203,6 @@ export class VyntaskDB extends Dexie {
         labels: 'id, projectId, code',
       })
       .upgrade(async () => {
-        const { syncAllTaskInformationalFromPlan } = await import('../services/syncTaskInformationalFromPlan')
         await syncAllTaskInformationalFromPlan()
       })
     this.version(8)
@@ -254,7 +255,6 @@ export class VyntaskDB extends Dexie {
         labels: 'id, projectId, code',
       })
       .upgrade(async (tx) => {
-        const { defaultScopesForRole } = await import('../auth/permissions')
         await tx.table('users').toCollection().modify((u: Record<string, unknown>) => {
           const role = String(u.role ?? 'user') === 'admin' ? 'admin' : 'user'
           const perms = Array.isArray(u.permissions) ? u.permissions : []

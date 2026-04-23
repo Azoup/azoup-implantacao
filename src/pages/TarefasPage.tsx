@@ -4,6 +4,12 @@ import { LayoutList, Columns3, FolderTree } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyPhases,
+  emptyProjects,
+  emptyTasks,
+} from '../lib/stableDexieEmpty'
 import { compareTaskCode } from '../lib/taskCode'
 import { isTaskActiveForPrazoBoard } from '../lib/taskDueBucket'
 import { formatDatePt } from '../lib/dates'
@@ -21,10 +27,10 @@ const tabIcon = { size: 18, strokeWidth: 1.75, absoluteStrokeWidth: true } as co
 export function TarefasPage() {
   const { user } = useAuth()
   const canEditTasks = hasScope(user, 'tasks.edit')
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
-  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const { toastError } = useUiFeedback()
 
   const [tab, setTab] = useState<TarefaTab>('lista')

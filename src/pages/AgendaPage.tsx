@@ -20,6 +20,12 @@ import { createEventValidated, updateEventValidated } from '../services/events'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
+  emptyAnalysts,
+  emptyEvents,
+  emptyProjects,
+  emptyTasks,
+} from '../lib/stableDexieEmpty'
+import {
   assignLanes,
   CAL_TZ,
   dayKey,
@@ -92,10 +98,10 @@ export function AgendaPage() {
   const prefillConsumedKey = useRef<string | null>(null)
   const { toast, toastError, toastWarn } = useUiFeedback()
 
-  const events = useLiveQuery(() => db.events.orderBy('startTime').toArray(), []) ?? []
-  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
+  const events = useLiveQuery(() => db.events.orderBy('startTime').toArray(), []) ?? emptyEvents
+  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
 
   const [weekMonday, setWeekMonday] = useState(() => mondayOfWeekContaining(new Date()))
   const [activeDay, setActiveDay] = useState(() => zonedNow())
@@ -211,7 +217,7 @@ export function AgendaPage() {
       setEditingEventId(null)
       setModalOpen(true)
     })()
-  }, [location.state, location.key, location.pathname, navigate, canEditAgenda, toastError])
+  }, [location.state, location.key, location.pathname, navigate, canEditAgenda, toastError, toastWarn])
 
   const todayKey = dayKey(zonedNow())
 
@@ -320,10 +326,7 @@ export function AgendaPage() {
     return list.slice(0, 150)
   }, [tasks, events, agendaProjectFilterId, unscheduledSearchNorm, projectNameById])
 
-  const nowTopPct = useMemo(() => {
-    const n = new Date()
-    return layoutInGrid(n.toISOString(), new Date(n.getTime() + 60_000).toISOString()).topPct
-  }, [weekMonday, activeDay, viewMode])
+  const nowTopPct = layoutInGrid(new Date().toISOString(), new Date(Date.now() + 60_000).toISOString()).topPct
 
   const goToday = useCallback(() => {
     const now = new Date()

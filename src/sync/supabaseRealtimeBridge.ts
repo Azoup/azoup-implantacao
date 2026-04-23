@@ -5,6 +5,38 @@ import { broadcastDexieSyncHint } from './crossTabSync'
 import { pushRuntimeDiagnostic, setRealtimeRuntimeStatus } from '../diagnostics/runtimeDiagnostics'
 
 let channel: RealtimeChannel | null = null
+let reconnectTimer: number | null = null
+const RECONNECT_DELAY_MS = 5000
+const RECONNECT_WINDOW_MS = 60_000
+const MAX_RECONNECTS_PER_WINDOW = 10
+let reconnectTimestamps: number[] = []
+
+function pruneReconnectWindow(now: number): void {
+  reconnectTimestamps = reconnectTimestamps.filter((t) => now - t < RECONNECT_WINDOW_MS)
+}
+
+function scheduleRealtimeReconnect(): void {
+  if (typeof window === 'undefined') return
+  if (reconnectTimer != null) return
+  const now = Date.now()
+  pruneReconnectWindow(now)
+  if (reconnectTimestamps.length >= MAX_RECONNECTS_PER_WINDOW) {
+    pushRuntimeDiagnostic({
+      source: 'realtime',
+      level: 'warn',
+      message: 'Muitas reconexões Realtime em sequência; aguarde ou verifique o projeto no Supabase (Realtime nas tabelas projects/phases/tasks).',
+      details: `>${MAX_RECONNECTS_PER_WINDOW} tentativas em ${RECONNECT_WINDOW_MS / 1000}s`,
+    })
+    return
+  }
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    reconnectTimestamps.push(Date.now())
+    if (!supabase) return
+    stopSupabaseRealtimeDomainSync()
+    startSupabaseRealtimeDomainSync()
+  }, RECONNECT_DELAY_MS)
+}
 
 type PgChangePayload = {
   eventType: 'INSERT' | 'UPDATE' | 'DELETE'
@@ -48,6 +80,7 @@ export function startSupabaseRealtimeDomainSync(): void {
     )
     .subscribe((status, err) => {
       if (status === 'SUBSCRIBED') {
+        reconnectTimestamps = []
         setRealtimeRuntimeStatus('subscribed')
       }
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
@@ -60,12 +93,18 @@ export function startSupabaseRealtimeDomainSync(): void {
           message: `Canal realtime em falha: ${status}`,
           details: msg,
         })
+        stopSupabaseRealtimeDomainSync()
+        scheduleRealtimeReconnect()
       }
     })
   channel = ch
 }
 
 export function stopSupabaseRealtimeDomainSync(): void {
+  if (reconnectTimer != null && typeof window !== 'undefined') {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
   if (!supabase || !channel) return
   void supabase.removeChannel(channel)
   channel = null

@@ -22,7 +22,7 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
     setName(phase?.name ?? '')
     setColorHex(phase?.colorHex ?? inferPhaseColor(phase?.name ?? '', orderIndex))
     setErr(null)
-  }, [open, phase?.id, orderIndex])
+  }, [open, phase, orderIndex])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()

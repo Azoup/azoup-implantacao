@@ -17,6 +17,7 @@ import {
   Plus,
   SlidersHorizontal,
   Sparkles,
+  UserCircle2,
   Sun,
   UsersRound,
 } from 'lucide-react'
@@ -38,6 +39,7 @@ const mainNav: NavItem[] = [
   { to: '/relatorios', label: 'Relatórios', icon: PieChart, scope: 'reports.view' },
   { to: '/logs', label: 'Logs', icon: History, scope: 'reports.view' },
   { to: '/assistente', label: 'Assistente', icon: Sparkles, scope: 'ai.view' },
+  { to: '/portal', label: 'Portal Cliente', icon: UserCircle2, scope: 'portal.view' },
 ]
 
 const bottomNav: NavItem[] = [

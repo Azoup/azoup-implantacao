@@ -8,6 +8,7 @@ import { hasScope } from '../auth/permissions'
 import { PlanPhaseModal } from '../components/PlanPhaseModal'
 import { PlanTaskModal, type PlanTaskFormValues } from '../components/PlanTaskModal'
 import { db } from '../db/database'
+import { emptyPlanModels } from '../lib/stableDexieEmpty'
 import type { DbPlanPhase, DbPlanTask, PlanTypeKey } from '../db/types'
 import { compareTaskCode } from '../lib/taskCode'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
@@ -45,7 +46,7 @@ export function PlanModelsPage() {
   const { toastError, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const canEditPlanModels = hasScope(user, 'planModels.edit')
-  const plans = useLiveQuery(() => db.planModels.toArray(), []) ?? []
+  const plans = useLiveQuery(() => db.planModels.toArray(), []) ?? emptyPlanModels
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const [name, setName] = useState('')
@@ -107,7 +108,7 @@ export function PlanModelsPage() {
     setActive(selected.active)
     setMetaErr(null)
     setMetaOk(false)
-  }, [selected?.id, selected?.name, selected?.hoursContracted, selected?.presentationUrl, selected?.clientDescription, selected?.active])
+  }, [selected])
 
   useEffect(() => {
     if (!newOpen) return
@@ -120,7 +121,7 @@ export function PlanModelsPage() {
     setNewHours(src?.hoursContracted ?? 30)
     setNewName('')
     setNewErr(null)
-  }, [newOpen, selected?.key, plans])
+  }, [newOpen, selected, plans])
 
   useEffect(() => {
     if (!newOpen) return

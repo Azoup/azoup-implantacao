@@ -1,4 +1,4 @@
-import type { DbUser, PermissionScope, UserRole, UserStatus } from '../db/types'
+import type { DbUser, PermissionScope, UserRole, UserStatus, UserType } from '../db/types'
 import { ALL_PERMISSION_SCOPES } from './permissions'
 
 const validScope = new Set<string>(ALL_PERMISSION_SCOPES)
@@ -9,6 +9,7 @@ export type ProfileRow = {
   email: string
   name: string
   role: string
+  user_type?: string | null
   permissions: string[] | null
   status: string
   created_at: string
@@ -24,6 +25,10 @@ function toStatus(s: string): UserStatus {
   return s === 'inactive' ? 'inactive' : 'active'
 }
 
+function toUserType(v?: string | null): UserType {
+  return v === 'client' ? 'client' : 'internal'
+}
+
 export function mapProfileToUser(row: ProfileRow): DbUser {
   const permissions =
     row.permissions?.filter((p): p is PermissionScope => validScope.has(p)) ?? null
@@ -32,6 +37,7 @@ export function mapProfileToUser(row: ProfileRow): DbUser {
     name: row.name,
     email: row.email,
     role: toRole(row.role),
+    userType: toUserType(row.user_type),
     permissions: permissions?.length ? permissions : null,
     status: toStatus(row.status),
     createdAt: row.created_at,

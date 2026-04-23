@@ -1,11 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Check, Cloud, DatabaseZap, Moon, Palette, Shield, Sun, Trash2, UserCheck, UserX, Users, Wrench } from 'lucide-react'
+import {
+  Check,
+  Cloud,
+  DatabaseZap,
+  Moon,
+  Palette,
+  Shield,
+  Sun,
+  Trash2,
+  Upload,
+  UserCheck,
+  UserX,
+  Users,
+  Wrench,
+} from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
 import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
 import type { DbUser, PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
+import { emptyUsers } from '../lib/stableDexieEmpty'
 import { PALETTE_PRESETS } from '../theme/paletteCatalog'
 import { useTheme } from '../theme/ThemeContext'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
@@ -31,6 +47,60 @@ import {
   listRuntimeDiagnostics,
   type RuntimeDiagEntry,
 } from '../diagnostics/runtimeDiagnostics'
+import {
+  fetchPortalClientFilesOps,
+  fetchWelcomeSubmissionsOps,
+  getPortalProjectFileDownloadUrl,
+  type PortalClientFileOpsRow,
+  type WelcomeSubmissionOpsRow,
+  uploadPortalProjectFile,
+} from '../services/clientPortal'
+
+const SETTINGS_PROFILES_TIMEOUT_MS = 25_000
+const SETTINGS_PROFILES_TIMEOUT_MSG = `A consulta de perfis passou de ${SETTINGS_PROFILES_TIMEOUT_MS / 1000}s sem resposta. Testar em localhost não bloqueia essa lista; verifique rede, VPN, extensões do navegador ou o status do projeto no Supabase.`
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let id: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        id = setTimeout(() => reject(new Error(message)), ms)
+      }),
+    ])
+  } finally {
+    if (id !== undefined) clearTimeout(id)
+  }
+}
+
+/** Lista `profiles` para a tela de admin (RLS aplica conforme o papel no banco). */
+async function fetchAdminProfilesList(client: SupabaseClient): Promise<ProfileRow[]> {
+  const { data: sessionData } = await client.auth.getSession()
+  if (!sessionData.session?.user) {
+    throw new Error('Sessão não encontrada. Faça login novamente.')
+  }
+  const first = await client
+    .from('profiles')
+    .select('id,email,name,role,user_type,permissions,status,created_at,last_login_at')
+    .order('created_at', { ascending: false })
+  let data = (first.data as ProfileRow[] | null) ?? null
+  let error = first.error
+  if (error && /user_type/i.test(error.message ?? '')) {
+    const fallback = await client
+      .from('profiles')
+      .select('id,email,name,role,permissions,status,created_at,last_login_at')
+      .order('created_at', { ascending: false })
+    data = (fallback.data as ProfileRow[] | null) ?? null
+    error = fallback.error
+  }
+  if (error) throw error
+  return (data ?? []) as ProfileRow[]
+}
+
+async function fetchUsersListForSettings(client: SupabaseClient): Promise<DbUser[]> {
+  const rows = await fetchAdminProfilesList(client)
+  return rows.map(mapProfileToUser)
+}
 
 type SettingsTab = 'geral' | 'usuarios' | 'aparencia' | 'console'
 
@@ -39,7 +109,7 @@ const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 export function SettingsPage() {
   const { user: current } = useAuth()
   const { theme, setTheme, palette, setPalette } = useTheme()
-  const cachedUsers = useLiveQuery(() => db.users.toArray(), []) ?? []
+  const cachedUsers = useLiveQuery(() => db.users.toArray(), []) ?? emptyUsers
   const modKey = useMemo(
     () => (/Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? '⌘' : 'Ctrl'),
     [],
@@ -52,6 +122,8 @@ export function SettingsPage() {
   const [permissionDraft, setPermissionDraft] = useState<PermissionScope[]>([])
   const [usersBusy, setUsersBusy] = useState<string | null>(null)
   const [remoteUsers, setRemoteUsers] = useState<DbUser[] | null>(null)
+  /** Só para admin: null = ainda carregando lista remota; não usar Dexie como fallback (cache pode ter só 1 perfil). */
+  const [usersRemoteLoadError, setUsersRemoteLoadError] = useState<string | null>(null)
   const [dataModeState, setDataModeState] = useState<{
     mode: DataMode
     override: DataMode | null
@@ -65,9 +137,25 @@ export function SettingsPage() {
   const [runtimeSync, setRuntimeSync] = useState(getRuntimeSyncSnapshot())
   const [pendingSyncCount, setPendingSyncCount] = useState(0)
   const [diagBusy, setDiagBusy] = useState<string | null>(null)
+  const [portalBusy, setPortalBusy] = useState<string | null>(null)
+  const [portalClients, setPortalClients] = useState<Array<{ id: string; name: string; status: string }>>([])
+  const [portalProjects, setPortalProjects] = useState<Array<{ id: string; project_name: string }>>([])
+  const [portalSubmissions, setPortalSubmissions] = useState<WelcomeSubmissionOpsRow[]>([])
+  const [portalClientFiles, setPortalClientFiles] = useState<PortalClientFileOpsRow[]>([])
+  const [newClientName, setNewClientName] = useState('')
+  const [linkProfileId, setLinkProfileId] = useState('')
+  const [linkClientId, setLinkClientId] = useState('')
+  const [linkProjectId, setLinkProjectId] = useState('')
+  const portalTemplateFileRef = useRef<HTMLInputElement>(null)
+  const usersListEffectGen = useRef(0)
+  const [portalTemplateFileHint, setPortalTemplateFileHint] = useState<string | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
-  const users = remoteUsers ?? cachedUsers
+  const users = useMemo(() => {
+    if (!canManageUsers) return cachedUsers
+    if (remoteUsers !== null) return remoteUsers
+    return []
+  }, [canManageUsers, remoteUsers, cachedUsers])
   const editingPermissionUser = permissionsUserId ? users.find((u) => u.id === permissionsUserId) ?? null : null
   const { requestConfirm, toast, toastError } = useUiFeedback()
 
@@ -79,30 +167,65 @@ export function SettingsPage() {
   }
 
   async function loadUsersFromSupabase() {
-    if (!supabase) return
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id,email,name,role,permissions,status,created_at,last_login_at')
-      .order('created_at', { ascending: false })
-    if (error) throw error
-    const mapped = ((data ?? []) as ProfileRow[]).map(mapProfileToUser)
-    setRemoteUsers(mapped)
+    if (!supabase) throw new Error('Supabase não configurado.')
+    const list = await withTimeout(
+      fetchUsersListForSettings(supabase),
+      SETTINGS_PROFILES_TIMEOUT_MS,
+      SETTINGS_PROFILES_TIMEOUT_MSG,
+    )
+    setRemoteUsers(list)
   }
 
   useEffect(() => {
-    if (!canManageUsers || !supabase) return
+    if (!canManageUsers || !supabase) {
+      setRemoteUsers(null)
+      setUsersRemoteLoadError(null)
+      return
+    }
+    if (tab !== 'usuarios') return
+
+    usersListEffectGen.current += 1
+    const gen = usersListEffectGen.current
     let cancelled = false
+    setRemoteUsers(null)
+    setUsersRemoteLoadError(null)
     ;(async () => {
       try {
-        await loadUsersFromSupabase()
+        const list = await withTimeout(
+          fetchUsersListForSettings(supabase),
+          SETTINGS_PROFILES_TIMEOUT_MS,
+          SETTINGS_PROFILES_TIMEOUT_MSG,
+        )
+        if (cancelled || gen !== usersListEffectGen.current) return
+        setRemoteUsers(list)
+        setUsersRemoteLoadError(null)
         void refreshSupabaseDexieCache().catch(() => undefined)
       } catch (e) {
-        if (!cancelled) setErr(e instanceof Error ? e.message : 'Falha ao carregar usuários do Supabase.')
+        if (cancelled || gen !== usersListEffectGen.current) return
+        const msg = e instanceof Error ? e.message : 'Falha ao carregar usuários do Supabase.'
+        setUsersRemoteLoadError(msg)
+        setRemoteUsers([])
       }
     })()
     return () => {
       cancelled = true
     }
+  }, [canManageUsers, current?.id, tab])
+
+  const loadPortalAdminData = useCallback(async () => {
+    if (!canManageUsers || !supabase) return
+    const [{ data: clients, error: clientsErr }, { data: projects, error: projectsErr }, submissions, files] = await Promise.all([
+      supabase.from('clients').select('id,name,status').order('created_at', { ascending: false }),
+      supabase.from('projects').select('id,project_name').order('created_at', { ascending: false }),
+      fetchWelcomeSubmissionsOps(),
+      fetchPortalClientFilesOps(),
+    ])
+    if (clientsErr) throw clientsErr
+    if (projectsErr) throw projectsErr
+    setPortalClients((clients ?? []) as Array<{ id: string; name: string; status: string }>)
+    setPortalProjects((projects ?? []) as Array<{ id: string; project_name: string }>)
+    setPortalSubmissions(submissions)
+    setPortalClientFiles(files)
   }, [canManageUsers])
 
   useEffect(() => {
@@ -116,6 +239,11 @@ export function SettingsPage() {
     const t = window.setInterval(pull, 2500)
     return () => window.clearInterval(t)
   }, [canManageUsers])
+
+  useEffect(() => {
+    if (!canManageUsers || !supabase) return
+    void loadPortalAdminData().catch(() => undefined)
+  }, [canManageUsers, current?.id, loadPortalAdminData])
 
   function openPermissions(userId: string) {
     const target = users.find((u) => u.id === userId)
@@ -255,6 +383,87 @@ export function SettingsPage() {
         : 'Modo TESTE local ativado. Recarregando...',
     )
     window.setTimeout(() => window.location.reload(), 250)
+  }
+
+  async function onCreateClient() {
+    if (!newClientName.trim() || !supabase) return
+    try {
+      setPortalBusy('create-client')
+      const { error } = await supabase.rpc('admin_create_client', { p_name: newClientName.trim() })
+      if (error) throw error
+      setNewClientName('')
+      await loadPortalAdminData()
+      toast('Cliente criado com sucesso.')
+    } catch (e) {
+      toastError(formatSupabaseError(e, 'Falha ao criar cliente.'))
+    } finally {
+      setPortalBusy(null)
+    }
+  }
+
+  async function onLinkProfileToClient() {
+    if (!supabase || !linkProfileId || !linkClientId) return
+    try {
+      setPortalBusy('link-profile')
+      const [typeResp, linkResp] = await Promise.all([
+        supabase.rpc('admin_set_profile_user_type', { p_profile_id: linkProfileId, p_user_type: 'client' }),
+        supabase.rpc('admin_link_profile_to_client', {
+          p_profile_id: linkProfileId,
+          p_client_id: linkClientId,
+          p_role_in_client: 'member',
+        }),
+      ])
+      if (typeResp.error) throw typeResp.error
+      if (linkResp.error) throw linkResp.error
+      await loadUsersFromSupabase()
+      await loadPortalAdminData()
+      toast('Perfil vinculado ao cliente.')
+    } catch (e) {
+      toastError(formatSupabaseError(e, 'Falha ao vincular perfil ao cliente.'))
+    } finally {
+      setPortalBusy(null)
+    }
+  }
+
+  async function onLinkProjectToClient() {
+    if (!supabase || !linkClientId || !linkProjectId) return
+    try {
+      setPortalBusy('link-project')
+      const { error } = await supabase.rpc('admin_link_project_to_client', {
+        p_project_id: linkProjectId,
+        p_client_id: linkClientId,
+      })
+      if (error) throw error
+      await loadPortalAdminData()
+      toast('Projeto vinculado ao cliente.')
+    } catch (e) {
+      toastError(formatSupabaseError(e, 'Falha ao vincular projeto ao cliente.'))
+    } finally {
+      setPortalBusy(null)
+    }
+  }
+
+  async function onDownloadPortalFile(fileId: string) {
+    try {
+      const url = await getPortalProjectFileDownloadUrl(fileId)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      toastError(formatSupabaseError(e, 'Falha ao baixar arquivo.'))
+    }
+  }
+
+  async function onUploadTemplateFile(projectId: string, file: File) {
+    try {
+      setPortalBusy(`template-${projectId}`)
+      await uploadPortalProjectFile({ projectId, kind: 'template', file })
+      await loadPortalAdminData()
+      toast('Modelo padrão publicado para o cliente.')
+      setPortalTemplateFileHint(null)
+    } catch (e) {
+      toastError(formatSupabaseError(e, 'Falha ao publicar modelo.'))
+    } finally {
+      setPortalBusy(null)
+    }
   }
 
   return (
@@ -467,7 +676,19 @@ export function SettingsPage() {
           <div className="page__header page__header--split" style={{ padding: 0, border: 0 }}>
             <div>
               <h2 className="panel__title">Controle de usuários</h2>
-              <p className="muted panel__lead">{users.length} usuário(s) carregado(s) automaticamente do Supabase.</p>
+              {canManageUsers && remoteUsers === null && !usersRemoteLoadError ? (
+                <p className="muted panel__lead">Carregando lista de perfis do Supabase…</p>
+              ) : usersRemoteLoadError ? (
+                <p className="auth__error panel__lead" style={{ marginTop: 0 }}>
+                  {usersRemoteLoadError}
+                </p>
+              ) : canManageUsers ? (
+                <p className="muted panel__lead">
+                  {users.length} usuário(s) listados conforme retorno do Supabase (RLS: só admins veem todos os perfis).
+                </p>
+              ) : (
+                <p className="muted panel__lead">{users.length} usuário(s) no cache local deste aparelho.</p>
+              )}
             </div>
           </div>
 
@@ -559,11 +780,151 @@ export function SettingsPage() {
             <p className="muted panel__foot">Somente admin pode criar usuários e alterar permissões.</p>
           ) : null}
           {err ? <p className="auth__error">{err}</p> : null}
+
+          {canManageUsers ? (
+            <section className="panel panel--stack settings-portal-admin" aria-labelledby="settings-portal-admin-title">
+              <div className="settings-portal-admin__head">
+                <h3 id="settings-portal-admin-title" className="panel__title">
+                  Portal Cliente · Vínculos administrativos
+                </h3>
+                <p className="muted settings-portal-admin__intro">
+                  Crie o cadastro do cliente, associe o perfil de acesso e vincule projetos. Publique as planilhas padrão para o portal.
+                </p>
+              </div>
+
+              <div className="settings-portal-admin__block">
+                <h4 className="settings-portal-admin__block-title">Novo cliente</h4>
+                <div className="settings-portal-admin__grid settings-portal-admin__grid--single">
+                  <label className="field">
+                    <span>Nome</span>
+                    <input
+                      value={newClientName}
+                      onChange={(e) => setNewClientName(e.target.value)}
+                      placeholder="Nome do cliente"
+                      autoComplete="off"
+                    />
+                  </label>
+                </div>
+                <div className="settings-portal-admin__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => void onCreateClient()}
+                    disabled={portalBusy === 'create-client' || !newClientName.trim()}
+                  >
+                    Criar cliente
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-portal-admin__block">
+                <h4 className="settings-portal-admin__block-title">Vincular perfil ao cliente</h4>
+                <div className="settings-portal-admin__grid">
+                  <label className="field">
+                    <span>Perfil</span>
+                    <select value={linkProfileId} onChange={(e) => setLinkProfileId(e.target.value)}>
+                      <option value="">Selecione</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.email})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Cliente</span>
+                    <select value={linkClientId} onChange={(e) => setLinkClientId(e.target.value)}>
+                      <option value="">Selecione</option>
+                      {portalClients.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="settings-portal-admin__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => void onLinkProfileToClient()}
+                    disabled={portalBusy === 'link-profile' || !linkProfileId || !linkClientId}
+                  >
+                    Vincular perfil ao cliente
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-portal-admin__block">
+                <h4 className="settings-portal-admin__block-title">Vincular projeto ao cliente</h4>
+                <div className="settings-portal-admin__grid settings-portal-admin__grid--single">
+                  <label className="field">
+                    <span>Projeto</span>
+                    <select value={linkProjectId} onChange={(e) => setLinkProjectId(e.target.value)}>
+                      <option value="">Selecione</option>
+                      {portalProjects.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.project_name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div className="settings-portal-admin__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => void onLinkProjectToClient()}
+                    disabled={portalBusy === 'link-project' || !linkClientId || !linkProjectId}
+                  >
+                    Vincular projeto ao cliente
+                  </button>
+                </div>
+              </div>
+
+              <div className="settings-portal-admin__block">
+                <h4 className="settings-portal-admin__block-title">Planilhas padrão no portal</h4>
+                <p className="muted settings-portal-admin__hint">
+                  Selecione um projeto acima, depois envie o arquivo. Formatos: .xlsx, .xls, .csv, .pdf, .zip.
+                </p>
+                <input
+                  ref={portalTemplateFileRef}
+                  type="file"
+                  className="sr-only"
+                  accept=".xlsx,.xls,.csv,.pdf,.zip"
+                  tabIndex={-1}
+                  aria-hidden
+                  disabled={!linkProjectId || portalBusy?.startsWith('template-')}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file || !linkProjectId) return
+                    setPortalTemplateFileHint(file.name)
+                    void onUploadTemplateFile(linkProjectId, file)
+                    e.currentTarget.value = ''
+                  }}
+                />
+                <div className="file-upload-styled">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    disabled={!linkProjectId || portalBusy?.startsWith('template-')}
+                    onClick={() => portalTemplateFileRef.current?.click()}
+                  >
+                    <Upload size={16} strokeWidth={2} aria-hidden />
+                    Escolher arquivo
+                  </button>
+                  <span className="muted file-upload-styled__name" title={portalTemplateFileHint ?? undefined}>
+                    {portalTemplateFileHint ?? 'Nenhum arquivo escolhido'}
+                  </span>
+                </div>
+              </div>
+            </section>
+          ) : null}
         </section>
       ) : null}
 
       {tab === 'console' && canManageUsers ? (
-        <section className="panel panel--stack">
+        <section className="panel panel--stack settings-console">
           <div className="page__header page__header--split" style={{ padding: 0, border: 0 }}>
             <div>
               <h2 className="panel__title">Console Admin de Diagnóstico</h2>
@@ -575,19 +936,36 @@ export function SettingsPage() {
 
           <div className="settings-console-kpis">
             <div className="settings-console-kpi">
-              <strong>Modo de dados</strong>
-              <span>{dataModeState.mode === 'cloud' ? 'Cloud (Supabase)' : 'Local (Dexie)'}</span>
+              <strong className="settings-console-kpi__label">Modo de dados</strong>
+              <span className="settings-console-kpi__value">
+                <span className={'pill' + (dataModeState.mode === 'cloud' ? ' pill--ok' : '')}>
+                  {dataModeState.mode === 'cloud' ? 'Cloud (Supabase)' : 'Local (Dexie)'}
+                </span>
+              </span>
             </div>
             <div className="settings-console-kpi">
-              <strong>Realtime</strong>
-              <span>{runtimeSync.realtimeStatus}</span>
+              <strong className="settings-console-kpi__label">Realtime</strong>
+              <span className="settings-console-kpi__value">
+                <span
+                  className={
+                    'pill' +
+                    (runtimeSync.realtimeStatus === 'subscribed'
+                      ? ' pill--ok'
+                      : runtimeSync.realtimeStatus === 'error' || runtimeSync.realtimeStatus === 'timed_out'
+                        ? ' pill--warn'
+                        : '')
+                  }
+                >
+                  {runtimeSync.realtimeStatus}
+                </span>
+              </span>
             </div>
             <div className="settings-console-kpi">
-              <strong>Fila pendente</strong>
-              <span>{pendingSyncCount}</span>
+              <strong className="settings-console-kpi__label">Fila pendente</strong>
+              <span className="settings-console-kpi__value">{pendingSyncCount}</span>
             </div>
             <div className="settings-console-kpi">
-              <strong>Pull incremental</strong>
+              <strong className="settings-console-kpi__label">Pull incremental</strong>
               <span>
                 {runtimeSync.incrementalLastRunAt
                   ? `${formatDatePt(runtimeSync.incrementalLastRunAt, 'dd/MM/yyyy HH:mm')}`
@@ -596,7 +974,7 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="settings-console-actions">
+          <div className="settings-console-actions" role="group" aria-label="Ações de diagnóstico">
             <button
               type="button"
               className="btn btn--ghost btn--sm"
@@ -685,22 +1063,32 @@ export function SettingsPage() {
           </div>
 
           <div className="settings-console-browser">
-            <h3 style={{ margin: 0 }}>Saúde do navegador atual</h3>
+            <h3 className="settings-console-browser__title">Saúde do navegador atual</h3>
             {(() => {
               const cap = getBrowserCapabilitySnapshot()
               return (
-                <ul className="muted" style={{ margin: 0 }}>
-                  <li>localStorage: {cap.hasLocalStorage ? 'ok' : 'indisponível'}</li>
-                  <li>sessionStorage: {cap.hasSessionStorage ? 'ok' : 'indisponível'}</li>
-                  <li>IndexedDB: {cap.hasIndexedDb ? 'ok' : 'indisponível'}</li>
-                  <li>BroadcastChannel: {cap.hasBroadcastChannel ? 'ok' : 'indisponível'}</li>
-                  <li>WebSocket: {cap.hasWebSocket ? 'ok' : 'indisponível'}</li>
+                <ul className="settings-console-cap-list muted">
+                  <li>
+                    localStorage: <strong>{cap.hasLocalStorage ? 'ok' : 'indisponível'}</strong>
+                  </li>
+                  <li>
+                    sessionStorage: <strong>{cap.hasSessionStorage ? 'ok' : 'indisponível'}</strong>
+                  </li>
+                  <li>
+                    IndexedDB: <strong>{cap.hasIndexedDb ? 'ok' : 'indisponível'}</strong>
+                  </li>
+                  <li>
+                    BroadcastChannel: <strong>{cap.hasBroadcastChannel ? 'ok' : 'indisponível'}</strong>
+                  </li>
+                  <li>
+                    WebSocket: <strong>{cap.hasWebSocket ? 'ok' : 'indisponível'}</strong>
+                  </li>
                 </ul>
               )
             })()}
           </div>
 
-          <div className="table-wrap">
+          <div className="table-wrap settings-console__table-wrap">
             <table className="table">
               <thead>
                 <tr>
@@ -724,6 +1112,76 @@ export function SettingsPage() {
                       <td>{d.source}</td>
                       <td>{d.level}</td>
                       <td title={d.details ?? ''}>{d.message}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="table-wrap settings-console__table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Formulário</th>
+                  <th>Projeto</th>
+                  <th>Cliente</th>
+                  <th>Status</th>
+                  <th>Quando</th>
+                </tr>
+              </thead>
+              <tbody>
+                {portalSubmissions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Sem submissões de boas-vindas registradas.
+                    </td>
+                  </tr>
+                ) : (
+                  portalSubmissions.map((row) => (
+                    <tr key={row.id}>
+                      <td>{String(row.id).slice(0, 8)}</td>
+                      <td>{String(row.projects?.project_name ?? row.project_id)}</td>
+                      <td>{String(row.clients?.name ?? row.client_id)}</td>
+                      <td>{String(row.status ?? '')}</td>
+                      <td>{row.submitted_at ? formatDatePt(row.submitted_at, 'dd/MM/yyyy HH:mm') : 'rascunho'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="table-wrap settings-console__table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Arquivo enviado pelo cliente</th>
+                  <th>Projeto</th>
+                  <th>Cliente</th>
+                  <th>Quando</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {portalClientFiles.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="muted">
+                      Sem arquivos recebidos dos clientes.
+                    </td>
+                  </tr>
+                ) : (
+                  portalClientFiles.map((row) => (
+                    <tr key={row.id}>
+                      <td>{String(row.original_name ?? '')}</td>
+                      <td>{String(row.projects?.project_name ?? row.project_id)}</td>
+                      <td>{String(row.profiles?.name ?? 'Cliente')}</td>
+                      <td>{formatDatePt(row.created_at, 'dd/MM/yyyy HH:mm')}</td>
+                      <td>
+                        <button className="btn btn--ghost btn--sm" onClick={() => void onDownloadPortalFile(String(row.id))}>
+                          Baixar
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}

@@ -1,5 +1,6 @@
 export type UserRole = 'admin' | 'user'
 export type UserStatus = 'active' | 'inactive' | 'pending'
+export type UserType = 'internal' | 'client'
 export type PermissionScope =
   | 'dashboard.view'
   | 'overview.view'
@@ -17,6 +18,9 @@ export type PermissionScope =
   | 'planModels.edit'
   | 'analysts.view'
   | 'analysts.edit'
+  | 'portal.view'
+  | 'portal.agenda.view'
+  | 'portal.forms.fill'
 
 export type ProjectStatus = 'ativo' | 'pausado' | 'finalizado' | 'cancelado'
 
@@ -71,11 +75,68 @@ export interface DbUser {
   /** Ausente quando o usuário vem só do Supabase Auth (senha não fica no app). */
   passwordHash?: string
   role: UserRole
+  userType: UserType
   /** Scopes preparado para futura migração para Auth externo (ex.: Supabase). */
   permissions?: PermissionScope[] | null
   status: UserStatus
   createdAt: string
   lastLogin: string | null
+}
+
+export interface DbClient {
+  id: string
+  name: string
+  status: 'active' | 'inactive'
+  createdAt: string
+}
+
+export interface DbClientMembership {
+  id: string
+  clientId: string
+  profileId: string
+  roleInClient: 'owner' | 'member'
+  createdAt: string
+}
+
+export interface DbProjectClientLink {
+  id: string
+  projectId: string
+  clientId: string
+  createdAt: string
+}
+
+export interface DbWelcomeFormTemplate {
+  id: string
+  projectId: string
+  name: string
+  schema: {
+    sections: Array<{
+      id: string
+      title: string
+      fields: Array<{
+        id: string
+        label: string
+        type: 'text' | 'textarea' | 'select' | 'checklist'
+        required?: boolean
+        options?: string[]
+      }>
+    }>
+  }
+  isActive: boolean
+  createdAt: string
+}
+
+export interface DbWelcomeFormSubmission {
+  id: string
+  templateId: string
+  projectId: string
+  clientId: string
+  submittedBy: string
+  status: 'draft' | 'submitted'
+  answers: Record<string, unknown>
+  submittedAt: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface DbAnalyst {

@@ -1,7 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyEvents,
+  emptyPhases,
+  emptyProjects,
+  emptyTasks,
+  emptyTimeLogs,
+} from '../lib/stableDexieEmpty'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
+import { formatDatePt } from '../lib/dates'
 
 type ReportsTab = 'executivo' | 'operacao' | 'horas'
 type PeriodPreset = 'all' | 'day' | 'week' | 'month' | 'custom'
@@ -48,13 +57,31 @@ function isInRange(iso: string, start: Date | null, end: Date | null): boolean {
   return true
 }
 
+function csvCell(value: string | number): string {
+  const raw = String(value ?? '')
+  return `"${raw.replaceAll('"', '""')}"`
+}
+
+function downloadCsv(filename: string, header: string[], rows: Array<Array<string | number>>) {
+  const csv = [header.map(csvCell).join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function ReportsPage() {
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const timeLogs = useLiveQuery(() => db.timeLogs.toArray(), []) ?? []
-  const events = useLiveQuery(() => db.events.toArray(), []) ?? []
-  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const analysts = useLiveQuery(() => db.analysts.filter((a) => a.active).toArray(), []) ?? []
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const timeLogs = useLiveQuery(() => db.timeLogs.toArray(), []) ?? emptyTimeLogs
+  const events = useLiveQuery(() => db.events.toArray(), []) ?? emptyEvents
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const analysts = useLiveQuery(() => db.analysts.filter((a) => a.active).toArray(), []) ?? emptyAnalysts
 
   const [tab, setTab] = useState<ReportsTab>('executivo')
   const [projectFilter, setProjectFilter] = useState<string>('all')
@@ -62,9 +89,8 @@ export function ReportsPage() {
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [period, setPeriod] = useState<PeriodPreset>('month')
 
-  const now = new Date()
-  const [customStart, setCustomStart] = useState<string>(toDateOnly(startOfMonth(now)))
-  const [customEnd, setCustomEnd] = useState<string>(toDateOnly(endOfMonth(now)))
+  const [customStart, setCustomStart] = useState<string>(() => toDateOnly(startOfMonth(new Date())))
+  const [customEnd, setCustomEnd] = useState<string>(() => toDateOnly(endOfMonth(new Date())))
 
   const phaseOptions = useMemo(
     () =>
@@ -75,6 +101,7 @@ export function ReportsPage() {
   )
 
   const periodRange = useMemo(() => {
+    const now = new Date()
     if (period === 'all') return { start: null as Date | null, end: null as Date | null }
     if (period === 'day') return { start: startOfDay(now), end: endOfDay(now) }
     if (period === 'week') return { start: startOfWeekMonday(now), end: endOfWeekSunday(now) }
@@ -82,7 +109,7 @@ export function ReportsPage() {
     const start = customStart ? startOfDay(new Date(customStart)) : null
     const end = customEnd ? endOfDay(new Date(customEnd)) : null
     return { start, end }
-  }, [period, customStart, customEnd, now])
+  }, [period, customStart, customEnd])
 
   const maps = useMemo(() => {
     const taskById = new Map(tasks.map((t) => [t.id, t]))
@@ -134,7 +161,7 @@ export function ReportsPage() {
 
     const agendaDone = filtered.filteredEvents.filter((e) => e.status === 'realizado').length
     const agendaCancelled = filtered.filteredEvents.filter((e) => e.status === 'cancelado')
-    const agendaCancelNoNotice = agendaCancelled.filter((e) => new Date(e.startTime).getTime() <= now.getTime()).length
+    const agendaCancelNoNotice = agendaCancelled.filter((e) => new Date(e.startTime).getTime() <= Date.now()).length
     const agendaCancelWithNotice = agendaCancelled.length - agendaCancelNoNotice
 
     const hoursRealizedLogs = filtered.filteredTimeLogs.reduce((s, l) => s + l.hours, 0)
@@ -158,7 +185,7 @@ export function ReportsPage() {
       hoursActualTasks,
       avgHoursPerDoneTask,
     }
-  }, [filtered, now])
+  }, [filtered])
 
   const hoursByProject = useMemo(() => {
     return [...filtered.filteredProjects]
@@ -170,6 +197,7 @@ export function ReportsPage() {
   const maxH = Math.max(1, ...hoursByProject.map((x) => x.h))
 
   const cadence = useMemo(() => {
+    const tick = new Date()
     const make = (start: Date, end: Date) => {
       const inLogs = filtered.filteredTimeLogs.filter((l) => isInRange(l.executionDate, start, end))
       const inEvents = filtered.filteredEvents.filter((e) => isInRange(e.startTime, start, end))
@@ -182,11 +210,58 @@ export function ReportsPage() {
       }
     }
     return {
-      dia: make(startOfDay(now), endOfDay(now)),
-      semana: make(startOfWeekMonday(now), endOfWeekSunday(now)),
-      mes: make(startOfMonth(now), endOfMonth(now)),
+      dia: make(startOfDay(tick), endOfDay(tick)),
+      semana: make(startOfWeekMonday(tick), endOfWeekSunday(tick)),
+      mes: make(startOfMonth(tick), endOfMonth(tick)),
     }
-  }, [filtered.filteredTimeLogs, filtered.filteredEvents, now])
+  }, [filtered.filteredTimeLogs, filtered.filteredEvents])
+
+  const periodLabel = useMemo(() => {
+    if (period === 'all') return 'todo_historico'
+    if (period === 'day') return 'hoje'
+    if (period === 'week') return 'semana_atual'
+    if (period === 'month') return 'mes_atual'
+    return `${customStart || 'inicio'}_a_${customEnd || 'fim'}`
+  }, [period, customStart, customEnd])
+
+  function exportCurrentTabCsv() {
+    const ts = toDateOnly(new Date())
+    if (tab === 'executivo') {
+      downloadCsv(
+        `relatorio_executivo_${periodLabel}_${ts}.csv`,
+        ['indicador', 'valor'],
+        [
+          ['tarefas_concluidas', metrics.done],
+          ['agendas_realizadas', metrics.agendaDone],
+          ['canceladas_sem_aviso', metrics.taskCancelNoNotice + metrics.agendaCancelNoNotice],
+          ['canceladas_com_aviso', metrics.taskCancelWithNotice + metrics.agendaCancelWithNotice],
+          ['horas_realizadas_logs', metrics.hoursRealizedLogs.toFixed(2)],
+          ['tarefas_em_andamento', metrics.prog],
+          ['tarefas_pendentes', metrics.pend],
+          ['tarefas_canceladas', metrics.cancelledTasks],
+        ],
+      )
+      return
+    }
+
+    if (tab === 'operacao') {
+      downloadCsv(
+        `relatorio_operacao_${periodLabel}_${ts}.csv`,
+        ['tipo', 'realizadas', 'canceladas_sem_aviso', 'canceladas_com_aviso'],
+        [
+          ['tarefas_logs', metrics.taskExec, metrics.taskCancelNoNotice, metrics.taskCancelWithNotice],
+          ['agendas', metrics.agendaDone, metrics.agendaCancelNoNotice, metrics.agendaCancelWithNotice],
+        ],
+      )
+      return
+    }
+
+    downloadCsv(
+      `relatorio_horas_${periodLabel}_${ts}.csv`,
+      ['projeto', 'horas_usadas', 'percentual_contrato', 'referencia_data'],
+      hoursByProject.map((row) => [row.name, row.h.toFixed(2), Math.round(row.ratio * 100), formatDatePt(new Date())]),
+    )
+  }
 
   return (
     <div className="page page--wide">
@@ -195,6 +270,9 @@ export function ReportsPage() {
           <h1 className="page__title">Relatórios</h1>
           <p className="page__subtitle">Indicadores gerenciais de projetos, tarefas, agendas e horas</p>
         </div>
+        <button type="button" className="btn btn--ghost" onClick={exportCurrentTabCsv}>
+          Exportar CSV da aba
+        </button>
       </header>
 
       <section className="reports-filters panel">

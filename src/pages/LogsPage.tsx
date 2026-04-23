@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
+import { emptyAuditLogs } from '../lib/stableDexieEmpty'
 import { formatDatePt } from '../lib/dates'
 import type { AuditAction } from '../db/types'
 
@@ -13,7 +14,7 @@ function toLocalDateTimeInput(iso: string): string {
 }
 
 export function LogsPage() {
-  const logs = useLiveQuery(() => db.auditLogs.orderBy('createdAt').reverse().toArray(), []) ?? []
+  const logs = useLiveQuery(() => db.auditLogs.orderBy('createdAt').reverse().toArray(), []) ?? emptyAuditLogs
   const [fromAt, setFromAt] = useState('')
   const [toAt, setToAt] = useState('')
   const [action, setAction] = useState<ActionFilter>('all')

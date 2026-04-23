@@ -1,0 +1,1312 @@
+﻿/* Modal registrar horas */
+.register-hours-modal.modal--md {
+  width: min(740px, 100%);
+  max-height: min(90vh, 860px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.register-hours-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.1rem 1.15rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.register-hours-modal__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.register-hours-modal__icon {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.register-hours-modal .modal__title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.modal__close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 8px;
+  line-height: 0;
+}
+
+.modal__close:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.register-hours-modal__form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.register-hours-modal__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.85rem 1.15rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.register-hours-modal .input--compact {
+  min-height: 38px;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.82rem;
+}
+
+.register-hours-modal__task-box {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--bg));
+  border: 1px solid var(--border);
+}
+
+.register-hours-modal__task-code {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.register-hours-modal__task-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
+.register-hours-modal__status-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.register-hours-modal__legend {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--text);
+}
+
+.register-hours-modal__outcome-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 520px) {
+  .register-hours-modal__outcome-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.register-hours-modal__outcome {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 0.2rem;
+  padding: 0.65rem 0.72rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--text);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.register-hours-modal__outcome:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.register-hours-modal__outcome.is-selected {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.register-hours-modal__outcome--ok.is-selected {
+  border-color: color-mix(in srgb, var(--success) 55%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+
+.register-hours-modal__outcome--info.is-selected {
+  border-color: color-mix(in srgb, var(--info) 50%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+
+.register-hours-modal__outcome--danger.is-selected {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+
+.register-hours-modal__outcome-ic {
+  flex-shrink: 0;
+}
+
+.register-hours-modal__outcome--ok .register-hours-modal__outcome-ic {
+  color: var(--success);
+}
+
+.register-hours-modal__outcome--info .register-hours-modal__outcome-ic {
+  color: color-mix(in srgb, var(--info) 85%, var(--text-muted));
+}
+
+.register-hours-modal__outcome--danger .register-hours-modal__outcome-ic {
+  color: var(--danger);
+}
+
+.register-hours-modal__outcome-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+}
+
+.register-hours-modal__outcome-sub {
+  font-size: 0.68rem;
+  line-height: 1.3;
+  font-weight: 500;
+}
+
+.register-hours-modal__toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--bg));
+}
+
+@media (min-width: 560px) {
+  .register-hours-modal__toolbar {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+  }
+}
+
+.register-hours-modal__toolbar-analyst {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.register-hours-modal__toolbar-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
+  overflow: hidden;
+}
+
+.register-hours-modal__toolbar-avatar .analyst-avatar--sm {
+  width: 36px;
+  height: 36px;
+  font-size: 0.62rem;
+  border-width: 0;
+  box-shadow: none;
+}
+
+.register-hours-modal__toolbar-avatar--empty {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.register-hours-modal__toolbar-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.register-hours-modal__toolbar-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.register-hours-modal__toolbar-status {
+  max-width: 220px;
+}
+
+.register-hours-modal__toolbar-placeholder {
+  font-size: 0.75rem;
+  padding: 0.35rem 0;
+  text-align: left;
+}
+
+@media (min-width: 560px) {
+  .register-hours-modal__toolbar-placeholder {
+    text-align: right;
+    padding-right: 0.15rem;
+  }
+}
+
+.register-hours-modal__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
+}
+
+.register-hours-modal__tab {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.45rem 0.55rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.register-hours-modal__tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.register-hours-modal__tab.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.register-hours-modal__tab-ic {
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.register-hours-modal__tab-panel {
+  min-height: 120px;
+}
+
+.register-hours-modal__panel {
+  padding: 0.15rem 0 0;
+}
+
+.register-hours-modal__panel--history {
+  padding-top: 0.25rem;
+}
+
+.register-hours-modal__quick--dense {
+  gap: 0.28rem;
+}
+
+.register-hours-modal__duration-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.register-hours-modal__timer-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 90%, var(--accent) 10%);
+  background: radial-gradient(
+    120% 120% at 10% 20%,
+    color-mix(in srgb, var(--accent) 12%, transparent),
+    color-mix(in srgb, var(--surface-2) 55%, var(--bg)) 45%,
+    var(--surface)
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .register-hours-modal__timer-ring {
+    animation: reg-hours-pulse 3.2s ease-in-out infinite;
+  }
+}
+
+@keyframes reg-hours-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+}
+
+.register-hours-modal__timer-ring {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.register-hours-modal__timer-digits {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: clamp(1.65rem, 4.5vw, 2.15rem);
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.register-hours-modal__timer-state {
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.register-hours-modal__timer-play {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition:
+    transform 0.12s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.register-hours-modal__timer-play:hover:not(:disabled) {
+  transform: scale(1.04);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 30%, var(--surface));
+}
+
+.register-hours-modal__timer-play:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.register-hours-modal__timer-play--stop {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, var(--surface));
+}
+
+.register-hours-modal__hist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: min(320px, 42vh);
+  overflow: auto;
+}
+
+.register-hours-modal__hist-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.78rem;
+}
+
+.register-hours-modal__hist-row--log {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--surface-2) 30%, var(--surface));
+}
+
+.register-hours-modal__hist-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.register-hours-modal__hist-date {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.register-hours-modal__hist-pill {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+}
+
+.register-hours-modal__hist-pill--log {
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
+  color: color-mix(in srgb, var(--info) 90%, var(--text));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+
+.register-hours-modal__hist-meta {
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.register-hours-modal__hist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.register-hours-modal__hist-hours {
+  font-variant-numeric: tabular-nums;
+}
+
+.register-hours-modal__hist-readonly {
+  font-size: 0.7rem;
+}
+
+.register-hours-modal__notes-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-top: 0.15rem;
+}
+
+.register-hours-modal__notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.register-hours-modal__notes-tools {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.register-hours-modal__icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.register-hours-modal__icon-btn:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.register-hours-modal__attach-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.register-hours-modal__attach-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+}
+
+.register-hours-modal__attach-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.register-hours-modal__chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.register-hours-modal__chip--ok {
+  color: color-mix(in srgb, var(--success) 90%, var(--text));
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+
+.register-hours-modal__chip--info {
+  color: color-mix(in srgb, var(--info) 92%, var(--text));
+  background: color-mix(in srgb, var(--info) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--info) 32%, var(--border));
+}
+
+.register-hours-modal__chip--danger {
+  color: color-mix(in srgb, var(--danger) 92%, var(--text));
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+}
+
+.register-hours-modal__footer-sticky {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  padding: 0.55rem 1.15rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.register-hours-modal__footer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.register-hours-modal__footer-summary-text {
+  font-size: 0.74rem;
+  line-height: 1.35;
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.register-hours-modal__footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.register-hours-modal__entry-switch {
+  display: inline-flex;
+  gap: 0.4rem;
+  background: color-mix(in srgb, var(--surface-2) 50%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem;
+}
+.register-hours-modal__pill {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.32rem 0.62rem;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.register-hours-modal__pill.is-active {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  color: var(--accent);
+}
+
+.register-hours-modal__status-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.register-hours-modal__status-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.register-hours-modal__status-card.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.register-hours-modal__status-ic--ok {
+  color: var(--success);
+}
+.register-hours-modal__status-ic--muted {
+  color: var(--text-muted);
+}
+.register-hours-modal__status-ic--danger {
+  color: var(--danger);
+}
+
+.register-hours-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.register-hours-modal__grid2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+@media (min-width: 640px) {
+  .register-hours-modal__grid2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.register-hours-modal__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.register-hours-modal__hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.register-hours-modal__quick {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.register-hours-modal__timer-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem 0.72rem;
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
+}
+.register-hours-modal__timer-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+.register-hours-modal__timer-hms {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.register-hours-modal__summary {
+  font-size: 0.8rem;
+  border: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+}
+
+.register-hours-modal__history {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  background: color-mix(in srgb, var(--surface-2) 45%, var(--bg));
+}
+.register-hours-modal__history-list {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 180px;
+  overflow: auto;
+}
+.register-hours-modal__history-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  align-items: center;
+}
+.register-hours-modal__history-row strong {
+  font-variant-numeric: tabular-nums;
+}
+.register-hours-modal__history-hours {
+  width: 84px;
+  min-height: 30px;
+  padding: 0.28rem 0.45rem;
+}
+.register-hours-modal__history-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.register-hours-modal__textarea {
+  resize: vertical;
+  min-height: 4rem;
+}
+
+/* —— Feedback global (toast + confirmação) —— */
+.ui-toast-stack {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  /* Acima de modais (.modal-backdrop 10020) para feedback visível com pop-ups abertos */
+  z-index: 10040;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(420px, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.ui-toast {
+  pointer-events: auto;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  animation: ui-toast-in 0.22s ease;
+}
+
+@keyframes ui-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-toast--info {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.ui-toast--warn {
+  border-color: color-mix(in srgb, var(--accent-deep) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent-dim) 22%, var(--surface));
+}
+
+.ui-toast--error {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.ui-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Acima de modais de formulário (.modal-backdrop 10020) — confirmação não pode ficar atrás do “Salvando…” */
+  z-index: 10200;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: color-mix(in srgb, #0f172a 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.ui-confirm {
+  width: 100%;
+  max-width: 400px;
+  padding: 1.35rem 1.4rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--accent) 12%);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.ui-confirm__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  /* letter-spacing negativo colava o espaço entre palavras (ex.: "Excluir registro") */
+  letter-spacing: normal;
+  word-spacing: normal;
+  color: var(--text);
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.ui-confirm__message {
+  margin: 0 0 1.15rem;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.ui-confirm--with-reason {
+  max-width: min(440px, calc(100vw - 2.5rem));
+}
+
+.ui-confirm__field {
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ui-confirm__field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ui-confirm__textarea {
+  width: 100%;
+  min-height: 4.5rem;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.ui-confirm__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.ui-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ui-confirm__actions--with-dismiss .ui-confirm__dismiss {
+  margin-right: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}
+
+/* Modal: escolha de substituto (analistas) */
+.analyst-replace-modal.modal--md {
+  width: min(680px, 100%);
+  max-height: min(86vh, 760px);
+  overflow-y: auto;
+  padding: 1rem 1.1rem 0.95rem;
+}
+
+.analyst-replace-modal__desc {
+  margin: 0 0 1.05rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.analyst-replace-modal__form {
+  display: flex;
+  flex-direction: column;
+}
+
+.analyst-replace-modal__fieldset {
+  border: 0;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.58rem;
+}
+
+.analyst-replace-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.78rem;
+  padding: 0.78rem 0.86rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.analyst-replace-option .analyst-avatar {
+  border-width: 0;
+  box-shadow: none;
+}
+
+.analyst-replace-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.analyst-replace-option:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 2px var(--accent-dim);
+}
+
+.analyst-replace-option input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.analyst-replace-option__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.analyst-replace-option__hint {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.analyst-replace-modal__actions {
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 640px) {
+  .analyst-replace-modal.modal--md {
+    width: min(96vw, 100%);
+    padding: 0.85rem 0.8rem 0.8rem;
+  }
+}
+
+/* Portal Cliente (visual executivo) */
+.panel__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 1.15rem;
+}
+
+.panel__header h1,
+.panel__header h2 {
+  margin: 0;
+}
+
+.portal-hero {
+  display: grid;
+  gap: 1.15rem;
+}
+
+.portal-hero__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.portal-hero__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.portal-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(188px, 1fr));
+  column-gap: 1.15rem;
+  row-gap: 1rem;
+  padding: 0.15rem 0.05rem 0.05rem;
+}
+
+/* Painéis “flat”: KPIs seguido de grade/lista (sem grid-pai) precisa de respiro explícito */
+.page .panel:not(.portal-hero) > .portal-kpis + .portal-agenda-grid,
+.page .panel:not(.portal-hero) > .portal-kpis + .portal-project-summary {
+  margin-top: 1.15rem;
+}
+
+.page .panel:not(.portal-hero) > .portal-kpis + p {
+  margin-top: 1rem;
+}
+
+.portal-kpi {
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-elevated) 90%, var(--surface-2));
+  padding: 0.95rem 1rem;
+  display: grid;
+  gap: 0.45rem;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.portal-kpi__label {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.portal-kpi__value {
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.portal-progress-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  padding: 1rem 1.05rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.portal-progress-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.portal-progress-card__head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.portal-progress-card__meta {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.portal-progress {
+  width: 100%;
+  height: 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 85%, transparent);
+  overflow: hidden;
+}
+
+.portal-progress__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 72%, #67d58f), var(--accent));
+  transition: width 0.35s ease;
+}
+
+.portal-project-grid {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.portal-project-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.05rem;
+  background: var(--bg-elevated);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.portal-project-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.portal-project-card__head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.portal-project-card__meta {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.55rem;
+}
+
+.portal-project-card__meta dt {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.portal-project-card__meta dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.portal-project-card__actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.portal-project-summary + .portal-project-card__actions {
+  margin-top: 1.15rem;
+}
+
+.portal-project-summary {
+  display: grid;
+  gap: 1.05rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.portal-phase-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.portal-phase-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.05rem;
+  background: color-mix(in srgb, var(--bg-elevated) 95%, var(--surface-2));
+  display: grid;
+  gap: 0.7rem;
+}
+
+.portal-phase-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.portal-phase-card__head h3 {
+  margin: 0;
+  font-size: 0.96rem;
+}
+
+.portal-task-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.portal-task-item {
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 10px;
+  padding: 0.62rem 0.65rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.portal-task-item strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.portal-task-item small {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.portal-agenda-grid {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  margin-top: 0.15rem;
+}
+
+.portal-agenda-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.05rem;
+  background: var(--bg-elevated);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.portal-agenda-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.55rem;
+  align-items: flex-start;
+}
+
+.portal-agenda-card__head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.portal-agenda-card__date {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 780px) {
+  .portal-project-card__meta {
+    grid-template-columns: 1fr;
+  }
+}

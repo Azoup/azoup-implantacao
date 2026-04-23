@@ -24,7 +24,7 @@ async function validateEventLinks(data: EventInput): Promise<EventInput> {
   ensureValidEventWindow(data.startTime, data.endTime)
 
   let projectId = data.projectId
-  let taskId = data.taskId
+  const taskId = data.taskId
 
   if (taskId) {
     const task = await db.tasks.get(taskId)

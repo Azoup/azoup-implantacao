@@ -46,7 +46,7 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
       setIsInformational(false)
     }
     setErr(null)
-  }, [open, task?.id, defaultCode])
+  }, [open, task, defaultCode])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()

@@ -54,11 +54,22 @@ function writeSession(s: Session | null) {
 
 async function fetchProfileUser(userId: string): Promise<DbUser | null> {
   if (!supabase) return null
-  const { data, error } = await supabase
+  const first = await supabase
     .from('profiles')
-    .select('id,email,name,role,permissions,status,created_at,last_login_at')
+    .select('id,email,name,role,user_type,permissions,status,created_at,last_login_at')
     .eq('id', userId)
     .maybeSingle()
+  let data: ProfileRow | null = (first.data as ProfileRow | null) ?? null
+  let error = first.error
+  if (error && /user_type/i.test(error.message ?? '')) {
+    const fallback = await supabase
+      .from('profiles')
+      .select('id,email,name,role,permissions,status,created_at,last_login_at')
+      .eq('id', userId)
+      .maybeSingle()
+    data = (fallback.data as ProfileRow | null) ?? null
+    error = fallback.error
+  }
   if (error || !data) return null
   const u = mapProfileToUser(data as ProfileRow)
   return u
@@ -224,9 +235,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await touchLastLogin(session.user.id)
         setUser({ ...u, lastLogin: new Date().toISOString() })
-        await refreshSupabaseDexieCache()
-        await cleanupLegacyTaskCodePrefixes()
-        await startLiveSyncAfterBridgeReady()
+        try {
+          await refreshSupabaseDexieCache()
+          await cleanupLegacyTaskCodePrefixes()
+          await startLiveSyncAfterBridgeReady()
+        } catch (err) {
+          console.warn('[Auth] Falha ao sincronizar após login.', err)
+        }
         return
       }
 

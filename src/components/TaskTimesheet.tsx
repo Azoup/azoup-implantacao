@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Pause, Play, Plus, Timer, Trash2 } from 'lucide-react'
 import { db } from '../db/database'
+import { emptyTimeSessions } from '../lib/stableDexieEmpty'
 import { formatDatePt } from '../lib/dates'
 import type { DbTask, DbTimeSession, DbUser } from '../db/types'
 import {
@@ -43,7 +44,7 @@ export function TaskTimesheet({ task, user }: Props) {
   const sessions = useLiveQuery(
     () => db.timeSessions.where('taskId').equals(task.id).toArray(),
     [task.id],
-  ) ?? []
+  ) ?? emptyTimeSessions
 
   const running = useLiveQuery(async () => getRunningSessionForUser(user.id), [user.id])
 
@@ -58,7 +59,7 @@ export function TaskTimesheet({ task, user }: Props) {
     if (!runningHere) return
     const id = window.setInterval(() => setTick((x) => x + 1), 1000)
     return () => window.clearInterval(id)
-  }, [runningHere?.id])
+  }, [runningHere])
 
   const liveSeconds = useMemo(() => {
     void tick

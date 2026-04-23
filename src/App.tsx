@@ -1,28 +1,35 @@
+import { Suspense, type ReactNode } from 'react'
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements } from 'react-router-dom'
-import type { ReactNode } from 'react'
 import { useAuth } from './auth/AuthContext'
 import { hasScope } from './auth/permissions'
 import { ROUTE_SCOPE_MAP } from './auth/routeScopes'
 import { AppShell } from './layout/AppShell'
 import { LoginPage } from './pages/LoginPage'
-import { RegisterPage } from './pages/RegisterPage'
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
-import { ResetPasswordPage } from './pages/ResetPasswordPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { OverviewPage } from './pages/OverviewPage'
-import { ProjectsPage } from './pages/ProjectsPage'
-import { ProjectDetailPage } from './pages/ProjectDetailPage'
-import { TarefasPage } from './pages/TarefasPage'
-import { AgendaPage } from './pages/AgendaPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { AiPage } from './pages/AiPage'
-import { SettingsPage } from './pages/SettingsPage'
-import { PlanModelsPage } from './pages/PlanModelsPage'
-import { PlanPresentationsPage } from './pages/PlanPresentationsPage'
-import { AnalystsPage } from './pages/AnalystsPage'
-import { ImplantationJourneyPage } from './pages/ImplantationJourneyPage'
 import { AccessDeniedPage } from './pages/AccessDeniedPage'
-import { LogsPage } from './pages/LogsPage'
+import { RoutePageFallback } from './components/RoutePageFallback'
+import {
+  AgendaPageLazy,
+  AiPageLazy,
+  AnalystsPageLazy,
+  DashboardPageLazy,
+  ForgotPasswordPageLazy,
+  ImplantationJourneyPageLazy,
+  LogsPageLazy,
+  OverviewPageLazy,
+  PlanModelsPageLazy,
+  PlanPresentationsPageLazy,
+  PortalAgendaPageLazy,
+  PortalHomePageLazy,
+  PortalProjectPageLazy,
+  PortalWelcomeFormPageLazy,
+  ProjectDetailPageLazy,
+  ProjectsPageLazy,
+  RegisterPageLazy,
+  ReportsPageLazy,
+  ResetPasswordPageLazy,
+  SettingsPageLazy,
+  TarefasPageLazy,
+} from './app/lazyPages'
 import type { PermissionScope } from './db/types'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -42,7 +49,13 @@ function RequireScope({ scope, children }: { scope: PermissionScope; children: R
   const { user } = useAuth()
   if (!user) return null
   if (!hasScope(user, scope)) return <AccessDeniedPage />
-  return children
+  return <Suspense fallback={<RoutePageFallback />}>{children}</Suspense>
+}
+
+function RootRedirect() {
+  const { user } = useAuth()
+  if (user?.userType === 'client') return <Navigate to="/portal" replace />
+  return <Navigate to="/dashboard" replace />
 }
 
 /** Data router: necessário para `useBlocker` no AppShell (alterações não salvas na agenda). */
@@ -50,10 +63,38 @@ export const appRouter = createBrowserRouter(
   createRoutesFromElements(
     <>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/cadastro" element={<RegisterPage />} />
-      <Route path="/recuperar-senha" element={<ForgotPasswordPage />} />
-      <Route path="/auth/redefinir-senha" element={<ResetPasswordPage />} />
-      <Route path="/apresentacoes" element={<PlanPresentationsPage />} />
+      <Route
+        path="/cadastro"
+        element={
+          <Suspense fallback={<RoutePageFallback />}>
+            <RegisterPageLazy />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/recuperar-senha"
+        element={
+          <Suspense fallback={<RoutePageFallback />}>
+            <ForgotPasswordPageLazy />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/auth/redefinir-senha"
+        element={
+          <Suspense fallback={<RoutePageFallback />}>
+            <ResetPasswordPageLazy />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/apresentacoes"
+        element={
+          <Suspense fallback={<RoutePageFallback />}>
+            <PlanPresentationsPageLazy />
+          </Suspense>
+        }
+      />
       <Route
         element={
           <RequireAuth>
@@ -61,12 +102,12 @@ export const appRouter = createBrowserRouter(
           </RequireAuth>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<RootRedirect />} />
         <Route
           path="/dashboard"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/dashboard']}>
-              <DashboardPage />
+              <DashboardPageLazy />
             </RequireScope>
           }
         />
@@ -74,7 +115,7 @@ export const appRouter = createBrowserRouter(
           path="/visao-geral"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/visao-geral']}>
-              <OverviewPage />
+              <OverviewPageLazy />
             </RequireScope>
           }
         />
@@ -82,7 +123,7 @@ export const appRouter = createBrowserRouter(
           path="/projetos"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/projetos']}>
-              <ProjectsPage />
+              <ProjectsPageLazy />
             </RequireScope>
           }
         />
@@ -90,7 +131,7 @@ export const appRouter = createBrowserRouter(
           path="/projetos/:projectId"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/projetos/:projectId']}>
-              <ProjectDetailPage />
+              <ProjectDetailPageLazy />
             </RequireScope>
           }
         />
@@ -98,7 +139,7 @@ export const appRouter = createBrowserRouter(
           path="/implantacao"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/implantacao']}>
-              <ImplantationJourneyPage />
+              <ImplantationJourneyPageLazy />
             </RequireScope>
           }
         />
@@ -106,7 +147,7 @@ export const appRouter = createBrowserRouter(
           path="/tarefas"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/tarefas']}>
-              <TarefasPage />
+              <TarefasPageLazy />
             </RequireScope>
           }
         />
@@ -115,7 +156,7 @@ export const appRouter = createBrowserRouter(
           path="/agenda"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/agenda']}>
-              <AgendaPage />
+              <AgendaPageLazy />
             </RequireScope>
           }
         />
@@ -123,7 +164,7 @@ export const appRouter = createBrowserRouter(
           path="/relatorios"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/relatorios']}>
-              <ReportsPage />
+              <ReportsPageLazy />
             </RequireScope>
           }
         />
@@ -131,7 +172,7 @@ export const appRouter = createBrowserRouter(
           path="/logs"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/logs']}>
-              <LogsPage />
+              <LogsPageLazy />
             </RequireScope>
           }
         />
@@ -139,7 +180,7 @@ export const appRouter = createBrowserRouter(
           path="/assistente"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/assistente']}>
-              <AiPage />
+              <AiPageLazy />
             </RequireScope>
           }
         />
@@ -147,7 +188,7 @@ export const appRouter = createBrowserRouter(
           path="/configuracoes"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/configuracoes']}>
-              <SettingsPage />
+              <SettingsPageLazy />
             </RequireScope>
           }
         />
@@ -155,7 +196,7 @@ export const appRouter = createBrowserRouter(
           path="/modelos-planos"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/modelos-planos']}>
-              <PlanModelsPage />
+              <PlanModelsPageLazy />
             </RequireScope>
           }
         />
@@ -163,7 +204,39 @@ export const appRouter = createBrowserRouter(
           path="/analistas"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/analistas']}>
-              <AnalystsPage />
+              <AnalystsPageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/portal"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/portal']}>
+              <PortalHomePageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/portal/projetos/:projectId"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/portal/projetos/:projectId']}>
+              <PortalProjectPageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/portal/agenda"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/portal/agenda']}>
+              <PortalAgendaPageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/portal/boas-vindas/:projectId"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/portal/boas-vindas/:projectId']}>
+              <PortalWelcomeFormPageLazy />
             </RequireScope>
           }
         />

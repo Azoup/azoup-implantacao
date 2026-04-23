@@ -4,6 +4,7 @@ import { Camera, Edit3, Trash2, UserCheck, UserX } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { db } from '../db/database'
+import { emptyAnalysts } from '../lib/stableDexieEmpty'
 import { uuid } from '../lib/uuid'
 import { formatDatePt } from '../lib/dates'
 import type { DbAnalyst } from '../db/types'
@@ -32,7 +33,7 @@ export function AnalystsPage() {
   const { toastWarn, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const canEditAnalysts = hasScope(user, 'analysts.edit')
-  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<AnalystDraft>({
     id: null,

@@ -17,6 +17,9 @@ export const ALL_PERMISSION_SCOPES: PermissionScope[] = [
   'planModels.edit',
   'analysts.view',
   'analysts.edit',
+  'portal.view',
+  'portal.agenda.view',
+  'portal.forms.fill',
 ]
 
 export const PERMISSION_MODULES: { key: string; label: string; view: PermissionScope; edit?: PermissionScope }[] = [
@@ -30,6 +33,7 @@ export const PERMISSION_MODULES: { key: string; label: string; view: PermissionS
   { key: 'settings', label: 'Configurações', view: 'settings.view', edit: 'settings.edit' },
   { key: 'planModels', label: 'Modelos de Plano', view: 'planModels.view', edit: 'planModels.edit' },
   { key: 'analysts', label: 'Analistas', view: 'analysts.view', edit: 'analysts.edit' },
+  { key: 'portal', label: 'Portal Cliente', view: 'portal.view', edit: 'portal.forms.fill' },
 ]
 
 const USER_DEFAULT_SCOPES: PermissionScope[] = [
@@ -46,14 +50,20 @@ const USER_DEFAULT_SCOPES: PermissionScope[] = [
   'settings.view',
 ]
 
+const CLIENT_DEFAULT_SCOPES: PermissionScope[] = [
+  'portal.view',
+  'portal.agenda.view',
+  'portal.forms.fill',
+]
+
 export function defaultScopesForRole(role: UserRole): PermissionScope[] {
   if (role === 'admin') return [...ALL_PERMISSION_SCOPES]
   return [...USER_DEFAULT_SCOPES]
 }
 
-export function scopesForUser(user: Pick<DbUser, 'role' | 'permissions'> | null | undefined): PermissionScope[] {
+export function scopesForUser(user: Pick<DbUser, 'role' | 'permissions' | 'userType'> | null | undefined): PermissionScope[] {
   if (!user) return []
-  const fallback = defaultScopesForRole(user.role)
+  const fallback = user.userType === 'client' ? CLIENT_DEFAULT_SCOPES : defaultScopesForRole(user.role)
   if (!user.permissions?.length) return fallback
   const valid = user.permissions.filter((s): s is PermissionScope =>
     (ALL_PERMISSION_SCOPES as string[]).includes(s),
@@ -61,7 +71,10 @@ export function scopesForUser(user: Pick<DbUser, 'role' | 'permissions'> | null 
   return valid.length > 0 ? valid : fallback
 }
 
-export function hasScope(user: Pick<DbUser, 'role' | 'permissions'> | null | undefined, scope: PermissionScope): boolean {
+export function hasScope(
+  user: Pick<DbUser, 'role' | 'permissions' | 'userType'> | null | undefined,
+  scope: PermissionScope,
+): boolean {
   return scopesForUser(user).includes(scope)
 }
 

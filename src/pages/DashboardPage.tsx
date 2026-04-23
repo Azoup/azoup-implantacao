@@ -20,6 +20,13 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyEvents,
+  emptyPhases,
+  emptyProjects,
+  emptyTasks,
+} from '../lib/stableDexieEmpty'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import { formatDatePt, weekdayTitlePt } from '../lib/dates'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
@@ -85,11 +92,11 @@ export function DashboardPage() {
     [runningTimer?.taskId],
   )
 
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const events = useLiveQuery(() => db.events.toArray(), []) ?? []
-  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const events = useLiveQuery(() => db.events.toArray(), []) ?? emptyEvents
+  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   useReconcileKanbanColumns(projects, phases, tasks)
 
   const todayTitle = useMemo(() => weekdayTitlePt(new Date()), [])

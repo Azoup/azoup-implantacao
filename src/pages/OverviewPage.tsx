@@ -3,6 +3,12 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { GripVertical, Plus } from 'lucide-react'
 import { db } from '../db/database'
+import {
+  emptyAnalysts,
+  emptyPhases,
+  emptyProjects,
+  emptyTasks,
+} from '../lib/stableDexieEmpty'
 import { KANBAN_COLUMNS } from '../constants/kanban'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { getActivePlanLabel, getLastCompletedPlanLabel } from '../lib/planLabelDisplay'
@@ -55,10 +61,10 @@ function moveConsequences(from: KanbanColumn, to: KanbanColumn): string {
 
 export function OverviewPage() {
   const { user } = useAuth()
-  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? []
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? []
-  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? []
-  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? []
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const canEditProjects = user ? hasScope(user, 'projects.edit') : false
 
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)

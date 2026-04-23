@@ -48,6 +48,7 @@ async function ensureLocalTestAdminUser(): Promise<void> {
       name: existing.name || 'Administrador',
       passwordHash: adminHash,
       role: 'admin',
+      userType: 'internal',
       permissions: defaultScopesForRole('admin'),
       status: 'active',
     })
@@ -60,6 +61,7 @@ async function ensureLocalTestAdminUser(): Promise<void> {
     email: LOCAL_TEST_ADMIN_EMAIL,
     passwordHash: adminHash,
     role: 'admin',
+    userType: 'internal',
     permissions: defaultScopesForRole('admin'),
     status: 'active',
     createdAt: new Date().toISOString(),
@@ -84,6 +86,7 @@ export async function seedDatabase(): Promise<void> {
       email: LOCAL_TEST_ADMIN_EMAIL,
       passwordHash: adminHash,
       role: 'admin',
+      userType: 'internal',
       permissions: defaultScopesForRole('admin'),
       status: 'active',
       createdAt: new Date().toISOString(),

@@ -8,6 +8,7 @@ echo ==========================================
 echo           VynTask - Inicializacao
 echo ==========================================
 echo Pasta: %CD%
+echo No GitHub, cada push/PR roda: lint, testes e build ^(veja .github\workflows\ci.yml^).
 echo.
 
 where npm >nul 2>nul
@@ -22,7 +23,11 @@ if errorlevel 1 (
 
 if not exist "node_modules" (
   echo Dependencias nao encontradas. Instalando...
-  call npm install
+  if exist "package-lock.json" (
+    call npm ci
+  ) else (
+    call npm install
+  )
   if errorlevel 1 (
     echo.
     echo [ERRO] Falha ao instalar dependencias.

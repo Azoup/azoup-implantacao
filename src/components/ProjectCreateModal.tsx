@@ -230,7 +230,7 @@ export function ProjectCreateModal({
     setCustomContractHours(40)
     setErr(null)
     setLookupHint(null)
-  }, [open, projectToEdit?.id])
+  }, [open, projectToEdit])
 
   useEffect(() => {
     if (planKey === CUSTOM_PLAN_TYPE) return
