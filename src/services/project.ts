@@ -7,9 +7,18 @@ import {
   upsertProjectGraphFromDexie,
   withDexieSupabaseSyncMuted,
 } from '../sync/supabaseDexieBridge'
+import { dispatchSyncFailure } from '../sync/syncFailure'
 import { uuid } from '../lib/uuid'
 import { syncLabelsForProject } from './labels'
 import { normalizeProjectPlacement } from './projectGovernance'
+
+function notifyProjectCloudSyncDeferred(detail: string) {
+  dispatchSyncFailure({
+    table: 'projects',
+    operation: 'upsert',
+    message: `Salvo localmente; a nuvem tentará de novo em breve. ${detail}`,
+  })
+}
 
 export type CreateProjectPayload = Pick<
   DbProject,
@@ -115,6 +124,7 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Falha desconhecida'
       enqueuePendingProjectGraphSync(projectId)
+      notifyProjectCloudSyncDeferred(detail)
       console.warn('[Supabase] projeto avulso enfileirado para re-sync', { projectId, detail })
     }
   } else {
@@ -239,6 +249,7 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Falha desconhecida'
       enqueuePendingProjectGraphSync(projectId)
+      notifyProjectCloudSyncDeferred(detail)
       // Mantém a UX responsiva: salva local e agenda reenvio automático da estrutura na nuvem.
       console.warn('[Supabase] projeto enfileirado para re-sync em background', { projectId, detail })
     }

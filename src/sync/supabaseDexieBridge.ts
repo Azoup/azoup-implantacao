@@ -243,7 +243,17 @@ function classifyProjectSyncError(err: unknown): {
       type: 'timeout',
       reason: 'Tempo limite da operação atingido.',
       action: 'Verifique a rede e se o projeto Supabase está ativo; tente novamente.',
-      canRetry: true,
+      /** Repetir o mesmo POST costuma só somar minutos na UI; fila de re-sync cuida do retry. */
+      canRetry: false,
+    }
+  }
+  /** Erros já normalizados por `toProjectSyncError` — não confundir com "network" só por conter "timeout". */
+  if (message.startsWith('PRJ_CREATE_TIMEOUT') || message.includes('|type=timeout|')) {
+    return {
+      type: 'timeout',
+      reason: 'Tempo limite da operação atingido.',
+      action: 'Verifique a rede e se o projeto Supabase está ativo; tente novamente.',
+      canRetry: false,
     }
   }
   if (status === 401 || code === 'PGRST301' || body.includes('jwt') || body.includes('not authenticated')) {
@@ -275,8 +285,7 @@ function classifyProjectSyncError(err: unknown): {
     (status !== null && status >= 500) ||
     body.includes('fetch failed') ||
     body.includes('network') ||
-    body.includes('failed to fetch') ||
-    body.includes('timeout')
+    body.includes('failed to fetch')
   ) {
     return {
       type: 'network',
