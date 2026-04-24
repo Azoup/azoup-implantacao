@@ -206,7 +206,8 @@ function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
 }
 
-const PROJECT_WRITE_TIMEOUT_MS = 60_000
+/** Um pouco acima do abort do `fetch` global (`supabaseClient`) para o erro vir como Abort/rede, não só “race”. */
+const PROJECT_WRITE_TIMEOUT_MS = 58_000
 const PROJECT_SYNC_RETRY_DELAY_MS = 500
 const PROJECT_SYNC_MAX_ATTEMPTS = 3
 
@@ -237,6 +238,16 @@ function classifyProjectSyncError(err: unknown): {
   const hint = String(e?.hint ?? '')
   const status = typeof e?.status === 'number' ? e.status : null
   const body = `${message} ${details} ${hint}`.toLowerCase()
+  const errName = String((e as { name?: unknown }).name ?? '')
+
+  if (errName === 'AbortError' || body.includes('the user aborted') || body.includes('operation was aborted')) {
+    return {
+      type: 'timeout',
+      reason: 'Requisição interrompida por limite de tempo (rede ou servidor sem resposta).',
+      action: 'Confira conexão e painel do Supabase; tente de novo em instantes.',
+      canRetry: false,
+    }
+  }
 
   if (message.includes('Tempo esgotado')) {
     return {
@@ -291,7 +302,8 @@ function classifyProjectSyncError(err: unknown): {
       type: 'network',
       reason: 'Instabilidade de rede ou indisponibilidade temporária do Supabase.',
       action: 'Aguarde alguns segundos e tente novamente.',
-      canRetry: true,
+      /** Fila `pending_project_graph` já faz novo sync; retries em série aqui somam minutos na UI. */
+      canRetry: false,
     }
   }
   return {

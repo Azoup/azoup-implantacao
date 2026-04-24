@@ -15,7 +15,11 @@ function looksLikeValidHttpUrl(s: string): boolean {
   }
 }
 
-const SUPABASE_HTTP_TIMEOUT_MS = 70_000
+/**
+ * Deve ser **menor** que `PROJECT_WRITE_TIMEOUT_MS` no bridge de sync de projeto,
+ * para o `fetch` abortar primeiro e liberar slot HTTP do browser (evita fila longa em cascata).
+ */
+const SUPABASE_HTTP_TIMEOUT_MS = 55_000
 
 /** Evita requisições penduradas indefinidamente (rede lenta / edge sem resposta). */
 async function supabaseFetchWithDeadline(url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
