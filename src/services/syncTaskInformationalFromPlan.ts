@@ -20,6 +20,7 @@ export async function syncAllTaskInformationalFromPlan(): Promise<void> {
     const orderByPhaseId = new Map(projPhases.map((ph) => [ph.id, ph.orderIndex]))
     const tasks = await db.tasks.where('projectId').equals(pr.id).toArray()
     for (const t of tasks) {
+      if (t.isAdHoc === true) continue
       const oi = orderByPhaseId.get(t.phaseId)
       if (oi === undefined) continue
       const rows = planByOrder.get(oi)

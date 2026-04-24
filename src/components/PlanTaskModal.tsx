@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import type { DbPlanTask } from '../db/types'
 import { formatDecimalHoursForBrInput, parseDurationFlexibleToHours } from '../lib/durationFormat'
+import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 export type PlanTaskFormValues = {
   code: string
@@ -11,22 +12,47 @@ export type PlanTaskFormValues = {
   isInformational: boolean
 }
 
+export type PlanTaskSaveMeta = { justification: string }
+
 type Props = {
   open: boolean
   onClose: () => void
   task: DbPlanTask | null
   defaultCode: string
-  onSave: (values: PlanTaskFormValues) => Promise<void>
+  onSave: (values: PlanTaskFormValues, meta?: PlanTaskSaveMeta) => Promise<void>
+  /** Tarefa extra em projeto de plano catálogo: sem estimativa; só consome horas reais. */
+  variant?: 'standard' | 'catalogAdHoc'
+  /**
+   * Em projetos: ao editar tarefa existente, exige justificativa (auditoria) antes de salvar.
+   * Modelos de plano (`PlanModelsPage`) devem deixar `false`.
+   */
+  auditOnEdit?: boolean
 }
 
-export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Props) {
+export function PlanTaskModal({
+  open,
+  onClose,
+  task,
+  defaultCode,
+  onSave,
+  variant = 'standard',
+  auditOnEdit = false,
+}: Props) {
+  const { toastError } = useUiFeedback()
+  const codeRef = useRef<HTMLInputElement>(null)
+  const titleRef = useRef<HTMLInputElement>(null)
+  const hoursRef = useRef<HTMLInputElement>(null)
+  const auditJustificationRef = useRef<HTMLTextAreaElement>(null)
+
   const [code, setCode] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [estimatedHoursDraft, setEstimatedHoursDraft] = useState('')
   const [isInformational, setIsInformational] = useState(false)
+  const [auditJustification, setAuditJustification] = useState('')
   const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+
+  const isCatalogAdHoc = variant === 'catalogAdHoc'
 
   useEffect(() => {
     if (!open) return
@@ -34,59 +60,85 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
       setCode(task.code)
       setTitle(task.title)
       setDescription(task.description)
-      setEstimatedHoursDraft(
-        task.isInformational ? '0' : formatDecimalHoursForBrInput(task.estimatedHours),
-      )
-      setIsInformational(task.isInformational)
+      if (isCatalogAdHoc) {
+        setEstimatedHoursDraft('0')
+        setIsInformational(false)
+      } else {
+        setEstimatedHoursDraft(
+          task.isInformational ? '0' : formatDecimalHoursForBrInput(task.estimatedHours),
+        )
+        setIsInformational(task.isInformational)
+      }
     } else {
       setCode(defaultCode)
       setTitle('')
       setDescription('')
-      setEstimatedHoursDraft('1')
+      setEstimatedHoursDraft(isCatalogAdHoc ? '0' : '1')
       setIsInformational(false)
     }
-    setErr(null)
-  }, [open, task, defaultCode])
+    setAuditJustification('')
+  }, [open, task, defaultCode, isCatalogAdHoc])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     const c = code.trim()
     const t = title.trim()
     if (!c) {
-      setErr('Informe o código da tarefa (ex.: 1.1).')
+      toastError('Informe o código da tarefa (ex.: 1.1).')
+      window.requestAnimationFrame(() => codeRef.current?.focus())
       return
     }
     if (t.length < 2) {
-      setErr('Informe o título.')
+      toastError('Informe o título (mínimo 2 caracteres).')
+      window.requestAnimationFrame(() => titleRef.current?.focus())
       return
     }
     let estimatedHours = 0
-    if (!isInformational) {
+    let informational = isInformational
+    if (isCatalogAdHoc) {
+      estimatedHours = 0
+      informational = false
+    } else if (!informational) {
       const parsed = parseDurationFlexibleToHours(estimatedHoursDraft)
       if (!Number.isFinite(parsed) || parsed < 0) {
-        setErr('Horas inválidas. Use decimal com vírgula ou ponto (ex.: 1,5) ou relógio (1:30).')
+        toastError('Horas inválidas. Use decimal (ex.: 1,5) ou relógio (1:30).')
+        window.requestAnimationFrame(() => hoursRef.current?.focus())
         return
       }
       if (parsed > 999) {
-        setErr('Horas estimadas no máximo 999.')
+        toastError('Estimativa no máximo 999 h.')
+        window.requestAnimationFrame(() => hoursRef.current?.focus())
         return
       }
       estimatedHours = parsed
     }
 
+    if (auditOnEdit && task) {
+      const jus = auditJustification.trim()
+      if (jus.length < 12) {
+        toastError('Justificativa: mínimo 12 caracteres (obrigatório para auditoria).')
+        window.requestAnimationFrame(() => auditJustificationRef.current?.focus())
+        return
+      }
+    }
+
     setSaving(true)
-    setErr(null)
     try {
-      await onSave({
+      const payload: PlanTaskFormValues = {
         code: c,
         title: t,
         description: description.trim(),
         estimatedHours: Math.max(0, estimatedHours),
-        isInformational,
-      })
+        isInformational: informational,
+      }
+      if (auditOnEdit && task) {
+        await onSave(payload, { justification: auditJustification.trim() })
+      } else {
+        await onSave(payload)
+      }
       onClose()
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : 'Erro ao salvar')
+      toastError(ex instanceof Error ? ex.message : 'Não foi possível salvar.')
     } finally {
       setSaving(false)
     }
@@ -94,7 +146,13 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
 
   if (!open) return null
 
-  const modalTitle = task ? 'Editar tarefa' : 'Nova tarefa'
+  const modalTitle = isCatalogAdHoc
+    ? task
+      ? 'Editar tarefa avulsa'
+      : 'Nova tarefa avulsa'
+    : task
+      ? 'Editar tarefa'
+      : 'Nova tarefa'
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
@@ -117,11 +175,18 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
           <form id="vyntask-plan-task-form" className="stack plan-new-form" onSubmit={onSubmit}>
             <label className="field">
               <span>Código</span>
-              <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="Ex: 1.1" />
+              <input
+                ref={codeRef}
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+                placeholder="Ex: 1.1"
+              />
             </label>
             <label className="field">
               <span>Título</span>
               <input
+                ref={titleRef}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
@@ -133,37 +198,61 @@ export function PlanTaskModal({ open, onClose, task, defaultCode, onSave }: Prop
               <span>Descrição</span>
               <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição da tarefa" />
             </label>
-            <label className="field field--row plan-task-modal__toggle">
-              <input
-                type="checkbox"
-                checked={isInformational}
-                onChange={(e) => setIsInformational(e.target.checked)}
-              />
-              <span>Informativa (não consome horas)</span>
-            </label>
-            <label className={`field plan-task-modal__hours ${isInformational ? 'is-disabled' : ''}`}>
-              <span>Horas estimadas</span>
-              <input
-                className="plan-task-modal__hours-input"
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                disabled={isInformational}
-                placeholder="1,5 ou 1:30"
-                value={isInformational ? '—' : estimatedHoursDraft}
-                onChange={(e) => {
-                  if (isInformational) return
-                  setEstimatedHoursDraft(e.target.value)
-                }}
-              />
-              <span className="field__hint muted">
-                Decimal com vírgula ou ponto (1,5 h) ou relógio 1:30 — até 999 h.
-              </span>
-            </label>
+            {isCatalogAdHoc ? (
+              <p className="field__hint muted" style={{ marginTop: 0 }}>
+                Não altera a previsão do plano (estimativa do catálogo). O tempo só entra nas{' '}
+                <strong>horas utilizadas</strong> via cronômetro ou lançamentos nesta tarefa.
+              </p>
+            ) : (
+              <>
+                <label className="field field--row plan-task-modal__toggle">
+                  <input
+                    type="checkbox"
+                    checked={isInformational}
+                    onChange={(e) => setIsInformational(e.target.checked)}
+                  />
+                  <span>Informativa (não consome horas)</span>
+                </label>
+                <label className={`field plan-task-modal__hours ${isInformational ? 'is-disabled' : ''}`}>
+                  <span>Horas estimadas</span>
+                  <input
+                    ref={hoursRef}
+                    className="plan-task-modal__hours-input"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    disabled={isInformational}
+                    placeholder="1,5 ou 1:30"
+                    value={isInformational ? '—' : estimatedHoursDraft}
+                    onChange={(e) => {
+                      if (isInformational) return
+                      setEstimatedHoursDraft(e.target.value)
+                    }}
+                  />
+                  <span className="field__hint muted">
+                    Decimal com vírgula ou ponto (1,5 h) ou relógio 1:30 — até 999 h.
+                  </span>
+                </label>
+              </>
+            )}
+            {auditOnEdit && task ? (
+              <label className="field">
+                <span>Justificativa da alteração</span>
+                <textarea
+                  ref={auditJustificationRef}
+                  className="input"
+                  rows={3}
+                  value={auditJustification}
+                  onChange={(e) => setAuditJustification(e.target.value)}
+                  placeholder="Obrigatório para auditoria (mín. 12 caracteres)."
+                  autoComplete="off"
+                />
+                <span className="field__hint muted">Registrada nos logs de auditoria junto com o resumo das mudanças.</span>
+              </label>
+            ) : null}
           </form>
         </div>
         <div className="modal-plan__footer">
-          {err ? <p className="auth__error modal-plan__footer-err">{err}</p> : null}
           <div className="modal-plan__footer-actions">
             <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
               Cancelar

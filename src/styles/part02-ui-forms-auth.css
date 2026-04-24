@@ -501,6 +501,25 @@
   gap: 1rem;
   margin-bottom: 1rem;
 }
+.settings-appearance__source,
+.settings-appearance__manual-modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.85rem;
+}
+.settings-appearance__source-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  min-width: 7.5rem;
+}
+.settings-appearance__system-hint {
+  margin: 0 0 1rem;
+  max-width: 40rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
 .settings-appearance__modes {
   display: inline-flex;
   gap: 0.35rem;
@@ -634,6 +653,8 @@
   border-radius: 14px;
   border: 2px solid var(--border);
   background: var(--bg-elevated);
+  /* Corpo do card não herda ambiguidade de heading/user-agent — sempre tokens do tema ativo */
+  color: var(--text);
   padding: 0.85rem 1rem 1rem;
   transition:
     border-color 0.2s ease,
@@ -667,6 +688,7 @@
   font-size: 0.95rem;
   font-weight: 750;
   letter-spacing: -0.02em;
+  color: inherit;
 }
 .palette-card__tagline {
   margin: 0.35rem 0 0;

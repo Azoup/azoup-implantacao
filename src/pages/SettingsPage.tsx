@@ -5,9 +5,11 @@ import {
   Check,
   Cloud,
   DatabaseZap,
+  Monitor,
   Moon,
   Palette,
   Shield,
+  SlidersHorizontal,
   Sun,
   Trash2,
   Upload,
@@ -108,7 +110,7 @@ const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 export function SettingsPage() {
   const { user: current } = useAuth()
-  const { theme, setTheme, palette, setPalette } = useTheme()
+  const { theme, themeSource, setTheme, setThemeSource, palette, setPalette } = useTheme()
   const cachedUsers = useLiveQuery(() => db.users.toArray(), []) ?? emptyUsers
   const modKey = useMemo(
     () => (/Mac|iPhone|iPad|iPod/i.test(navigator.userAgent) ? '⌘' : 'Ctrl'),
@@ -541,29 +543,67 @@ export function SettingsPage() {
                 Tema e paleta
               </h2>
               <p className="muted panel__lead" style={{ margin: 0, maxWidth: '40rem' }}>
-                Escolha uma paleta coordenada (fundo, superfícies e destaque). O modo claro ou escuro combina
-                automaticamente com cada paleta. Você também pode alternar o modo pelo menu lateral.
+                Escolha uma paleta coordenada (fundo, superfícies e destaque). O modo claro ou escuro combina com
+                cada paleta. Você pode seguir o sistema ou fixar manualmente; o botão na barra lateral alterna o modo
+                (e passa a valer como escolha manual).
               </p>
             </div>
-            <div className="settings-appearance__modes" role="group" aria-label="Modo claro ou escuro">
+          </div>
+
+          <div className="settings-appearance__source">
+            <span className="settings-appearance__source-label muted">Origem do tema</span>
+            <div className="settings-appearance__modes" role="radiogroup" aria-label="Seguir sistema ou tema manual">
               <button
                 type="button"
-                className={'settings-appearance__mode' + (theme === 'light' ? ' is-active' : '')}
-                onClick={() => setTheme('light')}
+                role="radio"
+                aria-checked={themeSource === 'system'}
+                className={'settings-appearance__mode' + (themeSource === 'system' ? ' is-active' : '')}
+                onClick={() => setThemeSource('system')}
               >
-                <Sun size={17} strokeWidth={2} aria-hidden />
-                Claro
+                <Monitor {...icTab} aria-hidden />
+                Sistema
               </button>
               <button
                 type="button"
-                className={'settings-appearance__mode' + (theme === 'dark' ? ' is-active' : '')}
-                onClick={() => setTheme('dark')}
+                role="radio"
+                aria-checked={themeSource === 'manual'}
+                className={'settings-appearance__mode' + (themeSource === 'manual' ? ' is-active' : '')}
+                onClick={() => setThemeSource('manual')}
               >
-                <Moon size={17} strokeWidth={2} aria-hidden />
-                Escuro
+                <SlidersHorizontal {...icTab} aria-hidden />
+                Manual
               </button>
             </div>
           </div>
+
+          {themeSource === 'manual' ? (
+            <div className="settings-appearance__manual-modes">
+              <span className="settings-appearance__source-label muted">Modo fixo</span>
+              <div className="settings-appearance__modes" role="group" aria-label="Modo claro ou escuro">
+                <button
+                  type="button"
+                  className={'settings-appearance__mode' + (theme === 'light' ? ' is-active' : '')}
+                  onClick={() => setTheme('light')}
+                >
+                  <Sun size={17} strokeWidth={2} aria-hidden />
+                  Claro
+                </button>
+                <button
+                  type="button"
+                  className={'settings-appearance__mode' + (theme === 'dark' ? ' is-active' : '')}
+                  onClick={() => setTheme('dark')}
+                >
+                  <Moon size={17} strokeWidth={2} aria-hidden />
+                  Escuro
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="muted settings-appearance__system-hint">
+              Modo atual vem do sistema operacional ({theme === 'dark' ? 'escuro' : 'claro'}). O botão de tema na
+              barra lateral fixa manualmente o outro modo.
+            </p>
+          )}
 
           <ul className="palette-grid" aria-label="Paletas de cor">
             {PALETTE_PRESETS.map((p) => (

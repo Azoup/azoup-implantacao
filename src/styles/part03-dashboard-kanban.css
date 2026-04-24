@@ -1,5 +1,6 @@
-﻿/* Dashboard (modern layout) */
-.page--dashboard {
+﻿/* Dashboard + Projetos (hub): mesma coluna útil e margens percebidas */
+.page--dashboard,
+.page--projects-hub {
   max-width: 1280px;
 }
 .dashboard__date {
@@ -194,7 +195,7 @@
 .dashboard-proj-card {
   border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
   border-radius: 14px;
-  padding: 1rem 1.1rem;
+  padding: var(--vt-card-padding-block) var(--vt-card-padding-inline);
   background: var(--bg-elevated);
   transition:
     border-color 0.15s ease,
@@ -329,8 +330,8 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
-  border-radius: 999px;
+  border: 2.5px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  border-radius: 10px;
   overflow: hidden;
 }
 .dashboard-proj-card__analyst .analyst-avatar {
@@ -346,7 +347,7 @@
 }
 .dashboard-proj-card__track {
   flex: 1;
-  height: 8px;
+  height: var(--vt-progress-track-height);
   border-radius: 999px;
   background: color-mix(in srgb, var(--border) 45%, transparent);
   overflow: hidden;
@@ -562,30 +563,133 @@
   }
 }
 
+.dashboard-alerts__head {
+  margin-bottom: 0.65rem;
+}
+.dashboard-alerts__title {
+  margin-bottom: 0.35rem;
+}
+.dashboard-alerts__lead {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+.dashboard-alerts__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.dashboard-alerts__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.32rem 0.65rem 0.32rem 0.5rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+.dashboard-alerts__chip:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+.dashboard-alerts__chip.is-active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.dashboard-alerts__chip-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.06rem 0.38rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
+  color: var(--text-muted);
+}
+.dashboard-alerts__chip.is-active .dashboard-alerts__chip-count {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--text);
+}
+.dashboard-alerts__list {
+  gap: 0.15rem;
+}
+
 .dashboard-alert {
   display: flex;
   gap: 0.55rem;
   align-items: flex-start;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--danger) 15%, var(--border));
+  padding: 0.5rem 0.45rem;
+  margin: 0 -0.45rem;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
-.dashboard-alert:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.dashboard-alert:hover {
+  background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+  border-color: color-mix(in srgb, var(--border) 75%, transparent);
+}
+.dashboard-alert:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .dashboard-alert__icon {
   flex-shrink: 0;
-  color: var(--danger);
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
 }
-.dashboard-alert__text {
-  font-size: 0.84rem;
-  line-height: 1.45;
+.dashboard-alert--overdue_due .dashboard-alert__icon {
+  color: #f87171;
+}
+.dashboard-alert--agenda_no_hours .dashboard-alert__icon {
+  color: #fb923c;
+}
+.dashboard-alert--schedule_gap .dashboard-alert__icon {
+  color: color-mix(in srgb, var(--accent) 82%, #fde68a);
+}
+.dashboard-alert__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.dashboard-alert__kind {
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text-muted);
 }
-.dashboard-alert__text strong {
-  color: color-mix(in srgb, var(--text) 88%, var(--text-muted));
-  font-weight: 600;
+.dashboard-alert__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+.dashboard-alert__primary {
+  font-size: 0.84rem;
+  line-height: 1.42;
+  font-weight: 650;
+  color: var(--text);
+}
+.dashboard-alert__secondary {
+  font-size: 0.78rem;
+  line-height: 1.42;
+  color: var(--text-muted);
 }
 
 .proj-row {
@@ -703,6 +807,16 @@
 }
 .kanban-page__header .page__subtitle {
   max-width: 42rem;
+}
+.kanban-page__zero-hint {
+  margin: -0.35rem 0 1.1rem;
+  max-width: 42rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.kanban-page__zero-hint strong {
+  color: var(--text);
+  font-weight: 700;
 }
 
 .kanban {
@@ -968,8 +1082,8 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
-  border-radius: 999px;
+  border: 2.5px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  border-radius: 10px;
   overflow: hidden;
 }
 .kanban-card__analyst .analyst-avatar {
@@ -1013,7 +1127,29 @@
   gap: 0.4rem;
 }
 .proj-card__plan-labels .vt-plan-label-row__pair {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, max-content) minmax(0, 1fr);
+  column-gap: 0.4rem;
+  align-items: center;
+  min-height: 2.35rem;
   width: 100%;
+}
+.proj-card__plan-labels .vt-plan-label-row__hint {
+  min-width: 3.25rem;
+  text-align: right;
+}
+
+/* Linha “Atual”: menos peso visual que o chip global (kanban/dashboard) */
+.proj-card__plan-labels .vt-plan-label-row__pair:has(.vt-plan-label--active) .vt-plan-label-row__hint {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
+}
+.proj-card__plan-labels .vt-plan-label--active {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vt-pill-color, var(--accent)) 18%, transparent);
+}
+.proj-card__plan-labels .vt-plan-label--open-progress {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--vt-pill-color, var(--accent)) 28%, transparent);
 }
 .vt-plan-label-row__pair {
   display: inline-flex;
@@ -1245,6 +1381,25 @@
   align-items: center;
   gap: 0.4rem;
 }
+
+.projects-page__empty {
+  margin: 1.25rem 0 2rem;
+  padding: 1.75rem 1.25rem;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--border) 88%, var(--accent) 12%);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  text-align: center;
+  max-width: 36rem;
+}
+.projects-page__empty p {
+  margin: 0 0 0.75rem;
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+.projects-page__empty .btn {
+  margin-top: 0.35rem;
+}
+
 .projects-page__toolbar {
   display: flex;
   align-items: center;
@@ -1265,9 +1420,9 @@
 .projects-page__analyst-chip {
   width: 34px;
   height: 34px;
-  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 48%, var(--border));
+  border: 2.5px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 48%, var(--border));
   background: color-mix(in srgb, var(--surface) 82%, var(--bg));
-  border-radius: 999px;
+  border-radius: 9px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -1415,7 +1570,7 @@
   flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 16px;
-  padding: 1rem 1.04rem 0.95rem;
+  padding: var(--vt-card-padding-proj-block) var(--vt-card-padding-proj-inline) var(--vt-card-padding-proj-block-end);
   background: var(--bg-elevated);
   box-shadow: var(--shadow);
 }
@@ -1423,26 +1578,33 @@
 .proj-card__head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 0.65rem 0.85rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+  column-gap: 0.75rem;
 }
 
 .proj-card__title {
   margin: 0;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 12rem;
   font-size: 0.95rem;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   line-height: 1.25;
   color: var(--text);
+  min-height: calc(2 * 0.95rem * 1.25);
 }
 
 .proj-card__title-link {
   color: inherit;
   text-decoration: none;
-  display: inline-block;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
   max-width: 100%;
 }
 .proj-card__title-link:hover {
@@ -1453,17 +1615,20 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.38rem;
+  gap: 0.4rem;
   justify-content: flex-end;
-  flex-shrink: 0;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--vt-proj-card-chip-height);
 }
 /* Anel único: borda só no wrapper; avatar sem borda interna (evita “dupla borda”). */
 .proj-card__analyst {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
-  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 62%, var(--border));
+  border-radius: 9px;
   overflow: hidden;
 }
 .proj-card__analyst .analyst-avatar {
@@ -1472,19 +1637,56 @@
 }
 
 .proj-card__badge {
-  padding: 0.24rem 0.52rem;
+  box-sizing: border-box;
+  min-height: var(--vt-proj-card-chip-height);
+  padding: 0 0.52rem;
   border-radius: 8px;
-  font-size: 0.66rem;
+  font-size: 0.625rem;
   font-weight: 700;
   white-space: nowrap;
   border: 1px solid transparent;
   line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .proj-card__badge--api {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+/* Plano: mesma altura que status/API; levemente menos saturado que no Kanban */
+.proj-card__badges .plan-pill {
+  min-height: var(--vt-proj-card-chip-height);
+  font-size: 0.625rem;
+  padding: 0 0.48rem;
+}
+.proj-card__badges .plan-pill--basic {
+  background: color-mix(in srgb, #22c55e 11%, var(--surface));
+}
+.proj-card__badges .plan-pill--pro {
+  background: color-mix(in srgb, #3b82f6 12%, var(--surface));
+}
+.proj-card__badges .plan-pill--master {
+  background: color-mix(in srgb, #ef4444 11%, var(--surface));
+}
+.proj-card__badges .plan-pill--avulso,
+.proj-card__badges .plan-pill--unknown {
+  background: color-mix(in srgb, var(--surface-2) 82%, var(--surface));
+}
+:root[data-theme='light'] .proj-card__badges .plan-pill--basic {
+  background: color-mix(in srgb, #22c55e 10%, var(--surface));
+}
+:root[data-theme='light'] .proj-card__badges .plan-pill--pro {
+  background: color-mix(in srgb, #3b82f6 10%, var(--surface));
+}
+:root[data-theme='light'] .proj-card__badges .plan-pill--master {
+  background: color-mix(in srgb, #ef4444 9%, var(--surface));
 }
 
 .proj-card__badge--status.is-ativo {
@@ -1534,11 +1736,12 @@
 }
 
 .proj-card__phase-seg--current {
-  background: color-mix(in srgb, var(--seg-base, var(--accent)) 78%, #ffffff);
-  border-color: color-mix(in srgb, var(--seg-base, var(--accent)) 86%, #ffffff);
+  background: color-mix(in srgb, var(--seg-base, var(--accent)) 52%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--seg-base, var(--accent)) 58%, var(--border));
 }
 .proj-card__phase-seg--idle {
-  background: color-mix(in srgb, var(--surface) 75%, transparent);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border-color: color-mix(in srgb, var(--border) 92%, var(--text-muted));
 }
 
 .proj-card__meta-row {
@@ -1569,14 +1772,29 @@
   flex: 1;
   justify-content: flex-end;
   text-align: right;
+  min-width: 0;
 }
 
 .proj-card__phase-caption {
-  font-weight: 800;
-  color: var(--text);
-  font-size: 0.86rem;
-  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.42rem;
+  max-width: 100%;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.25;
   text-align: right;
+}
+.proj-card__phase-caption::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--proj-phase-accent, var(--accent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--proj-phase-accent, var(--accent)) 38%, transparent);
 }
 
 .proj-card__codes {
@@ -1634,7 +1852,7 @@
 .proj-card__progress-track {
   flex: 1;
   min-width: 0;
-  height: 5px;
+  height: var(--vt-progress-track-height);
   border-radius: 999px;
   background: color-mix(in srgb, var(--border) 65%, var(--surface-2));
   overflow: hidden;

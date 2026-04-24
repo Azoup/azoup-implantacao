@@ -486,8 +486,13 @@ export function dbPhaseToSupabaseRow(v: DbPhase): Record<string, unknown> {
   }
 }
 
+function shouldSyncTaskIsAdHocToSupabase(): boolean {
+  const v = import.meta.env.VITE_SYNC_TASK_IS_AD_HOC
+  return v === '1' || v === 'true'
+}
+
 export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     id: v.id,
     title: v.title,
     description: v.description,
@@ -504,6 +509,12 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
     code: v.code,
     sort_order: v.sortOrder,
   }
+  /**
+   * Coluna `is_ad_hoc` só existe após `009_tasks_is_ad_hoc.sql`. Enviar sem a coluna quebra o upsert (PGRST).
+   * Ative `VITE_SYNC_TASK_IS_AD_HOC=1` no .env depois de aplicar a migration em todos os ambientes.
+   */
+  if (shouldSyncTaskIsAdHocToSupabase() && v.isAdHoc === true) row.is_ad_hoc = true
+  return row
 }
 
 /** Grava um projeto inteiro no Supabase (INSERT/UPSERT — use após criação ou sync amplo; edições de formulário preferem `updateProjectPartialInSupabase`). */
@@ -845,6 +856,7 @@ const defs: BridgeDef<unknown>[] = [
       assignedTo: toStringOrNull(r.assigned_to),
       dueDate: toStringOrNull(r.due_date),
       isInformational: toBool(r.is_informational, false),
+      isAdHoc: toBool((r as { is_ad_hoc?: unknown }).is_ad_hoc, false),
       createdAt: String(r.created_at ?? new Date().toISOString()),
       code: String(r.code ?? ''),
       sortOrder: toNumber(r.sort_order),

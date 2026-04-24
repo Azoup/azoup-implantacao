@@ -9,7 +9,11 @@ import {
   emptyProjects,
   emptyTasks,
 } from '../lib/stableDexieEmpty'
-import { KANBAN_COLUMNS } from '../constants/kanban'
+import {
+  KANBAN_COLUMNS,
+  kanbanColumnTitleCompact,
+  kanbanColumnTitleFull,
+} from '../constants/kanban'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { getActivePlanLabel, getLastCompletedPlanLabel } from '../lib/planLabelDisplay'
 import type { KanbanColumn } from '../db/types'
@@ -31,10 +35,6 @@ type PendingMove = {
   projectName: string
   from: KanbanColumn
   to: KanbanColumn
-}
-
-function columnTitle(id: KanbanColumn): string {
-  return KANBAN_COLUMNS.find((c) => c.id === id)?.title ?? id
 }
 
 function moveConsequences(from: KanbanColumn, to: KanbanColumn): string {
@@ -131,10 +131,23 @@ export function OverviewPage() {
             {activeCount} projeto(s) ativos
           </p>
         </div>
-        <Link to="/projetos" state={{ openNew: true }} className="btn btn--primary">
-          Novo projeto
-        </Link>
+        {canEditProjects ? (
+          <Link to="/projetos" state={{ openNew: true }} className="btn btn--ghost">
+            Novo projeto
+          </Link>
+        ) : null}
       </header>
+
+      {projects.length === 0 && canEditProjects ? (
+        <p className="kanban-page__zero-hint muted" role="status">
+          Ainda não há projetos. Use <strong>+ Novo projeto</strong> na barra lateral para cadastrar — é o ponto
+          principal de criação em todas as telas.
+        </p>
+      ) : projects.length === 0 ? (
+        <p className="kanban-page__zero-hint muted" role="status">
+          Ainda não há projetos para exibir neste quadro.
+        </p>
+      ) : null}
 
       <div className="kanban">
         {KANBAN_COLUMNS.map((col) => {
@@ -281,14 +294,14 @@ export function OverviewPage() {
                                 >
                                   {KANBAN_COLUMNS.map((c) => (
                                     <option key={c.id} value={c.id}>
-                                      {c.title}
+                                      {c.titleCompact}
                                     </option>
                                   ))}
                                 </select>
                               </label>
                             ) : (
                               <span className="kanban-card__col-readonly muted" title="Sem permissão para mover">
-                                {columnTitle(effective)}
+                                {kanbanColumnTitleFull(effective)}
                               </span>
                             )}
                           </div>
@@ -298,14 +311,16 @@ export function OverviewPage() {
                   )}
                 </div>
 
-                <Link
-                  className="kanban__add-card"
-                  to="/projetos"
-                  state={{ openNew: true, kanbanColumn: col.id }}
-                >
-                  <Plus size={18} strokeWidth={2} />
-                  Adicionar cartão
-                </Link>
+                {canEditProjects ? (
+                  <Link
+                    className="kanban__add-card"
+                    to="/projetos"
+                    state={{ openNew: true, kanbanColumn: col.id }}
+                  >
+                    <Plus size={18} strokeWidth={2} />
+                    Adicionar cartão
+                  </Link>
+                ) : null}
               </div>
             </section>
           )
@@ -320,7 +335,8 @@ export function OverviewPage() {
               <strong>{pendingMove.projectName}</strong>
             </p>
             <p className="kanban-move-modal__route">
-              {columnTitle(pendingMove.from)} → <strong>{columnTitle(pendingMove.to)}</strong>
+              {kanbanColumnTitleCompact(pendingMove.from)} →{' '}
+              <strong>{kanbanColumnTitleCompact(pendingMove.to)}</strong>
             </p>
             <div className="kanban-move-modal__warn">
               <p>{moveConsequences(pendingMove.from, pendingMove.to)}</p>

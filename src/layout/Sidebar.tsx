@@ -63,7 +63,8 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
   const { user, logout } = useAuth()
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
-  const ThemeIcon = theme === 'dark' ? Sun : Moon
+  /** Ícone = modo ativo (lua no escuro, sol no claro); o clique alterna o tema. */
+  const ThemeIcon = theme === 'dark' ? Moon : Sun
   const ip = collapsed ? iconPropsCollapsed : iconProps
   const visibleMainNav = mainNav.filter((x) => hasScope(user, x.scope))
   const visibleBottomNav = bottomNav.filter((x) => hasScope(user, x.scope))
@@ -74,7 +75,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
       <div className="sidebar__header">
         <div className="sidebar__brand sidebar__brand--interactive">
           <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-            <VyntaskLogo variant="brand" size={32} />
+            <VyntaskLogo variant="inverse" size={32} />
           </span>
           <div className="sidebar__brand-text">
             <div className="sidebar__title">
@@ -92,10 +93,10 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             toggle()
             onNavigate?.()
           }}
-          title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          aria-label={theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'}
+          title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
+          aria-label={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
         >
-          <ThemeIcon size={17} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+          <ThemeIcon size={18} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
         </button>
       </div>
 

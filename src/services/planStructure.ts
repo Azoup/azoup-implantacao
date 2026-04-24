@@ -46,11 +46,11 @@ export async function movePlanPhase(planModelId: string, phaseId: string, dir: '
   })
 }
 
-/** Próximo código sugerido ex.: 1.1, 2.3 — baseado na posição da fase e na quantidade de tarefas. */
+/** Próximo código sugerido ex.: 0.1, 2.3 — prefixo = `orderIndex` da fase (Fase 00 → 0.x), sufixo = próximo slot. */
 export async function suggestNextTaskCode(planModelId: string, phaseId: string): Promise<string> {
-  const phases = await db.planPhases.where('planModelId').equals(planModelId).sortBy('orderIndex')
-  const idx = phases.findIndex((p) => p.id === phaseId)
-  const prefix = idx >= 0 ? idx + 1 : 1
+  const ph = await db.planPhases.get(phaseId)
+  if (!ph || ph.planModelId !== planModelId) throw new Error('Fase não encontrada.')
+  const prefix = ph.orderIndex
   const tasks = await db.planTasks.where('planPhaseId').equals(phaseId).toArray()
   tasks.sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
   const n = tasks.length + 1

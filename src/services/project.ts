@@ -219,6 +219,7 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
             assignedTo: opts.analystId,
             dueDate: null,
             isInformational: pt.isInformational,
+            isAdHoc: false,
             createdAt: new Date().toISOString(),
             code: pt.code,
             sortOrder: so++,

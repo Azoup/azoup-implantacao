@@ -288,6 +288,11 @@ export interface DbTask {
   assignedTo: string | null
   dueDate: string | null
   isInformational: boolean
+  /**
+   * Tarefa extra criada no projeto com plano de catálogo (não veio do modelo).
+   * Estimativa permanece 0; não altera a baseline de previsão do plano — só horas reais.
+   */
+  isAdHoc?: boolean
   createdAt: string
   code: string
   sortOrder: number

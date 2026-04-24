@@ -10,6 +10,7 @@ export function effectiveTaskIsInformational(
   phase: DbPhase | undefined,
   blocks: PlanBlueprintBlock[] | null | undefined,
 ): boolean {
+  if (task.isAdHoc === true) return task.isInformational === true
   if (task.isInformational === true) return true
   if (!phase || !blocks?.length) return false
   const block = blocks.find((b) => b.planPhase.orderIndex === phase.orderIndex)

@@ -19,10 +19,11 @@ import {
   ChevronUp,
   CircleCheck,
   Clock,
-  Hourglass,
+  CircleDashed,
   Link2,
   Lock,
   MessageSquare,
+  MoreVertical,
   Paperclip,
   Pencil,
   Phone,
@@ -40,7 +41,7 @@ import {
 import { DocCommentBody } from '../components/DocCommentBody'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { CustomPlanPhaseModal } from '../components/CustomPlanPhaseModal'
-import { PlanTaskModal, type PlanTaskFormValues } from '../components/PlanTaskModal'
+import { PlanTaskModal, type PlanTaskFormValues, type PlanTaskSaveMeta } from '../components/PlanTaskModal'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
@@ -140,12 +141,16 @@ function phaseStats(phaseId: string, projectId: string, tasks: DbTask[]) {
   return { done, total, pct, list: [...ts].sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder) }
 }
 
+const icTaskStatus = { size: 16, strokeWidth: 2, absoluteStrokeWidth: true } as const
+
 function taskStatusIcon(status: TaskStatus) {
-  if (status === 'concluida') return <CheckCircle2 className="pd-task__status-ic pd-task__status-ic--done" {...icSm} />
-  if (status === 'cancelado') return <XCircle className="pd-task__status-ic" {...icSm} />
+  if (status === 'concluida')
+    return <CheckCircle2 className="pd-task__status-ic pd-task__status-ic--done" {...icTaskStatus} />
+  if (status === 'cancelado')
+    return <XCircle className="pd-task__status-ic pd-task__status-ic--cancelled" {...icTaskStatus} />
   if (status === 'em_andamento')
-    return <PlayCircle className="pd-task__status-ic pd-task__status-ic--progress" {...icSm} />
-  return <Hourglass className="pd-task__status-ic" {...icSm} />
+    return <PlayCircle className="pd-task__status-ic pd-task__status-ic--progress" {...icTaskStatus} />
+  return <CircleDashed className="pd-task__status-ic pd-task__status-ic--pending" {...icTaskStatus} />
 }
 
 function docTimestampPt(iso: string): string {
@@ -261,6 +266,7 @@ export function ProjectDetailPage() {
   const [customTaskPhaseId, setCustomTaskPhaseId] = useState<string | null>(null)
   const [customTaskEditing, setCustomTaskEditing] = useState<DbTask | null>(null)
   const [customTaskDefaultCode, setCustomTaskDefaultCode] = useState('1.1')
+  const [planTaskModalVariant, setPlanTaskModalVariant] = useState<'standard' | 'catalogAdHoc'>('standard')
 
   const scheduledEventByTaskId = useMemo(() => {
     const m = new Map<string, DbEvent>()
@@ -462,10 +468,32 @@ export function ProjectDetailPage() {
     setCustomPhaseModal(null)
   }
 
-  async function onSaveCustomTaskModal(values: PlanTaskFormValues) {
+  async function onSaveCustomTaskModal(values: PlanTaskFormValues, meta?: PlanTaskSaveMeta) {
+    const auditForEdit =
+      customTaskEditing && meta?.justification && meta.justification.trim().length >= 12
+        ? { actorUserId: me.id, justification: meta.justification.trim() }
+        : undefined
+    if (customTaskEditing && !auditForEdit) {
+      throw new Error('Informe a justificativa da alteração (mínimo 12 caracteres).')
+    }
+    if (planTaskModalVariant === 'catalogAdHoc') {
+      const fixed: PlanTaskFormValues = {
+        ...values,
+        estimatedHours: 0,
+        isInformational: false,
+      }
+      if (customTaskEditing) {
+        await updateProjectTask(customTaskEditing.id, fixed, auditForEdit)
+        toast('Tarefa avulsa atualizada.')
+      } else if (customTaskPhaseId) {
+        await addProjectTask(proj.id, customTaskPhaseId, fixed, proj.analystId ?? null, { catalogAdHoc: true })
+        toast('Tarefa avulsa criada.')
+      }
+      return
+    }
     await ensureCustomContractForProjectedSum(customTaskEditing?.id ?? null, values)
     if (customTaskEditing) {
-      await updateProjectTask(customTaskEditing.id, values)
+      await updateProjectTask(customTaskEditing.id, values, auditForEdit)
       toast('Tarefa atualizada.')
     } else if (customTaskPhaseId) {
       await addProjectTask(proj.id, customTaskPhaseId, values, proj.analystId ?? null)
@@ -776,7 +804,7 @@ export function ProjectDetailPage() {
               {planName}
             </span>
             <span
-              className="pd-analyst-badge"
+              className={'pd-analyst-badge' + (projectAnalyst ? '' : ' pd-analyst-badge--solo')}
               title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}
               style={
                 projectAnalyst ? { ['--analyst-color' as string]: projectAnalyst.color } : undefined
@@ -942,96 +970,140 @@ export function ProjectDetailPage() {
                   }
                   style={{ ['--pd-phase-accent' as string]: phase.colorHex || planPhaseAccentHex(phase.orderIndex) }}
                 >
-                  <header className="pd-phase__head">
-                    <div className={'pd-phase__icon' + (ativa ? ' pd-phase__icon--play' : '')}>
-                      {locked ? <Lock {...ic} /> : concl ? <CheckCircle2 {...ic} /> : <Play {...ic} />}
-                    </div>
-                    <div className="pd-phase__head-text">
-                      <h2 className="pd-phase__title">{phase.name}</h2>
-                      <p className="pd-phase__meta muted">
-                        {done}/{total} · {pPct}%
-                        {locked ? (
-                          <>
-                            {' '}
-                            <span className="pd-phase__lock-badge">Bloqueada</span>
-                          </>
-                        ) : null}
-                      </p>
-                    </div>
-                    {isCustomPlan && canEditProjects ? (
-                      <div className="pd-phase__custom-actions">
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--xs btn--icon"
-                          onClick={() => {
-                            void (async () => {
-                              const code = await suggestNextProjectTaskCode(proj.id, phase.id)
-                              setCustomTaskDefaultCode(code)
-                              setCustomTaskPhaseId(phase.id)
-                              setCustomTaskEditing(null)
-                              setCustomTaskModalOpen(true)
-                            })()
-                          }}
-                          title="Nova tarefa nesta fase"
-                          aria-label="Nova tarefa nesta fase"
-                        >
-                          <Plus {...icSm} aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--xs btn--icon"
-                          onClick={() => setCustomPhaseModal({ mode: 'edit', phase })}
-                          title="Editar fase"
-                          aria-label="Editar fase"
-                        >
-                          <Pencil {...icSm} aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--xs btn--icon"
-                          onClick={() => void moveProjectPhase(proj.id, phase.id, 'up')}
-                          title="Mover fase para cima"
-                          aria-label="Mover fase para cima"
-                        >
-                          <ChevronUp {...icSm} aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--xs btn--icon"
-                          onClick={() => void moveProjectPhase(proj.id, phase.id, 'down')}
-                          title="Mover fase para baixo"
-                          aria-label="Mover fase para baixo"
-                        >
-                          <ChevronDown {...icSm} aria-hidden />
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--xs btn--icon pd-phase__btn-danger"
-                          title="Excluir fase"
-                          aria-label="Excluir fase"
-                          onClick={() => {
-                            void (async () => {
-                              const ok = await requestConfirm({
-                                title: 'Excluir fase',
-                                message: `Excluir a fase "${phase.name}" e todas as suas tarefas?`,
-                                confirmLabel: 'Excluir',
-                                cancelLabel: 'Cancelar',
-                                danger: true,
-                              })
-                              if (!ok) return
-                              try {
-                                await deleteProjectPhaseCascade(phase.id)
-                                toast('Fase excluída.')
-                              } catch (e) {
-                                toastError(e instanceof Error ? e.message : 'Não foi possível excluir a fase.')
-                              }
-                            })()
-                          }}
-                        >
-                          <Trash2 {...icSm} aria-hidden />
-                        </button>
+                  <header className={'pd-phase__head' + (isCustomPlan ? ' pd-phase__head--custom' : '')}>
+                    <div className="pd-phase__head-row">
+                      <div className={'pd-phase__icon' + (ativa ? ' pd-phase__icon--play' : '')}>
+                        {locked ? <Lock {...ic} /> : concl ? <CheckCircle2 {...ic} /> : <Play {...ic} />}
                       </div>
-                    ) : null}
+                      <div className="pd-phase__head-main">
+                        <h2 className="pd-phase__title">{phase.name}</h2>
+                        <div className="pd-phase__head-meta">
+                          <span className="pd-phase__stats">{done}/{total} · {pPct}%</span>
+                          {locked ? <span className="pd-phase__lock-badge">Bloqueada</span> : null}
+                        </div>
+                      </div>
+                      {canEditProjects ? (
+                        isCustomPlan ? (
+                          <details className="pd-phase__more">
+                            <summary
+                              className="btn btn--ghost btn--xs btn--icon pd-phase__more-trigger"
+                              aria-label="Menu da fase"
+                              title="Ações da fase"
+                            >
+                              <MoreVertical {...icSm} aria-hidden />
+                            </summary>
+                            <div className="pd-phase__more-panel" role="menu" aria-label="Ações da fase">
+                              <button
+                                type="button"
+                                className="pd-phase__more-item"
+                                role="menuitem"
+                                onClick={(ev) => {
+                                  const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                  det?.removeAttribute('open')
+                                  void (async () => {
+                                    const code = await suggestNextProjectTaskCode(proj.id, phase.id)
+                                    setPlanTaskModalVariant('standard')
+                                    setCustomTaskDefaultCode(code)
+                                    setCustomTaskPhaseId(phase.id)
+                                    setCustomTaskEditing(null)
+                                    setCustomTaskModalOpen(true)
+                                  })()
+                                }}
+                              >
+                                <Plus {...icSm} aria-hidden />
+                                <span>Nova tarefa</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pd-phase__more-item"
+                                role="menuitem"
+                                onClick={(ev) => {
+                                  const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                  det?.removeAttribute('open')
+                                  setCustomPhaseModal({ mode: 'edit', phase })
+                                }}
+                              >
+                                <Pencil {...icSm} aria-hidden />
+                                <span>Editar fase</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pd-phase__more-item"
+                                role="menuitem"
+                                onClick={(ev) => {
+                                  const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                  det?.removeAttribute('open')
+                                  void moveProjectPhase(proj.id, phase.id, 'up')
+                                }}
+                              >
+                                <ChevronUp {...icSm} aria-hidden />
+                                <span>Mover para cima</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pd-phase__more-item"
+                                role="menuitem"
+                                onClick={(ev) => {
+                                  const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                  det?.removeAttribute('open')
+                                  void moveProjectPhase(proj.id, phase.id, 'down')
+                                }}
+                              >
+                                <ChevronDown {...icSm} aria-hidden />
+                                <span>Mover para baixo</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pd-phase__more-item pd-phase__more-item--danger"
+                                role="menuitem"
+                                onClick={(ev) => {
+                                  const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                  det?.removeAttribute('open')
+                                  void (async () => {
+                                    const ok = await requestConfirm({
+                                      title: 'Excluir fase',
+                                      message: `Excluir a fase "${phase.name}" e todas as suas tarefas?`,
+                                      confirmLabel: 'Excluir',
+                                      cancelLabel: 'Cancelar',
+                                      danger: true,
+                                    })
+                                    if (!ok) return
+                                    try {
+                                      await deleteProjectPhaseCascade(phase.id)
+                                      toast('Fase excluída.')
+                                    } catch (e) {
+                                      toastError(e instanceof Error ? e.message : 'Não foi possível excluir a fase.')
+                                    }
+                                  })()
+                                }}
+                              >
+                                <Trash2 {...icSm} aria-hidden />
+                                <span>Excluir fase</span>
+                              </button>
+                            </div>
+                          </details>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--xs btn--icon pd-phase__lone-add"
+                            onClick={() => {
+                              void (async () => {
+                                const code = await suggestNextProjectTaskCode(proj.id, phase.id)
+                                setPlanTaskModalVariant('catalogAdHoc')
+                                setCustomTaskDefaultCode(code)
+                                setCustomTaskPhaseId(phase.id)
+                                setCustomTaskEditing(null)
+                                setCustomTaskModalOpen(true)
+                              })()
+                            }}
+                            title="Nova tarefa avulsa nesta fase (só consome horas reais)"
+                            aria-label="Nova tarefa avulsa nesta fase"
+                          >
+                            <Plus {...icSm} aria-hidden />
+                          </button>
+                        )
+                      ) : null}
+                    </div>
                   </header>
                   <div className="pd-phase__tasks">
                     {list.map((t) => {
@@ -1058,6 +1130,7 @@ export function ProjectDetailPage() {
                             'pd-task' +
                             (doneTask ? ' pd-task--done' : '') +
                             (informational ? ' pd-task--info' : '') +
+                            (t.isAdHoc ? ' pd-task--adhoc' : '') +
                             (liveTimerHere ? ' pd-task--timer-live' : '')
                           }
                           style={{
@@ -1066,11 +1139,20 @@ export function ProjectDetailPage() {
                           }}
                         >
                           <div className="pd-task__top">
-                            <div className="pd-task__title-row">
+                            <div className="pd-task__lead">
                               <div className="pd-task__code-row">
                                 <span className="pd-task__code">{t.code}</span>
                                 {informational ? (
                                   <span className="pd-task__info-badge">Informativa</span>
+                                ) : null}
+                                {t.isAdHoc ? (
+                                  <span
+                                    className="pd-task__adhoc-ico"
+                                    title="Tarefa avulsa — fora do escopo do catálogo/plano (só horas reais)"
+                                    aria-hidden
+                                  >
+                                    <Link2 size={13} strokeWidth={2.25} />
+                                  </span>
                                 ) : null}
                                 {scheduledEv ? (
                                   <span className="pd-task__schedule-badge" title="Compromisso na agenda">
@@ -1080,7 +1162,7 @@ export function ProjectDetailPage() {
                               </div>
                               <span className="pd-task__title">{t.title}</span>
                             </div>
-                            <div className="pd-task__top-right">
+                            <div className="pd-task__rail">
                               {(() => {
                                 const analyst =
                                   analysts.find((a) => a.id === (t.assignedTo ?? proj.analystId ?? '')) ?? null
@@ -1100,7 +1182,104 @@ export function ProjectDetailPage() {
                                   </span>
                                 )
                               })()}
-                              {taskStatusIcon(liveTimerHere ? 'em_andamento' : t.status)}
+                              <span className="pd-task__icon-slot" aria-hidden>
+                                {taskStatusIcon(liveTimerHere ? 'em_andamento' : t.status)}
+                              </span>
+                              {!doneTask && canAct ? (
+                                <button
+                                  type="button"
+                                  className="btn btn--primary btn--xs btn--icon pd-task__conclude"
+                                  onClick={() => onTaskStatus(t.id, 'concluida')}
+                                  title="Marcar como concluída"
+                                  aria-label="Marcar tarefa como concluída"
+                                >
+                                  <CheckCircle2 {...icSm} aria-hidden />
+                                </button>
+                              ) : null}
+                              <details className="pd-task__more">
+                                <summary
+                                  className="btn btn--ghost btn--xs btn--icon pd-task__more-trigger"
+                                  aria-label="Menu da tarefa"
+                                  title="Mais ações"
+                                >
+                                  <MoreVertical {...icSm} aria-hidden />
+                                </summary>
+                                <div className="pd-task__more-panel" role="menu" aria-label="Ações da tarefa">
+                                  <button
+                                    type="button"
+                                    className="pd-task__more-item"
+                                    role="menuitem"
+                                    onClick={(ev) => {
+                                      const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                      det?.removeAttribute('open')
+                                      setExpandedDesc((d) => ({ ...d, [t.id]: !d[t.id] }))
+                                    }}
+                                    title={showDesc ? 'Ocultar descrição' : 'Ver descrição'}
+                                    aria-label={showDesc ? 'Ocultar descrição da tarefa' : 'Ver descrição da tarefa'}
+                                  >
+                                    <MessageSquare {...icSm} aria-hidden />
+                                    <span>{showDesc ? 'Ocultar' : 'Descrição'}</span>
+                                  </button>
+                                  {!doneTask && (isCustomPlan || t.isAdHoc) && canEditProjects ? (
+                                    <button
+                                      type="button"
+                                      className="pd-task__more-item"
+                                      role="menuitem"
+                                      onClick={(ev) => {
+                                        const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                        det?.removeAttribute('open')
+                                        setPlanTaskModalVariant(isCustomPlan ? 'standard' : 'catalogAdHoc')
+                                        setCustomTaskEditing(t)
+                                        setCustomTaskPhaseId(phase.id)
+                                        setCustomTaskDefaultCode(t.code)
+                                        setCustomTaskModalOpen(true)
+                                      }}
+                                      title="Editar tarefa: código, título, descrição e estimativa"
+                                      aria-label="Editar tarefa"
+                                    >
+                                      <Pencil {...icSm} aria-hidden />
+                                      <span>Editar</span>
+                                    </button>
+                                  ) : null}
+                                  {!doneTask && (isCustomPlan || t.isAdHoc) && canEditProjects ? (
+                                    <button
+                                      type="button"
+                                      className="pd-task__more-item pd-task__more-item--danger"
+                                      role="menuitem"
+                                      onClick={(ev) => {
+                                        const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
+                                        det?.removeAttribute('open')
+                                        void (async () => {
+                                          const reason = await requestDestructiveWithReason({
+                                            title: 'Excluir tarefa',
+                                            message: `Excluir permanentemente "${t.code} ${t.title}"? A justificativa ficará nos logs de auditoria.`,
+                                            reasonLabel: 'Justificativa da exclusão',
+                                            reasonPlaceholder: 'Descreva o motivo (obrigatório para auditoria).',
+                                            reasonMinLength: 12,
+                                            confirmLabel: 'Excluir',
+                                            cancelLabel: 'Cancelar',
+                                          })
+                                          if (!reason) return
+                                          try {
+                                            await deleteProjectTask(t.id, {
+                                              actorUserId: me.id,
+                                              justification: reason,
+                                            })
+                                            toast('Tarefa excluída.')
+                                          } catch (e) {
+                                            toastError(e instanceof Error ? e.message : 'Falha ao excluir.')
+                                          }
+                                        })()
+                                      }}
+                                      aria-label="Excluir tarefa"
+                                      title="Excluir tarefa (justificativa obrigatória)"
+                                    >
+                                      <Trash2 {...icSm} aria-hidden />
+                                      <span>Excluir</span>
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </details>
                             </div>
                           </div>
                           {doneTask ? (
@@ -1116,7 +1295,17 @@ export function ProjectDetailPage() {
                           ) : (
                             <>
                               {!informational ? (
-                                <div className="pd-task__time-budget">
+                                <div
+                                  className={
+                                    'pd-task__time-budget' +
+                                    (t.isAdHoc && t.estimatedHours <= 0 ? ' pd-task__time-budget--adhoc' : '')
+                                  }
+                                  title={
+                                    t.isAdHoc && t.estimatedHours <= 0
+                                      ? 'Tarefa avulsa: o tempo registrado entra nas horas utilizadas do projeto.'
+                                      : undefined
+                                  }
+                                >
                                   <div className="pd-task__time-budget-top">
                                     <span className="pd-task__time-budget-label">
                                       <Clock {...icSm} aria-hidden />
@@ -1127,11 +1316,20 @@ export function ProjectDetailPage() {
                                       {t.estimatedHours > 0 ? (
                                         <> de {formatDurationHmFromHours(t.estimatedHours)}</>
                                       ) : (
-                                        <span className="muted"> · sem estimativa</span>
+                                        <> de {formatDurationHmFromHours(0)}</>
                                       )}
                                     </span>
                                   </div>
-                                  {hoursPct != null ? (
+                                  {t.isAdHoc && t.estimatedHours <= 0 && t.actualHours > 0 ? (
+                                    <div className="pd-task__adhoc-spent-meter" aria-hidden title="Tempo registrado (fora da previsão do plano)">
+                                      <div
+                                        className="pd-task__adhoc-spent-meter-fill"
+                                        style={{
+                                          width: `${Math.min(100, (t.actualHours / 6) * 100)}%`,
+                                        }}
+                                      />
+                                    </div>
+                                  ) : hoursPct != null ? (
                                     <div className="pd-task__time-budget-track" aria-hidden>
                                       <div
                                         className="pd-task__time-budget-fill"
@@ -1149,127 +1347,62 @@ export function ProjectDetailPage() {
                                   <strong className="pd-task__live-timer-hms">{formatDurationHMS(runningLiveSeconds)}</strong>
                                 </div>
                               ) : null}
-                              {taskComments.length > 0 ? (
-                                <ul className="pd-task__items">
-                                  {taskComments.map((c) => (
-                                    <li key={c.id}>{c.content}</li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                              <button
-                                type="button"
-                                className="pd-task__linkish"
-                                onClick={() => setExpandedDesc((d) => ({ ...d, [t.id]: !d[t.id] }))}
-                              >
-                                <MessageSquare {...icSm} aria-hidden />
-                                {showDesc ? 'Ocultar detalhes' : 'Detalhes'}
-                              </button>
-                              {showDesc ? (
-                                <p className="pd-task__desc">{t.description?.trim() || 'Sem descrição.'}</p>
-                              ) : null}
-                              {canAct || (isCustomPlan && canEditProjects) ? (
-                                <div className="pd-task__actions">
-                                  {isCustomPlan && canEditProjects ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn"
-                                        onClick={() => {
-                                          setCustomTaskEditing(t)
-                                          setCustomTaskPhaseId(phase.id)
-                                          setCustomTaskDefaultCode(t.code)
-                                          setCustomTaskModalOpen(true)
-                                        }}
-                                        title="Editar tarefa"
-                                        aria-label="Editar tarefa"
-                                      >
-                                        <Pencil {...icSm} aria-hidden />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn pd-task__btn--danger"
-                                        onClick={() => {
-                                          void (async () => {
-                                            const ok = await requestConfirm({
-                                              title: 'Excluir tarefa',
-                                              message: `Excluir "${t.code} ${t.title}"?`,
-                                              confirmLabel: 'Excluir',
-                                              cancelLabel: 'Cancelar',
-                                              danger: true,
-                                            })
-                                            if (!ok) return
-                                            try {
-                                              await deleteProjectTask(t.id)
-                                              toast('Tarefa excluída.')
-                                            } catch (e) {
-                                              toastError(e instanceof Error ? e.message : 'Falha ao excluir.')
-                                            }
-                                          })()
-                                        }}
-                                        title="Excluir tarefa"
-                                        aria-label="Excluir tarefa"
-                                      >
-                                        <Trash2 {...icSm} aria-hidden />
-                                      </button>
-                                    </>
-                                  ) : null}
-                                  {canAct && !informational ? (
+                              {!doneTask && canAct ? (
+                                <div className="pd-task__footer">
+                                  {scheduledEv ? (
                                     <button
                                       type="button"
-                                      className="btn btn--ghost btn--xs btn--icon pd-task__btn"
-                                      onClick={() => setHoursTask(t)}
-                                      title="Registrar horas"
-                                      aria-label="Registrar horas"
+                                      className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda pd-task__footer-btn--agenda-on"
+                                      onClick={() =>
+                                        navigate('/agenda', {
+                                          state: { editEventId: scheduledEv.id },
+                                        })
+                                      }
+                                      title="Compromisso na agenda — abrir para editar"
+                                      aria-label="Abrir compromisso na agenda"
                                     >
-                                      <Clock {...icSm} aria-hidden />
+                                      <CalendarCheck {...ic} aria-hidden />
                                     </button>
-                                  ) : null}
-                                  {canAct ? (
-                                    scheduledEv ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn pd-task__btn--scheduled"
-                                        onClick={() =>
-                                          navigate('/agenda', {
-                                            state: { editEventId: scheduledEv.id },
-                                          })
-                                        }
-                                        title="Abrir na agenda para editar o horário"
-                                        aria-label="Compromisso agendado — abrir na agenda"
-                                      >
-                                        <CalendarCheck {...icSm} aria-hidden />
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="btn btn--ghost btn--xs btn--icon pd-task__btn"
-                                        onClick={() =>
-                                          navigate('/agenda', {
-                                            state: { prefillTaskId: t.id, prefillProjectId: proj.id },
-                                          })
-                                        }
-                                        title="Agendar na agenda"
-                                        aria-label="Agendar na agenda"
-                                      >
-                                        <CalendarPlus {...icSm} aria-hidden />
-                                      </button>
-                                    )
-                                  ) : null}
-                                  {canAct ? (
+                                  ) : (
                                     <button
                                       type="button"
-                                      className="btn btn--primary btn--xs btn--icon pd-task__btn pd-task__btn--conclude"
-                                      onClick={() => onTaskStatus(t.id, 'concluida')}
-                                      title="Marcar como concluída"
-                                      aria-label="Marcar tarefa como concluída"
+                                      className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda"
+                                      onClick={() =>
+                                        navigate('/agenda', {
+                                          state: { prefillTaskId: t.id, prefillProjectId: proj.id },
+                                        })
+                                      }
+                                      title="Agendar na agenda"
+                                      aria-label="Agendar na agenda"
                                     >
-                                      <CheckCircle2 {...icSm} aria-hidden />
+                                      <CalendarPlus {...ic} aria-hidden />
+                                    </button>
+                                  )}
+                                  {!informational ? (
+                                    <button
+                                      type="button"
+                                      className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--hours"
+                                      onClick={() => setHoursTask(t)}
+                                      title="Registrar horas nesta tarefa"
+                                      aria-label="Registrar horas nesta tarefa"
+                                    >
+                                      <Clock {...ic} aria-hidden />
                                     </button>
                                   ) : null}
                                 </div>
                               ) : null}
                             </>
                           )}
+                          {taskComments.length > 0 ? (
+                            <ul className="pd-task__items">
+                              {taskComments.map((c) => (
+                                <li key={c.id}>{c.content}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          {showDesc ? (
+                            <p className="pd-task__desc">{t.description?.trim() || 'Sem descrição.'}</p>
+                          ) : null}
                         </article>
                       )
                     })}
@@ -1815,10 +1948,13 @@ export function ProjectDetailPage() {
           setCustomTaskModalOpen(false)
           setCustomTaskEditing(null)
           setCustomTaskPhaseId(null)
+          setPlanTaskModalVariant('standard')
         }}
         task={customTaskEditing ? mapTaskToPlanModal(customTaskEditing) : null}
         defaultCode={customTaskDefaultCode}
         onSave={onSaveCustomTaskModal}
+        variant={planTaskModalVariant === 'catalogAdHoc' ? 'catalogAdHoc' : 'standard'}
+        auditOnEdit
       />
     </div>
   )

@@ -1,4 +1,5 @@
 import { db } from '../db/database'
+import type { DbProject, DbTask } from '../db/types'
 import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { uuid } from '../lib/uuid'
 import { compareTaskCode } from '../lib/taskCode'
@@ -6,6 +7,7 @@ import { planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { syncLabelsForProject } from './labels'
 import { syncProjectKanbanFromPlanState } from './kanbanPhaseSync'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { getUserForAudit, writeAuditLog } from './auditLogs'
 import {
   enqueuePendingProjectGraphSync,
   upsertProjectGraphFromDexie,
@@ -30,11 +32,17 @@ async function afterStructureChange(projectId: string): Promise<void> {
   await syncLabelsForProject(projectId)
   await syncProjectKanbanFromPlanState(projectId)
   if (!isSupabaseConfigured()) return
-  try {
-    await upsertProjectGraphFromDexie(projectId)
-  } catch {
-    enqueuePendingProjectGraphSync(projectId)
-  }
+  /**
+   * Sync do grafo completo na nuvem não deve bloquear a gravação no Dexie (timeouts/retries de até ~60s por etapa).
+   * O dado já está local; falhas entram na fila e são retentadas ao focar a aba / voltar online.
+   */
+  void (async () => {
+    try {
+      await upsertProjectGraphFromDexie(projectId)
+    } catch {
+      enqueuePendingProjectGraphSync(projectId)
+    }
+  })()
 }
 
 async function runMutedGraphTx<T>(fn: () => Promise<T>): Promise<T> {
@@ -47,8 +55,8 @@ async function runMutedGraphTx<T>(fn: () => Promise<T>): Promise<T> {
 export async function suggestNextProjectTaskCode(projectId: string, phaseId: string): Promise<string> {
   const phases = await db.phases.where('projectId').equals(projectId).sortBy('orderIndex')
   const ph = phases.find((p) => p.id === phaseId)
-  const idx = ph ? phases.findIndex((p) => p.id === phaseId) : 0
-  const prefix = idx >= 0 ? idx + 1 : 1
+  /** Alinha ao catálogo (Fase 00 → 0.x, Fase 01 → 1.x…): usa `orderIndex`, não posição no array. */
+  const prefix = ph ? ph.orderIndex : 0
   const tasks = await db.tasks.where('phaseId').equals(phaseId).toArray()
   tasks.sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
   const n = tasks.length + 1
@@ -141,14 +149,68 @@ export type ProjectTaskFormInput = {
   isInformational: boolean
 }
 
+export type ProjectTaskAuditInput = {
+  actorUserId: string
+  justification: string
+}
+
+function taskToFormSnapshot(t: DbTask, proj: DbProject): ProjectTaskFormInput {
+  const isCustom = proj.planType === CUSTOM_PLAN_TYPE
+  if (isCustom) {
+    return {
+      code: t.code,
+      title: t.title,
+      description: t.description,
+      estimatedHours: t.estimatedHours,
+      isInformational: t.isInformational,
+    }
+  }
+  return {
+    code: t.code,
+    title: t.title,
+    description: t.description,
+    estimatedHours: 0,
+    isInformational: false,
+  }
+}
+
+function describeProjectTaskFormDiff(before: ProjectTaskFormInput, after: ProjectTaskFormInput): string {
+  const bits: string[] = []
+  if (before.code !== after.code) bits.push(`Código: "${before.code}" → "${after.code}"`)
+  if (before.title !== after.title) bits.push(`Título: "${before.title}" → "${after.title}"`)
+  if (before.description !== after.description) bits.push('Descrição alterada.')
+  if (before.estimatedHours !== after.estimatedHours)
+    bits.push(`Estimativa: ${before.estimatedHours}h → ${after.estimatedHours}h`)
+  if (before.isInformational !== after.isInformational)
+    bits.push(`Informativa: ${before.isInformational ? 'sim' : 'não'} → ${after.isInformational ? 'sim' : 'não'}`)
+  return bits.join(' · ') || 'Campos sem diferença detectável.'
+}
+
+export type AddProjectTaskOptions = {
+  /**
+   * Projeto com plano de catálogo: tarefa extra na fase. Estimativa fixa em 0;
+   * não altera a baseline de previsão do plano — só horas reais (timesheet / logs).
+   */
+  catalogAdHoc?: boolean
+}
+
 export async function addProjectTask(
   projectId: string,
   phaseId: string,
   data: ProjectTaskFormInput,
   defaultAssignedTo: string | null,
+  opts?: AddProjectTaskOptions,
 ): Promise<string> {
   const proj = await db.projects.get(projectId)
-  if (!proj || proj.planType !== CUSTOM_PLAN_TYPE) throw new Error('Operação não permitida.')
+  if (!proj) throw new Error('Projeto não encontrado.')
+  const catalogAdHoc = Boolean(opts?.catalogAdHoc)
+  if (catalogAdHoc) {
+    if (proj.planType === CUSTOM_PLAN_TYPE) {
+      throw new Error('Em plano avulso use a criação normal de tarefas (com estimativa).')
+    }
+  } else if (proj.planType !== CUSTOM_PLAN_TYPE) {
+    throw new Error('Operação não permitida.')
+  }
   const ph = await db.phases.get(phaseId)
   if (!ph || ph.projectId !== projectId) throw new Error('Fase inválida.')
   const id = uuid()
@@ -165,11 +227,12 @@ export async function addProjectTask(
       code: data.code.trim(),
       status: 'pendente',
       priority: 'media',
-      estimatedHours: data.isInformational ? 0 : Math.max(0, data.estimatedHours),
+      estimatedHours: catalogAdHoc ? 0 : data.isInformational ? 0 : Math.max(0, data.estimatedHours),
       actualHours: 0,
       assignedTo: defaultAssignedTo,
       dueDate: null,
-      isInformational: data.isInformational,
+      isInformational: catalogAdHoc ? false : data.isInformational,
+      isAdHoc: catalogAdHoc,
       createdAt: now,
       sortOrder,
     })
@@ -178,31 +241,92 @@ export async function addProjectTask(
   return id
 }
 
-export async function updateProjectTask(taskId: string, data: ProjectTaskFormInput): Promise<void> {
+export async function updateProjectTask(
+  taskId: string,
+  data: ProjectTaskFormInput,
+  audit?: ProjectTaskAuditInput,
+): Promise<void> {
   const t = await db.tasks.get(taskId)
   if (!t) throw new Error('Tarefa não encontrada')
   const proj = await db.projects.get(t.projectId)
-  if (!proj || proj.planType !== CUSTOM_PLAN_TYPE) throw new Error('Operação não permitida.')
+  if (!proj) throw new Error('Projeto não encontrado.')
+  const isCustom = proj.planType === CUSTOM_PLAN_TYPE
+  if (!isCustom && t.isAdHoc !== true) throw new Error('Operação não permitida.')
+  const beforeSnap = taskToFormSnapshot(t, proj)
+  const next: ProjectTaskFormInput = isCustom
+    ? {
+        code: data.code.trim(),
+        title: data.title.trim(),
+        description: data.description.trim(),
+        estimatedHours: data.isInformational ? 0 : Math.max(0, data.estimatedHours),
+        isInformational: data.isInformational,
+      }
+    : {
+        code: data.code.trim(),
+        title: data.title.trim(),
+        description: data.description.trim(),
+        estimatedHours: 0,
+        isInformational: false,
+      }
   await runMutedGraphTx(async () => {
-    await db.tasks.update(taskId, {
-      code: data.code.trim(),
-      title: data.title.trim(),
-      description: data.description.trim(),
-      estimatedHours: data.isInformational ? 0 : Math.max(0, data.estimatedHours),
-      isInformational: data.isInformational,
-    })
+    if (isCustom) {
+      await db.tasks.update(taskId, {
+        code: next.code,
+        title: next.title,
+        description: next.description,
+        estimatedHours: next.estimatedHours,
+        isInformational: next.isInformational,
+      })
+    } else {
+      await db.tasks.update(taskId, {
+        code: next.code,
+        title: next.title,
+        description: next.description,
+        estimatedHours: 0,
+        isInformational: false,
+      })
+    }
   })
+  if (audit) {
+    const diff = describeProjectTaskFormDiff(beforeSnap, next)
+    const user = await getUserForAudit(audit.actorUserId)
+    await writeAuditLog({
+      action: 'alteracao',
+      entity: 'tarefa',
+      entityId: taskId,
+      entityLabel: `${next.code} ${next.title}`,
+      details: `Alteração na tarefa do projeto (${proj.projectName}). ${diff}`,
+      justification: audit.justification.trim(),
+      user,
+    })
+  }
   await afterStructureChange(t.projectId)
 }
 
-export async function deleteProjectTask(taskId: string): Promise<void> {
+export async function deleteProjectTask(taskId: string, audit?: ProjectTaskAuditInput): Promise<void> {
   const t = await db.tasks.get(taskId)
   if (!t) return
   const projectId = t.projectId
   const proj = await db.projects.get(projectId)
-  if (!proj || proj.planType !== CUSTOM_PLAN_TYPE) throw new Error('Operação não permitida.')
+  if (!proj) return
+  const isCustom = proj.planType === CUSTOM_PLAN_TYPE
+  if (!isCustom && t.isAdHoc !== true) throw new Error('Operação não permitida.')
+  const label = `${t.code} ${t.title}`
+  const details = `Exclusão da tarefa ${t.code} (${proj.projectName}). Título: ${t.title}.`
   await runMutedGraphTx(async () => {
     await db.tasks.delete(taskId)
   })
+  if (audit) {
+    const user = await getUserForAudit(audit.actorUserId)
+    await writeAuditLog({
+      action: 'exclusao',
+      entity: 'tarefa',
+      entityId: taskId,
+      entityLabel: label,
+      details,
+      justification: audit.justification.trim(),
+      user,
+    })
+  }
   await afterStructureChange(projectId)
 }

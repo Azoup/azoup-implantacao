@@ -1311,9 +1311,6 @@
   justify-content: flex-end;
   gap: 0.5rem;
 }
-.modal-plan__footer-err {
-  margin: 0 0 0.55rem;
-}
 .plan-task-modal__hours-input {
   font-variant-numeric: tabular-nums;
 }
@@ -1795,8 +1792,9 @@
 .analyst-avatar {
   display: grid;
   place-items: center;
-  border-radius: 50%;
-  border: 2px solid transparent;
+  box-sizing: border-box;
+  border-radius: 11px;
+  border: 2.5px solid transparent;
   object-fit: cover;
   object-position: center;
   flex-shrink: 0;
@@ -1805,25 +1803,30 @@
   font-weight: 700;
 }
 .analyst-avatar--sm {
-  width: 33px;
-  height: 33px;
-  font-size: 0.6rem;
-  border-width: 1.5px;
+  width: 32px;
+  height: 32px;
+  font-size: 0.58rem;
+  border-radius: 8px;
+  border-width: 2px;
 }
 .analyst-avatar--md {
   width: 48px;
   height: 48px;
   font-size: 0.72rem;
+  border-radius: 11px;
+  border-width: 2.5px;
 }
 .analyst-avatar--lg {
-  width: 69px;
-  height: 69px;
+  width: 72px;
+  height: 72px;
   font-size: 0.96rem;
+  border-radius: 14px;
+  border-width: 3px;
 }
 .analyst-initials {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   font-size: 0.72rem;

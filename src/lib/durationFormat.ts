@@ -78,6 +78,20 @@ export function formatDecimalHoursForBrInput(h: number): string {
 export function parseDurationFlexibleToHours(raw: string): number {
   const t = raw.trim()
   if (!t) return NaN
+  const compact = t.replace(/\s/g, '').toLowerCase()
+  if (/[hms]/.test(compact)) {
+    const normalized = compact.replace(',', '.')
+    const hMatch = normalized.match(/(-?\d+(?:\.\d+)?)h/)
+    const mMatch = normalized.match(/(-?\d+(?:\.\d+)?)m/)
+    const sMatch = normalized.match(/(-?\d+(?:\.\d+)?)s/)
+    if (!hMatch && !mMatch && !sMatch) return NaN
+    const h = hMatch ? Number(hMatch[1]) : 0
+    const m = mMatch ? Number(mMatch[1]) : 0
+    const sec = sMatch ? Number(sMatch[1]) : 0
+    if (![h, m, sec].every((n) => Number.isFinite(n))) return NaN
+    if (h < 0 || m < 0 || sec < 0 || m >= 60 || sec >= 60) return NaN
+    return (h * 3600 + m * 60 + sec) / 3600
+  }
   if (t.includes(':')) {
     const segs = t.split(':').map((s) => s.trim())
     if (segs.length < 2 || segs.length > 3) return NaN

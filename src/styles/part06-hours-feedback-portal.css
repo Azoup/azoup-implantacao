@@ -216,10 +216,10 @@
   flex-shrink: 0;
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: 10px;
   display: grid;
   place-items: center;
-  border: 2px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
+  border: 2.5px solid color-mix(in srgb, var(--analyst-color, var(--accent)) 68%, #fff 10%);
   background: color-mix(in srgb, var(--surface-2) 50%, var(--surface));
   overflow: hidden;
 }
@@ -826,6 +826,7 @@
   line-height: 1.35;
   box-shadow: var(--shadow);
   animation: ui-toast-in 0.22s ease;
+  word-break: break-word;
 }
 
 @keyframes ui-toast-in {
@@ -851,6 +852,7 @@
 .ui-toast--error {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  font-weight: 600;
 }
 
 .ui-confirm-backdrop {

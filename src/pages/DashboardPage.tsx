@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowDownAZ,
+  CalendarClock,
   CalendarDays,
   ChevronDown,
   ChevronUp,
@@ -11,6 +12,7 @@ import {
   Clock3,
   ExternalLink,
   FolderKanban,
+  LayoutList,
   Link2Off,
   Pencil,
   Save,
@@ -37,7 +39,8 @@ import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { planPillClass, planSummaryLabel } from '../constants/customPlan'
 import { PlanLabelRow } from '../components/PlanLabelChips'
-import type { DbEvent, DbTask } from '../db/types'
+import { buildDashboardAlerts, type DashboardAlertKind } from '../lib/dashboardAlerts'
+import type { DbEvent } from '../db/types'
 import { updateEventValidated } from '../services/events'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
@@ -50,14 +53,6 @@ import {
 } from '../lib/projectSort'
 
 const iconSm = { size: 20, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
-
-function isOverdueTask(t: DbTask): boolean {
-  if (!t.dueDate) return false
-  if (t.status === 'concluida' || t.status === 'cancelado') return false
-  const end = new Date()
-  end.setHours(23, 59, 59, 999)
-  return new Date(t.dueDate) < end
-}
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -111,6 +106,7 @@ export function DashboardPage() {
   const [editMeetingLink, setEditMeetingLink] = useState('')
   const [editAnalystId, setEditAnalystId] = useState('')
   const [agendaLinkFilter, setAgendaLinkFilter] = useState<'all' | 'with_link'>('all')
+  const [alertKindFilter, setAlertKindFilter] = useState<'all' | DashboardAlertKind>('all')
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [now, setNow] = useState(() => new Date())
   const meetingInputRef = useRef<HTMLInputElement | null>(null)
@@ -161,9 +157,30 @@ export function DashboardPage() {
     [todayEvents, agendaLinkFilter],
   )
 
-  const alerts = useMemo(() => {
-    return tasks.filter(isOverdueTask).slice(0, 12)
-  }, [tasks])
+  const dashboardAlerts = useMemo(() => {
+    return buildDashboardAlerts({
+      now,
+      projects,
+      phases,
+      tasks,
+      events,
+      runningTaskId: runningTimer?.taskId ?? null,
+      maxTotal: 28,
+    })
+  }, [now, projects, phases, tasks, events, runningTimer?.taskId])
+
+  const alertKindCounts = useMemo(() => {
+    const c = { overdue_due: 0, agenda_no_hours: 0, schedule_gap: 0 }
+    for (const r of dashboardAlerts) {
+      c[r.kind] += 1
+    }
+    return c
+  }, [dashboardAlerts])
+
+  const visibleAlerts = useMemo(() => {
+    if (alertKindFilter === 'all') return dashboardAlerts
+    return dashboardAlerts.filter((r) => r.kind === alertKindFilter)
+  }, [dashboardAlerts, alertKindFilter])
 
   const ongoingList = useMemo(() => {
     const filtered = projects.filter((p) => {
@@ -725,26 +742,96 @@ export function DashboardPage() {
           </section>
 
           <section className="panel dashboard-panel dashboard-panel--alerts">
-            <h2 className="dashboard-panel__title">
-              <span className="dashboard-panel__title-icon dashboard-panel__title-icon--warn" aria-hidden>
-                <AlertTriangle size={22} strokeWidth={1.75} absoluteStrokeWidth />
-              </span>
-              Alertas
-            </h2>
-            <div className="dashboard-side-stack">
-              {alerts.length === 0 ? (
-                <p className="dashboard-empty dashboard-empty--soft">Sem tarefas atrasadas com prazo definido.</p>
+            <div className="dashboard-alerts__head">
+              <h2 className="dashboard-panel__title dashboard-alerts__title">
+                <span className="dashboard-panel__title-icon dashboard-panel__title-icon--warn" aria-hidden>
+                  <AlertTriangle size={22} strokeWidth={1.75} absoluteStrokeWidth />
+                </span>
+                Alertas
+              </h2>
+              <p className="muted dashboard-alerts__lead">
+                Prazos vencidos, compromissos de agenda já encerrados sem horas na tarefa e projetos sem próximos
+                compromissos na fase ativa.
+              </p>
+            </div>
+
+            <div className="dashboard-alerts__filters" role="tablist" aria-label="Filtrar tipo de alerta">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={alertKindFilter === 'all'}
+                className={'dashboard-alerts__chip' + (alertKindFilter === 'all' ? ' is-active' : '')}
+                onClick={() => setAlertKindFilter('all')}
+              >
+                <LayoutList size={15} strokeWidth={2} aria-hidden />
+                Todos
+                <span className="dashboard-alerts__chip-count">{dashboardAlerts.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={alertKindFilter === 'overdue_due'}
+                className={'dashboard-alerts__chip' + (alertKindFilter === 'overdue_due' ? ' is-active' : '')}
+                onClick={() => setAlertKindFilter('overdue_due')}
+              >
+                <AlertTriangle size={15} strokeWidth={2} aria-hidden />
+                Prazo
+                <span className="dashboard-alerts__chip-count">{alertKindCounts.overdue_due}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={alertKindFilter === 'agenda_no_hours'}
+                className={'dashboard-alerts__chip' + (alertKindFilter === 'agenda_no_hours' ? ' is-active' : '')}
+                onClick={() => setAlertKindFilter('agenda_no_hours')}
+              >
+                <CalendarClock size={15} strokeWidth={2} aria-hidden />
+                Agenda
+                <span className="dashboard-alerts__chip-count">{alertKindCounts.agenda_no_hours}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={alertKindFilter === 'schedule_gap'}
+                className={'dashboard-alerts__chip' + (alertKindFilter === 'schedule_gap' ? ' is-active' : '')}
+                onClick={() => setAlertKindFilter('schedule_gap')}
+              >
+                <CalendarDays size={15} strokeWidth={2} aria-hidden />
+                Cronograma
+                <span className="dashboard-alerts__chip-count">{alertKindCounts.schedule_gap}</span>
+              </button>
+            </div>
+
+            <div className="dashboard-side-stack dashboard-alerts__list">
+              {visibleAlerts.length === 0 ? (
+                <p className="dashboard-empty dashboard-empty--soft">
+                  {dashboardAlerts.length === 0
+                    ? 'Nada a destacar nestes critérios.'
+                    : 'Nenhum alerta neste filtro.'}
+                </p>
               ) : (
-                alerts.map((t) => {
-                  const proj = projects.find((pr) => pr.id === t.projectId)
+                visibleAlerts.map((r) => {
+                  const Icon =
+                    r.kind === 'overdue_due' ? AlertTriangle : r.kind === 'agenda_no_hours' ? CalendarClock : CalendarDays
+                  const kindLabel =
+                    r.kind === 'overdue_due' ? 'Prazo' : r.kind === 'agenda_no_hours' ? 'Agenda & horas' : 'Cronograma'
                   return (
-                    <div key={t.id} className="dashboard-alert">
-                      <AlertTriangle className="dashboard-alert__icon" size={18} strokeWidth={2} aria-hidden />
-                      <div className="dashboard-alert__text">
-                        Tarefa &quot;{t.title}&quot; atrasada (prazo: {t.dueDate ? formatDatePt(t.dueDate) : '—'}) —{' '}
-                        <strong>{proj?.projectName ?? '—'}</strong>
+                    <Link
+                      key={r.id}
+                      to={`/projetos/${r.projectId}`}
+                      className={`dashboard-alert dashboard-alert--${r.kind}`}
+                    >
+                      <Icon className="dashboard-alert__icon" size={18} strokeWidth={2} aria-hidden />
+                      <div className="dashboard-alert__body">
+                        <span className="dashboard-alert__kind">{kindLabel}</span>
+                        <div className="dashboard-alert__text">
+                          <span className="dashboard-alert__primary">{r.primaryLine}</span>
+                          {r.secondaryLine ? (
+                            <span className="dashboard-alert__secondary">{r.secondaryLine}</span>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
+                    </Link>
                   )
                 })
               )}

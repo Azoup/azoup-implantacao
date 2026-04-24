@@ -117,26 +117,26 @@ export function ProjectsPage() {
   const canEditProjects = hasScope(user, 'projects.edit')
 
   return (
-    <div className="page">
+    <div className="page page--projects-hub">
       <header className="page__header page__header--split">
         <div>
           <h1 className="page__title">Projetos</h1>
           <p className="page__subtitle">{projects.length} projeto(s) cadastrado(s)</p>
         </div>
-        <button
-          type="button"
-          className="btn btn--primary proj-page__new"
-          disabled={!canEditProjects}
-          onClick={() => {
-            if (!canEditProjects) return
-            setEditingProject(null)
-            setCreateKanbanColumn('novos')
-            setOpen(true)
-          }}
-        >
-          <Plus size={18} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
-          Novo Projeto
-        </button>
+        {canEditProjects ? (
+          <button
+            type="button"
+            className="btn btn--ghost proj-page__new"
+            onClick={() => {
+              setEditingProject(null)
+              setCreateKanbanColumn('novos')
+              setOpen(true)
+            }}
+          >
+            <Plus size={18} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
+            Novo projeto
+          </button>
+        ) : null}
       </header>
 
       <div className="projects-page__toolbar">
@@ -240,7 +240,38 @@ export function ProjectsPage() {
         </label>
       </div>
 
-      <div className="project-grid">
+      {visibleProjects.length === 0 ? (
+        <div className="projects-page__empty" role="status">
+          {projects.length === 0 ? (
+            <>
+              {canEditProjects ? (
+                <p>
+                  Nenhum projeto cadastrado ainda. O cadastro principal fica no botão{' '}
+                  <strong>+ Novo projeto</strong> na barra lateral — sempre no mesmo lugar.
+                </p>
+              ) : (
+                <p>Nenhum projeto disponível. Se precisar de cadastros novos, peça a um administrador.</p>
+              )}
+              {canEditProjects ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => {
+                    setEditingProject(null)
+                    setCreateKanbanColumn('novos')
+                    setOpen(true)
+                  }}
+                >
+                  Criar primeiro projeto
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <p>Nenhum projeto corresponde aos filtros ou à busca. Ajuste os filtros ou limpe a pesquisa.</p>
+          )}
+        </div>
+      ) : (
+        <div className="project-grid">
         {visibleProjects.map((p) => {
           const pct = projectProgressPercent(tasks, p.id)
           const projectTasks = tasks.filter((t) => t.projectId === p.id)
@@ -338,13 +369,13 @@ export function ProjectsPage() {
                     {formatDurationHFromHours(p.hoursUsed)} / {formatDurationHFromHours(p.hoursContracted)}
                   </span>
                 </div>
-                <div className="proj-card__meta-item proj-card__meta-item--phase">
-                  <span
-                    className="proj-card__phase-caption"
-                    style={phaseCaptionColor ? { color: phaseCaptionColor } : undefined}
-                  >
-                    {currentPhaseName ?? '—'}
-                  </span>
+                <div
+                  className="proj-card__meta-item proj-card__meta-item--phase"
+                  style={
+                    phaseCaptionColor ? { ['--proj-phase-accent' as string]: phaseCaptionColor } : undefined
+                  }
+                >
+                  <span className="proj-card__phase-caption">{currentPhaseName ?? '—'}</span>
                 </div>
               </div>
 
@@ -397,7 +428,8 @@ export function ProjectsPage() {
             </article>
           )
         })}
-      </div>
+        </div>
+      )}
 
       <ProjectCreateModal
         open={open}
