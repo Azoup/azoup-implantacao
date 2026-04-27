@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowDownAZ, CalendarDays, ChevronDown, ChevronUp, Clock, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { ArrowDownAZ, CalendarDays, ChevronDown, ChevronUp, Clock, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import {
@@ -31,6 +31,11 @@ import {
   type ProjectSortConfig,
 } from '../lib/projectSort'
 import { planPillClass, planSummaryLabel } from '../constants/customPlan'
+import {
+  flushPendingProjectGraphSyncByProject,
+  getProjectCloudSyncMeta,
+  getPendingProjectGraphSyncIds,
+} from '../sync/supabaseDexieBridge'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -54,6 +59,8 @@ export function ProjectsPage() {
   const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+  const [syncRefreshing, setSyncRefreshing] = useState<Record<string, boolean>>({})
+  const [_syncTick, setSyncTick] = useState(0)
 
   useRegisterUnsavedChanges({
     enabled: open,
@@ -83,6 +90,13 @@ export function ProjectsPage() {
       openedRef.current = true
     }
   }, [location.state, user])
+
+  useEffect(() => {
+    const id = window.setInterval(() => setSyncTick((n) => n + 1), 5000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  const pendingIds = new Set(getPendingProjectGraphSyncIds())
 
   async function onDelete(id: string) {
     if (!user) return
@@ -290,6 +304,14 @@ export function ProjectsPage() {
           const activePlanLabel = getActivePlanLabel(tasks, p.id, phases)
           const tooltipBits = [p.tradeName?.trim(), p.razaoSocial?.trim(), p.cnpj].filter(Boolean)
           const analyst = analystsAll.find((a) => a.id === p.analystId)
+          const syncMeta = getProjectCloudSyncMeta(p.id)
+          const syncStatusLabel =
+            syncMeta.state === 'synced'
+              ? 'Sincronizado com a nuvem'
+              : syncMeta.state === 'pending'
+                ? 'Pendente de sincronização'
+                : 'Falha na sincronização'
+          const syncStatusTitle = syncMeta.lastErrorCode ?? syncStatusLabel
 
           const resolveCodeColor = (code: string): string | null => {
             const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
@@ -335,6 +357,12 @@ export function ProjectsPage() {
                   <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
                     {statusLabelPt(p.status)}
                   </span>
+                  <span
+                    className={'proj-card__sync-dot is-' + syncMeta.state}
+                    role="img"
+                    aria-label={`Status de sincronização: ${syncStatusLabel}`}
+                    title={syncStatusTitle}
+                  />
                 </div>
               </div>
 
@@ -399,8 +427,39 @@ export function ProjectsPage() {
                 <span className="proj-card__summary">
                   {done} de {projectTasks.length} tarefas concluídas
                 </span>
-                {(user.role === 'admin' || p.createdBy === user.id) && canEditProjects && (
-                  <span className="proj-card__actions">
+                <span className="proj-card__actions">
+                  {pendingIds.has(p.id) ? (
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon proj-card__icon-action"
+                      aria-label="Sincronizar projeto com nuvem"
+                      title={getProjectCloudSyncMeta(p.id).lastErrorCode ? `Reenviar (${getProjectCloudSyncMeta(p.id).lastErrorCode})` : 'Sincronizar agora'}
+                      disabled={!!syncRefreshing[p.id]}
+                      onClick={() => {
+                        void (async () => {
+                          setSyncRefreshing((prev) => ({ ...prev, [p.id]: true }))
+                          try {
+                            await flushPendingProjectGraphSyncByProject(p.id)
+                            setSyncTick((n) => n + 1)
+                            const meta = getProjectCloudSyncMeta(p.id)
+                            toast(
+                              meta.state === 'synced'
+                                ? 'Projeto sincronizado com a nuvem.'
+                                : 'Reenvio concluído, aguardando confirmação da nuvem.',
+                            )
+                          } catch (e) {
+                            toastError(e instanceof Error ? e.message : 'Falha ao sincronizar projeto.')
+                          } finally {
+                            setSyncRefreshing((prev) => ({ ...prev, [p.id]: false }))
+                          }
+                        })()
+                      }}
+                    >
+                      <RotateCcw size={15} strokeWidth={2.1} />
+                    </button>
+                  ) : null}
+                  {(user.role === 'admin' || p.createdBy === user.id) && canEditProjects ? (
+                    <>
                     <button
                       type="button"
                       className="btn btn--ghost btn--icon proj-card__icon-action"
@@ -422,8 +481,9 @@ export function ProjectsPage() {
                     >
                       <Trash2 size={15} strokeWidth={2.1} />
                     </button>
-                  </span>
-                )}
+                    </>
+                  ) : null}
+                </span>
               </footer>
             </article>
           )

@@ -3,6 +3,20 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      '/api/brasilapi': {
+        target: 'https://brasilapi.com.br',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/brasilapi/, ''),
+      },
+      '/api/receitaws': {
+        target: 'https://www.receitaws.com.br',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/receitaws/, ''),
+      },
+    },
+  },
   build: {
     rollupOptions: {
       output: {

@@ -51,6 +51,7 @@ let syncingMuted = false
 /** Permite refresh + salvamento explícito sem “empilhar” mute de forma incorreta. */
 let syncingMuteDepth = 0
 let pendingProjectGraphListenerInstalled = false
+const inFlightProjectGraphSync = new Set<string>()
 
 function pushSyncMute() {
   syncingMuteDepth++
@@ -99,43 +100,143 @@ function assertSupabase() {
   return supabase
 }
 
-function readPendingProjectGraphSyncIds(): string[] {
+type PendingProjectSyncItem = {
+  projectId: string
+  attempts: number
+  enqueuedAt: string
+  lastAttemptAt: string | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  lastOpId: string | null
+}
+
+type ProjectCloudSyncMeta = {
+  state: 'synced' | 'pending' | 'failed'
+  attempts: number
+  enqueuedAt: string | null
+  lastAttemptAt: string | null
+  lastErrorCode: string | null
+  lastErrorMessage: string | null
+  lastOpId: string | null
+}
+
+function readPendingProjectGraphSyncItems(): PendingProjectSyncItem[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = window.localStorage.getItem(PENDING_PROJECT_GRAPH_SYNC_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : []
+    if (!Array.isArray(parsed)) return []
+    if (parsed.every((x) => typeof x === 'string')) {
+      return parsed.map((projectId) => ({
+        projectId,
+        attempts: 0,
+        enqueuedAt: new Date().toISOString(),
+        lastAttemptAt: null,
+        lastErrorCode: null,
+        lastErrorMessage: null,
+        lastOpId: null,
+      }))
+    }
+    return parsed
+      .map((x) => x as Partial<PendingProjectSyncItem>)
+      .filter((x) => typeof x.projectId === 'string' && x.projectId.trim().length > 0)
+      .map((x) => ({
+        projectId: String(x.projectId),
+        attempts: Number.isFinite(x.attempts) ? Math.max(0, Number(x.attempts)) : 0,
+        enqueuedAt: typeof x.enqueuedAt === 'string' ? x.enqueuedAt : new Date().toISOString(),
+        lastAttemptAt: typeof x.lastAttemptAt === 'string' ? x.lastAttemptAt : null,
+        lastErrorCode: typeof x.lastErrorCode === 'string' ? x.lastErrorCode : null,
+        lastErrorMessage: typeof x.lastErrorMessage === 'string' ? x.lastErrorMessage : null,
+        lastOpId: typeof x.lastOpId === 'string' ? x.lastOpId : null,
+      }))
   } catch {
     return []
   }
 }
 
-export function getPendingProjectGraphSyncIds(): string[] {
-  return readPendingProjectGraphSyncIds()
-}
-
-function writePendingProjectGraphSyncIds(ids: string[]): void {
+function writePendingProjectGraphSyncItems(items: PendingProjectSyncItem[]): void {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(PENDING_PROJECT_GRAPH_SYNC_KEY, JSON.stringify(ids))
+    window.localStorage.setItem(PENDING_PROJECT_GRAPH_SYNC_KEY, JSON.stringify(items))
   } catch {
     // ignore storage errors
   }
 }
 
-export function enqueuePendingProjectGraphSync(projectId: string): void {
+export function getPendingProjectGraphSyncIds(): string[] {
+  return readPendingProjectGraphSyncItems().map((x) => x.projectId)
+}
+
+export function getProjectCloudSyncMeta(projectId: string): ProjectCloudSyncMeta {
+  const row = readPendingProjectGraphSyncItems().find((x) => x.projectId === projectId)
+  if (!row) {
+    return {
+      state: 'synced',
+      attempts: 0,
+      enqueuedAt: null,
+      lastAttemptAt: null,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      lastOpId: null,
+    }
+  }
+  return {
+    state: row.lastErrorCode ? 'failed' : 'pending',
+    attempts: row.attempts,
+    enqueuedAt: row.enqueuedAt,
+    lastAttemptAt: row.lastAttemptAt,
+    lastErrorCode: row.lastErrorCode,
+    lastErrorMessage: row.lastErrorMessage,
+    lastOpId: row.lastOpId,
+  }
+}
+
+export function enqueuePendingProjectGraphSync(
+  projectId: string,
+  opts?: { lastErrorCode?: string | null; lastErrorMessage?: string | null; opId?: string | null },
+): void {
   if (!projectId) return
-  const ids = readPendingProjectGraphSyncIds()
-  if (ids.includes(projectId)) return
-  ids.push(projectId)
-  writePendingProjectGraphSyncIds(ids)
+  const items = readPendingProjectGraphSyncItems()
+  const idx = items.findIndex((x) => x.projectId === projectId)
+  if (idx >= 0) {
+    items[idx] = {
+      ...items[idx],
+      lastErrorCode: opts?.lastErrorCode ?? items[idx].lastErrorCode,
+      lastErrorMessage: opts?.lastErrorMessage ?? items[idx].lastErrorMessage,
+      lastOpId: opts?.opId ?? items[idx].lastOpId,
+    }
+    writePendingProjectGraphSyncItems(items)
+    return
+  }
+  items.push({
+    projectId,
+    attempts: 0,
+    enqueuedAt: new Date().toISOString(),
+    lastAttemptAt: null,
+    lastErrorCode: opts?.lastErrorCode ?? null,
+    lastErrorMessage: opts?.lastErrorMessage ?? null,
+    lastOpId: opts?.opId ?? null,
+  })
+  writePendingProjectGraphSyncItems(items)
+}
+
+function updatePendingProjectGraphSyncAttempt(projectId: string): void {
+  const items = readPendingProjectGraphSyncItems()
+  const idx = items.findIndex((x) => x.projectId === projectId)
+  if (idx < 0) return
+  items[idx] = {
+    ...items[idx],
+    attempts: items[idx].attempts + 1,
+    lastAttemptAt: new Date().toISOString(),
+  }
+  writePendingProjectGraphSyncItems(items)
 }
 
 function dequeuePendingProjectGraphSync(projectId: string): void {
   if (!projectId) return
-  const ids = readPendingProjectGraphSyncIds().filter((id) => id !== projectId)
-  writePendingProjectGraphSyncIds(ids)
+  const items = readPendingProjectGraphSyncItems().filter((x) => x.projectId !== projectId)
+  writePendingProjectGraphSyncItems(items)
 }
 
 function isOptionalTableError(err: unknown): boolean {
@@ -212,7 +313,7 @@ const PROJECT_SYNC_RETRY_DELAY_MS = 500
 const PROJECT_SYNC_MAX_ATTEMPTS = 3
 
 type ProjectSyncOperation = 'projects' | 'phases' | 'tasks'
-type ProjectSyncFailureType = 'timeout' | 'policy' | 'auth' | 'network' | 'conflict' | 'unknown'
+type ProjectSyncFailureType = 'timeout' | 'policy' | 'auth' | 'network' | 'conflict' | 'ambiguous' | 'unknown'
 
 function formatProjectSyncErrorMessage(args: {
   code: string
@@ -245,7 +346,7 @@ function classifyProjectSyncError(err: unknown): {
       type: 'timeout',
       reason: 'Requisição interrompida por limite de tempo (rede ou servidor sem resposta).',
       action: 'Confira conexão e painel do Supabase; tente de novo em instantes.',
-      canRetry: false,
+      canRetry: true,
     }
   }
 
@@ -255,7 +356,15 @@ function classifyProjectSyncError(err: unknown): {
       reason: 'Tempo limite da operação atingido.',
       action: 'Verifique a rede e se o projeto Supabase está ativo; tente novamente.',
       /** Repetir o mesmo POST costuma só somar minutos na UI; fila de re-sync cuida do retry. */
-      canRetry: false,
+      canRetry: true,
+    }
+  }
+  if (message.startsWith('PRJ_CREATE_AMBIGUOUS') || message.includes('|type=ambiguous|')) {
+    return {
+      type: 'ambiguous',
+      reason: 'Sem confirmação material da escrita remota (nenhuma linha retornada).',
+      action: 'Mantenha em pendência e tente sincronizar novamente.',
+      canRetry: true,
     }
   }
   /** Erros já normalizados por `toProjectSyncError` — não confundir com "network" só por conter "timeout". */
@@ -264,7 +373,7 @@ function classifyProjectSyncError(err: unknown): {
       type: 'timeout',
       reason: 'Tempo limite da operação atingido.',
       action: 'Verifique a rede e se o projeto Supabase está ativo; tente novamente.',
-      canRetry: false,
+      canRetry: true,
     }
   }
   if (status === 401 || code === 'PGRST301' || body.includes('jwt') || body.includes('not authenticated')) {
@@ -302,8 +411,7 @@ function classifyProjectSyncError(err: unknown): {
       type: 'network',
       reason: 'Instabilidade de rede ou indisponibilidade temporária do Supabase.',
       action: 'Aguarde alguns segundos e tente novamente.',
-      /** Fila `pending_project_graph` já faz novo sync; retries em série aqui somam minutos na UI. */
-      canRetry: false,
+      canRetry: true,
     }
   }
   return {
@@ -339,14 +447,28 @@ function retryDelayMs(attempt: number): number {
 async function runProjectSyncWrite(
   operation: ProjectSyncOperation,
   projectId: string | null,
-  write: () => Promise<{ error: { message: string } | null }>,
+  write: () => Promise<{ error: { message: string } | null; data?: unknown }>,
+  opId?: string | null,
+  ensureApplied?: (res: { error: { message: string } | null; data?: unknown }) => boolean,
 ): Promise<void> {
   const startedAt = Date.now()
   let attempts = 0
   while (attempts < PROJECT_SYNC_MAX_ATTEMPTS) {
     attempts++
     try {
-      const { error } = await raceProjectWrite(write(), `sincronizar ${operation} na nuvem`)
+      const res = await raceProjectWrite(write(), `sincronizar ${operation} na nuvem`)
+      const { error } = res
+      if (!error && ensureApplied && !ensureApplied(res)) {
+        throw new Error(
+          formatProjectSyncErrorMessage({
+            code: 'PRJ_CREATE_AMBIGUOUS',
+            operation,
+            type: 'ambiguous',
+            reason: 'Sem confirmação de escrita no retorno da API.',
+            action: 'Mantenha pendente e tente sincronizar novamente.',
+          }),
+        )
+      }
       if (!error) return
       throw error
     } catch (err) {
@@ -355,6 +477,7 @@ async function runProjectSyncWrite(
       console.warn('[Supabase] project sync failure', {
         operation,
         projectId,
+        opId: opId ?? null,
         type: info.type,
         durationMs,
         attempts,
@@ -371,6 +494,7 @@ async function runProjectSyncWrite(
         auth: 'PRJ_CREATE_AUTH',
         network: 'PRJ_CREATE_NETWORK',
         conflict: 'PRJ_CREATE_CONFLICT',
+        ambiguous: 'PRJ_CREATE_AMBIGUOUS',
         unknown: 'PRJ_CREATE_SYNC',
       }
       throw toProjectSyncError(codeByType[info.type] ?? 'PRJ_CREATE_SYNC', operation, err)
@@ -449,11 +573,24 @@ function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<str
 }
 
 /** Atualiza só as colunas informadas (PostgREST `PATCH` — payload leve, ideal para formulário de projeto). */
-export async function updateProjectPartialInSupabase(projectId: string, patch: Partial<DbProject>): Promise<void> {
+export async function updateProjectPartialInSupabase(
+  projectId: string,
+  patch: Partial<DbProject>,
+  opId?: string | null,
+): Promise<void> {
   const client = assertSupabase()
   const body = dbProjectPartialToSupabaseUpdate(patch)
   if (Object.keys(body).length === 0) return
-  await runProjectSyncWrite('projects', projectId, async () => await client.from('projects').update(body).eq('id', projectId))
+  await runProjectSyncWrite(
+    'projects',
+    projectId,
+    async () => await client.from('projects').update(body).eq('id', projectId).select('id').maybeSingle(),
+    opId,
+    (res) => {
+      const data = res.data as { id?: string } | null | undefined
+      return Boolean(data?.id)
+    },
+  )
 }
 
 /** Payload REST/Postgres para `projects` (usado pelo bridge e por gravação explícita na nuvem). */
@@ -542,7 +679,16 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
 export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
   const client = assertSupabase()
   const payload = dbProjectToSupabaseRow(project)
-  await runProjectSyncWrite('projects', project.id, async () => await client.from('projects').upsert(payload))
+  await runProjectSyncWrite(
+    'projects',
+    project.id,
+    async () => await client.from('projects').upsert(payload).select('id').maybeSingle(),
+    undefined,
+    (res) => {
+      const data = res.data as { id?: string } | null | undefined
+      return Boolean(data?.id)
+    },
+  )
 }
 
 /**
@@ -566,7 +712,9 @@ export async function upsertPhasesToSupabase(phases: DbPhase[]): Promise<void> {
   await runProjectSyncWrite(
     'phases',
     phases[0]?.projectId ?? null,
-    async () => await client.from('phases').upsert(phases.map(dbPhaseToSupabaseRow)),
+    async () => await client.from('phases').upsert(phases.map(dbPhaseToSupabaseRow)).select('id'),
+    undefined,
+    (res) => Array.isArray(res.data) && res.data.length > 0,
   )
 }
 
@@ -576,7 +724,9 @@ export async function upsertTasksToSupabase(tasks: DbTask[]): Promise<void> {
   await runProjectSyncWrite(
     'tasks',
     tasks[0]?.projectId ?? null,
-    async () => await client.from('tasks').upsert(tasks.map(dbTaskToSupabaseRow)),
+    async () => await client.from('tasks').upsert(tasks.map(dbTaskToSupabaseRow)).select('id'),
+    undefined,
+    (res) => Array.isArray(res.data) && res.data.length > 0,
   )
 }
 
@@ -619,10 +769,16 @@ async function reconcileOrphanProjectPhasesInSupabase(projectId: string, localPh
 }
 
 /** Projeto + fases + tarefas do projeto (após criação ou mutação ampla em Dexie). */
-export async function upsertProjectGraphFromDexie(projectId: string): Promise<void> {
-  if (!supabase) return
+export async function upsertProjectGraphFromDexie(projectId: string): Promise<boolean> {
+  if (!supabase) return false
+  if (inFlightProjectGraphSync.has(projectId)) return false
+  inFlightProjectGraphSync.add(projectId)
   const p = await db.projects.get(projectId)
-  if (!p) return
+  if (!p) {
+    inFlightProjectGraphSync.delete(projectId)
+    return false
+  }
+  const opId = crypto.randomUUID()
   const startedAt = Date.now()
   let failedOperation: ProjectSyncOperation = 'projects'
   try {
@@ -630,7 +786,10 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
     await runProjectSyncWrite('projects', projectId, async () => {
       const payload = dbProjectToSupabaseRow(p)
       const client = assertSupabase()
-      return await client.from('projects').upsert(payload)
+      return await client.from('projects').upsert(payload).select('id').maybeSingle()
+    }, opId, (res) => {
+      const data = res.data as { id?: string } | null | undefined
+      return Boolean(data?.id)
     })
     const phases = await db.phases.where('projectId').equals(projectId).toArray()
     const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
@@ -641,6 +800,7 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
     await upsertPhasesToSupabase(phases)
     failedOperation = 'tasks'
     await upsertTasksToSupabase(tasks)
+    return true
   } catch (err) {
     const info = classifyProjectSyncError(err)
     const codeByType: Record<ProjectSyncFailureType, string> = {
@@ -649,8 +809,10 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
       auth: 'PRJ_CREATE_AUTH',
       network: 'PRJ_CREATE_NETWORK',
       conflict: 'PRJ_CREATE_CONFLICT',
+      ambiguous: 'PRJ_CREATE_AMBIGUOUS',
       unknown: 'PRJ_CREATE_SYNC',
     }
+    const code = codeByType[info.type]
     const message = toProjectSyncError(
       codeByType[info.type],
       failedOperation,
@@ -658,26 +820,41 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<vo
     )
     console.error('[Supabase] project graph sync failed', {
       projectId,
+      opId,
       type: info.type,
       durationMs: Date.now() - startedAt,
     })
-    enqueuePendingProjectGraphSync(projectId)
+    enqueuePendingProjectGraphSync(projectId, {
+      opId,
+      lastErrorCode: code,
+      lastErrorMessage: message.message,
+    })
     throw message
+  } finally {
+    inFlightProjectGraphSync.delete(projectId)
   }
 }
 
 export async function flushPendingProjectGraphSyncQueue(): Promise<void> {
   if (!supabase) return
-  const queue = readPendingProjectGraphSyncIds()
+  const queue = readPendingProjectGraphSyncItems().map((x) => x.projectId)
   if (queue.length === 0) return
   for (const projectId of queue) {
     try {
-      await upsertProjectGraphFromDexie(projectId)
-      dequeuePendingProjectGraphSync(projectId)
+      updatePendingProjectGraphSyncAttempt(projectId)
+      const synced = await upsertProjectGraphFromDexie(projectId)
+      if (synced) dequeuePendingProjectGraphSync(projectId)
     } catch (err) {
       console.warn('[Supabase] pending project graph sync still failing', { projectId, err })
     }
   }
+}
+
+export async function flushPendingProjectGraphSyncByProject(projectId: string): Promise<void> {
+  if (!supabase || !projectId) return
+  updatePendingProjectGraphSyncAttempt(projectId)
+  const synced = await upsertProjectGraphFromDexie(projectId)
+  if (synced) dequeuePendingProjectGraphSync(projectId)
 }
 
 const defs: BridgeDef<unknown>[] = [

@@ -578,6 +578,66 @@
   color: var(--text);
 }
 
+.pd-sync-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 11px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 82%, transparent);
+}
+.pd-sync-dot.is-synced {
+  background: var(--success);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 42%, var(--border));
+}
+.pd-sync-dot.is-pending {
+  background: var(--warning);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--warning) 42%, var(--border)),
+    0 0 0 0 color-mix(in srgb, var(--warning) 38%, transparent);
+  animation: syncDotPulseWarnDetail 1.8s ease-out infinite;
+}
+.pd-sync-dot.is-failed {
+  background: var(--danger);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--danger) 48%, var(--border)),
+    0 0 0 0 color-mix(in srgb, var(--danger) 42%, transparent);
+  animation: syncDotPulseErrorDetail 1.15s ease-out infinite;
+}
+
+@keyframes syncDotPulseWarnDetail {
+  0% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--warning) 42%, var(--border)),
+      0 0 0 0 color-mix(in srgb, var(--warning) 38%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--warning) 42%, var(--border)),
+      0 0 0 8px color-mix(in srgb, var(--warning) 0%, transparent);
+  }
+}
+
+@keyframes syncDotPulseErrorDetail {
+  0% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--danger) 48%, var(--border)),
+      0 0 0 0 color-mix(in srgb, var(--danger) 42%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--danger) 48%, var(--border)),
+      0 0 0 8px color-mix(in srgb, var(--danger) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-sync-dot.is-pending,
+  .pd-sync-dot.is-failed {
+    animation: none;
+  }
+}
+
 .pd-analyst-badge {
   display: inline-flex;
   align-items: center;

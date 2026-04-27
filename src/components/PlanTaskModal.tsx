@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Sparkles, X } from 'lucide-react'
 import type { DbPlanTask } from '../db/types'
 import { formatDecimalHoursForBrInput, parseDurationFlexibleToHours } from '../lib/durationFormat'
+import { AiFormatModal } from './AiFormatModal'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 export type PlanTaskFormValues = {
@@ -51,6 +52,7 @@ export function PlanTaskModal({
   const [isInformational, setIsInformational] = useState(false)
   const [auditJustification, setAuditJustification] = useState('')
   const [saving, setSaving] = useState(false)
+  const [aiOpen, setAiOpen] = useState(false)
 
   const isCatalogAdHoc = variant === 'catalogAdHoc'
 
@@ -197,6 +199,17 @@ export function PlanTaskModal({
             <label className="field">
               <span>Descrição</span>
               <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição da tarefa" />
+              <div className="plan-task-modal__ai">
+                <button
+                  type="button"
+                  className="btn btn--ghost btn--sm"
+                  onClick={() => setAiOpen(true)}
+                  disabled={saving || !description.trim()}
+                >
+                  <Sparkles size={14} strokeWidth={2} />
+                  Formatar IA
+                </button>
+              </div>
             </label>
             {isCatalogAdHoc ? (
               <p className="field__hint muted" style={{ marginTop: 0 }}>
@@ -263,6 +276,18 @@ export function PlanTaskModal({
           </div>
         </div>
       </div>
+      <AiFormatModal
+        open={aiOpen}
+        title="Formatar descricao da tarefa"
+        text={description}
+        intent="task_description"
+        onClose={() => setAiOpen(false)}
+        onApply={(next, mode) => {
+          if (!next.trim()) return
+          setDescription((prev) => (mode === 'replace' ? next.trim() : `${prev.trim()}\n\n${next.trim()}`.trim()))
+          setAiOpen(false)
+        }}
+      />
     </div>
   )
 }

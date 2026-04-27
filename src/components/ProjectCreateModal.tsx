@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
-import { Building2, Loader2, MapPin, Rocket } from 'lucide-react'
+import { Building2, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react'
 import type {
   DbAnalyst,
   DbPlanModel,
@@ -18,7 +18,7 @@ import {
   formatCnpjDisplay,
   formatPhoneBrDisplay,
 } from '../lib/brazilFormat'
-import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import {
   enqueuePendingProjectGraphSync,
   updateProjectPartialInSupabase,
@@ -32,6 +32,7 @@ import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
+import { AiFormatModal } from './AiFormatModal'
 
 function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
   const fallback = isEdit ? 'Erro ao salvar projeto.' : 'Erro ao criar projeto.'
@@ -48,6 +49,7 @@ function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
       auth: 'Sessão expirada ou inválida para sincronização com a nuvem.',
       network: 'Falha de rede ou indisponibilidade temporária do Supabase.',
       conflict: 'Conflito de dados durante a sincronização na nuvem.',
+      ambiguous: 'A nuvem não confirmou a gravação (resposta sem linha afetada).',
       unknown: 'Falha inesperada na sincronização com a nuvem.',
     }
     const headline = headlineByType[type.toLowerCase()] ?? headlineByType.unknown
@@ -74,6 +76,8 @@ function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
       'Falha de rede ao sincronizar com o Supabase (PRJ_CREATE_NETWORK). Aguarde alguns segundos e tente de novo.',
     PRJ_CREATE_CONFLICT:
       'Conflito de dados na sincronização (PRJ_CREATE_CONFLICT). Atualize os dados e tente novamente.',
+    PRJ_CREATE_AMBIGUOUS:
+      'Alteração salva localmente; a nuvem não confirmou a escrita (PRJ_CREATE_AMBIGUOUS). Use Sincronizar ou verifique sessão e RLS.',
     PRJ_CREATE_SYNC:
       'Erro inesperado ao sincronizar o cadastro com a nuvem (PRJ_CREATE_SYNC). Se persistir, acione o suporte.',
     PRJ_CREATE_CLOUD_SYNC:
@@ -87,6 +91,7 @@ function isRetryableCloudSyncFailure(raw: unknown): boolean {
   return (
     message.includes('PRJ_CREATE_TIMEOUT') ||
     message.includes('PRJ_CREATE_NETWORK') ||
+    message.includes('PRJ_CREATE_AMBIGUOUS') ||
     message.includes('PRJ_CREATE_SYNC')
   )
 }
@@ -94,6 +99,47 @@ function isRetryableCloudSyncFailure(raw: unknown): boolean {
 function emptyToNull(s: string): string | null {
   const t = s.trim()
   return t ? t : null
+}
+
+function authSyncError(): Error {
+  return new Error(
+    'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Sessão inválida ou expirada.|action=Faça login novamente e tente salvar.',
+  )
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms)
+    })
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
+  }
+}
+
+async function ensureCloudSessionForProjectWrite(): Promise<void> {
+  if (!supabase) return
+  const {
+    data: { session },
+    error: getErr,
+  } = await withTimeout(
+    supabase.auth.getSession(),
+    10_000,
+    'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Timeout ao validar sessão.|action=Faça login novamente e tente salvar.',
+  )
+  if (getErr || !session) throw authSyncError()
+  const expMs = session.expires_at ? session.expires_at * 1000 : null
+  const skewMs = 120_000
+  if (expMs != null && expMs < Date.now() + skewMs) {
+    const { error: refreshErr } = await withTimeout(
+      supabase.auth.refreshSession(),
+      10_000,
+      'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Timeout ao renovar sessão.|action=Faça login novamente e tente salvar.',
+    )
+    if (refreshErr) throw authSyncError()
+  }
 }
 
 function isoToDateInput(iso: string | null | undefined): string {
@@ -166,6 +212,7 @@ export function ProjectCreateModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [lookupHint, setLookupHint] = useState<string | null>(null)
+  const [aiOpenField, setAiOpenField] = useState<'modules' | 'notes' | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -362,22 +409,59 @@ export function ProjectCreateModal({
           }
         }
         if (isSupabaseConfigured()) {
+          const opId = crypto.randomUUID()
+          let preflightSyncErr: string | null = null
+          try {
+            await ensureCloudSessionForProjectWrite()
+          } catch (authErr) {
+            preflightSyncErr = authErr instanceof Error ? authErr.message : String(authErr)
+          }
+
           await withDexieSupabaseSyncMuted(async () => {
             await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
+          })
+
+          if (preflightSyncErr) {
+            const code = preflightSyncErr.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? 'PRJ_CREATE_AUTH'
+            enqueuePendingProjectGraphSync(projectToEdit.id, {
+              opId,
+              lastErrorCode: code,
+              lastErrorMessage: preflightSyncErr,
+            })
+            console.warn('[Supabase] edição salva local e pendente por sessão inválida', {
+              projectId: projectToEdit.id,
+              opId,
+              error: preflightSyncErr,
+            })
+            setLookupHint(
+              'Alterações salvas localmente. Sessão expirada para nuvem; faça login novamente e use "Sincronizar".',
+            )
+          } else {
             try {
-              await updateProjectPartialInSupabase(projectToEdit.id, patch as Partial<DbProject>)
+              await withTimeout(
+                updateProjectPartialInSupabase(projectToEdit.id, patch as Partial<DbProject>, opId),
+                70_000,
+                'PRJ_CREATE_TIMEOUT|op=projects|type=timeout|reason=Tempo limite ao salvar projeto na nuvem.|action=Tente novamente em instantes.',
+              )
             } catch (syncErr) {
-              if (!isRetryableCloudSyncFailure(syncErr)) throw syncErr
-              enqueuePendingProjectGraphSync(projectToEdit.id)
+              const msg = syncErr instanceof Error ? syncErr.message : String(syncErr)
+              const code = msg.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? null
+              enqueuePendingProjectGraphSync(projectToEdit.id, {
+                opId,
+                lastErrorCode: code,
+                lastErrorMessage: msg,
+              })
               console.warn('[Supabase] edição enfileirada para re-sync em background', {
                 projectId: projectToEdit.id,
-                error: syncErr instanceof Error ? syncErr.message : String(syncErr),
+                opId,
+                error: msg,
+                retryable: isRetryableCloudSyncFailure(syncErr),
               })
               setLookupHint(
-                'Alterações salvas localmente e enfileiradas para sincronizar com a nuvem quando a conexão estabilizar.',
+                'Alterações salvas localmente e enfileiradas para sincronizar com a nuvem.',
               )
             }
-          })
+          }
         } else {
           await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
         }
@@ -409,6 +493,16 @@ export function ProjectCreateModal({
   if (!open) return null
 
   const isEdit = !!projectToEdit
+  const aiSourceText = aiOpenField === 'modules' ? modulesDescription : aiOpenField === 'notes' ? internalNotes : ''
+
+  function onApplyAiText(next: string, mode: 'replace' | 'append') {
+    if (!aiOpenField) return
+    const current = aiOpenField === 'modules' ? modulesDescription : internalNotes
+    const merged = mode === 'replace' ? next : [current.trim(), next.trim()].filter(Boolean).join('\n\n')
+    if (aiOpenField === 'modules') setModulesDescription(merged)
+    else setInternalNotes(merged)
+    setAiOpenField(null)
+  }
 
   return (
     <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
@@ -701,6 +795,17 @@ export function ProjectCreateModal({
                     onChange={(e) => setModulesDescription(e.target.value)}
                     placeholder="Liste módulos, integrações ou pacotes (PCP, fiscal, BI…)"
                   />
+                  <div className="project-create-modal__ai">
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setAiOpenField('modules')}
+                      disabled={saving || !modulesDescription.trim()}
+                    >
+                      <Sparkles size={14} strokeWidth={2} />
+                      Formatar IA
+                    </button>
+                  </div>
                 </label>
                 <label className="field field--span2">
                   <span>ID API / integração (cliente)</span>
@@ -735,6 +840,17 @@ export function ProjectCreateModal({
                     onChange={(e) => setInternalNotes(e.target.value)}
                     placeholder="Contexto comercial, operação, decisões…"
                   />
+                  <div className="project-create-modal__ai">
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--sm"
+                      onClick={() => setAiOpenField('notes')}
+                      disabled={saving || !internalNotes.trim()}
+                    >
+                      <Sparkles size={14} strokeWidth={2} />
+                      Formatar IA
+                    </button>
+                  </div>
                 </label>
               </div>
             </section>
@@ -755,6 +871,16 @@ export function ProjectCreateModal({
           </div>
         </div>
       </div>
+      {aiOpenField ? (
+        <AiFormatModal
+          open
+          title={aiOpenField === 'modules' ? 'Formatar módulos/escopo' : 'Formatar observações internas'}
+          text={aiSourceText}
+          intent="project_doc"
+          onClose={() => setAiOpenField(null)}
+          onApply={onApplyAiText}
+        />
+      ) : null}
     </div>
   )
 }

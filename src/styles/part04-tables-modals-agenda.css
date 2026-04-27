@@ -105,6 +105,13 @@
   position: relative;
   z-index: 10021;
 }
+/* Nested modal support (ex.: IA formatter over project edit modal). */
+.modal-backdrop .modal-backdrop {
+  z-index: 10030;
+}
+.modal-backdrop .modal-backdrop .modal {
+  z-index: 10031;
+}
 .modal__title {
   margin: 0 0 0.5rem;
   font-family: var(--font-display);
@@ -1843,5 +1850,62 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+/* IA formatter (tarefas/projetos/documentacao) */
+.modal--ai-format {
+  width: min(980px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+.ai-format__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.ai-format__lead {
+  margin: 0 0 0.8rem;
+  font-size: 0.84rem;
+}
+.ai-format__mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+}
+.ai-format__generate {
+  margin-left: auto;
+}
+.ai-format__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+}
+.ai-format__box {
+  margin: 0;
+}
+.ai-format__textarea {
+  min-height: 280px;
+  resize: vertical;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.pd-docs-form__ai {
+  flex-shrink: 0;
+}
+.plan-task-modal__ai {
+  margin-top: 0.45rem;
+}
+.project-create-modal__ai {
+  margin-top: 0.45rem;
+}
+@media (max-width: 840px) {
+  .ai-format__grid {
+    grid-template-columns: 1fr;
+  }
+  .ai-format__generate {
+    margin-left: 0;
+  }
 }
 

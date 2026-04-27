@@ -32,6 +32,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  Sparkles,
   Tag,
   Trash2,
   UserCircle2,
@@ -45,6 +46,7 @@ import { PlanTaskModal, type PlanTaskFormValues, type PlanTaskSaveMeta } from '.
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
+import { AiFormatModal } from '../components/AiFormatModal'
 import { db } from '../db/database'
 import {
   emptyAnalysts,
@@ -105,7 +107,12 @@ import {
   type WelcomeSubmissionForProjectRow,
 } from '../services/clientPortal'
 import { AZOUP_WELCOME_FORM_FIELDS } from '../constants/azoupWelcomeForm'
-import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
+import {
+  flushPendingProjectGraphSyncByProject,
+  getProjectCloudSyncMeta,
+  updateProjectPartialInSupabase,
+  withDexieSupabaseSyncMuted,
+} from '../sync/supabaseDexieBridge'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
@@ -258,6 +265,7 @@ export function ProjectDetailPage() {
   const [docEditingId, setDocEditingId] = useState<string | null>(null)
   const [docEditDraft, setDocEditDraft] = useState('')
   const [docEditBusy, setDocEditBusy] = useState(false)
+  const [aiDocTarget, setAiDocTarget] = useState<'new' | 'edit' | null>(null)
 
   const [customPhaseModal, setCustomPhaseModal] = useState<
     null | { mode: 'add' } | { mode: 'edit'; phase: DbPhase }
@@ -267,6 +275,15 @@ export function ProjectDetailPage() {
   const [customTaskEditing, setCustomTaskEditing] = useState<DbTask | null>(null)
   const [customTaskDefaultCode, setCustomTaskDefaultCode] = useState('1.1')
   const [planTaskModalVariant, setPlanTaskModalVariant] = useState<'standard' | 'catalogAdHoc'>('standard')
+  const [_syncTick, setSyncTick] = useState(0)
+  const [projectSyncBusy, setProjectSyncBusy] = useState(false)
+
+  const aiDocInput = aiDocTarget === 'edit' ? docEditDraft : docDraft
+
+  useEffect(() => {
+    const id = window.setInterval(() => setSyncTick((n) => n + 1), 5000)
+    return () => window.clearInterval(id)
+  }, [])
 
   const scheduledEventByTaskId = useMemo(() => {
     const m = new Map<string, DbEvent>()
@@ -416,6 +433,14 @@ export function ProjectDetailPage() {
   }
 
   const proj: DbProject = project
+  const projectCloudSyncMeta = getProjectCloudSyncMeta(proj.id)
+  const syncStatusLabel =
+    projectCloudSyncMeta.state === 'synced'
+      ? 'Sincronizado com a nuvem'
+      : projectCloudSyncMeta.state === 'pending'
+        ? 'Pendente de sincronização'
+        : 'Falha na sincronização'
+  const syncStatusTitle = projectCloudSyncMeta.lastErrorCode ?? syncStatusLabel
   const projectAnalyst = proj.analystId ? analystsAll.find((a) => a.id === proj.analystId) ?? null : null
   const planName = planSummaryLabel(proj.planType)
   const isCustomPlan = proj.planType === CUSTOM_PLAN_TYPE
@@ -720,6 +745,14 @@ export function ProjectDetailPage() {
     }
   }
 
+  function onApplyAiDoc(next: string, mode: 'replace' | 'append') {
+    if (!next.trim()) return
+    const merge = (current: string) => (mode === 'replace' ? next.trim() : `${current.trim()}\n\n${next.trim()}`.trim())
+    if (aiDocTarget === 'edit') setDocEditDraft((prev) => merge(prev))
+    else setDocDraft((prev) => merge(prev))
+    setAiDocTarget(null)
+  }
+
   async function onDeleteDocumentation(comment: DbComment) {
     const reason = await requestDestructiveWithReason({
       title: 'Excluir documentação',
@@ -798,6 +831,12 @@ export function ProjectDetailPage() {
           <div className="pd-header__titles">
             <h1 className="pd-title">{proj.projectName}</h1>
             <span
+              className={'pd-sync-dot is-' + projectCloudSyncMeta.state}
+              role="img"
+              aria-label={`Status de sincronização: ${syncStatusLabel}`}
+              title={syncStatusTitle}
+            />
+            <span
               className={planPillClass(proj.planType)}
               title={`Contrato: ${formatDurationHmFromHours(proj.hoursContracted)}`}
             >
@@ -827,6 +866,36 @@ export function ProjectDetailPage() {
           </div>
         </div>
         <div className="pd-header__actions">
+          {projectCloudSyncMeta.state !== 'synced' ? (
+            <button
+              type="button"
+              className="btn btn--ghost pd-action-btn"
+              onClick={() => {
+                void (async () => {
+                  setProjectSyncBusy(true)
+                  try {
+                    await flushPendingProjectGraphSyncByProject(proj.id)
+                    setSyncTick((n) => n + 1)
+                    const meta = getProjectCloudSyncMeta(proj.id)
+                    toast(
+                      meta.state === 'synced'
+                        ? 'Projeto sincronizado com a nuvem.'
+                        : 'Reenvio concluído, aguardando confirmação da nuvem.',
+                    )
+                  } catch (e) {
+                    toastError(e instanceof Error ? e.message : 'Falha ao sincronizar projeto.')
+                  } finally {
+                    setProjectSyncBusy(false)
+                  }
+                })()
+              }}
+              disabled={projectSyncBusy}
+              title={projectCloudSyncMeta.lastErrorCode ?? undefined}
+            >
+              <RotateCcw {...ic} aria-hidden />
+              Sincronizar
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn--ghost pd-action-btn"
@@ -1578,6 +1647,16 @@ export function ProjectDetailPage() {
                 onPaste={onDocPaste}
               />
               <button
+                type="button"
+                className="btn btn--ghost btn--sm pd-docs-form__ai"
+                onClick={() => setAiDocTarget('new')}
+                disabled={docBusy || !docDraft.trim()}
+                title="Estruturar texto com IA"
+              >
+                <Sparkles size={14} strokeWidth={2} />
+                Formatar IA
+              </button>
+              <button
                 type="submit"
                 className="btn btn--primary pd-docs-form__send"
                 disabled={
@@ -1661,6 +1740,15 @@ export function ProjectDetailPage() {
                           aria-label="Editar texto da documentação"
                         />
                         <div className="pd-doc-card__edit-actions">
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            disabled={docEditBusy || !docEditDraft.trim()}
+                            onClick={() => setAiDocTarget('edit')}
+                          >
+                            <Sparkles size={14} strokeWidth={2} />
+                            Formatar IA
+                          </button>
                           <button
                             type="button"
                             className="btn btn--ghost btn--sm"
@@ -1913,6 +2001,15 @@ export function ProjectDetailPage() {
           </section>
         </div>
       ) : null}
+
+      <AiFormatModal
+        open={aiDocTarget !== null}
+        title="Formatar documentacao com IA"
+        text={aiDocInput}
+        intent="project_doc"
+        onClose={() => setAiDocTarget(null)}
+        onApply={onApplyAiDoc}
+      />
 
       <ProjectCreateModal
         open={editOpen}
