@@ -7,6 +7,7 @@ import { createEventValidated } from './events'
 import { setTaskStatus } from './tasks'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
 import type { TaskStatus } from '../db/types'
+import { enqueuePendingProjectGraphSync } from '../sync/supabaseDexieBridge'
 
 export type AttendanceKind = 'ocorreu' | 'nao_compareceu_avisou' | 'nao_compareceu_sem_aviso'
 export type AttendanceEntryMode = 'timer' | 'manual'
@@ -26,6 +27,8 @@ export type RegisterAttendanceInput = {
   outcomeMode?: AttendanceOutcomeMode
   createRetroEvent?: boolean
   newDate?: string | null
+  /** Hora local do novo prazo (`HH:mm`), quando `newDate` é informada. */
+  newTime?: string | null
 }
 
 function toIsoAt(date: string, hhmm: string): string {
@@ -37,7 +40,8 @@ async function hasEventForTaskOnDate(taskId: string, date: string): Promise<bool
   return events.some((e) => (e.startTime ?? '').slice(0, 10) === date)
 }
 
-async function createRescheduledCopy(task: DbTask, newDate: string): Promise<void> {
+async function createRescheduledCopy(task: DbTask, newDate: string, newTime: string): Promise<void> {
+  const hhmm = /^\d{2}:\d{2}$/.test(newTime) ? newTime : '12:00'
   const siblings = await db.tasks.where('phaseId').equals(task.phaseId).toArray()
   const nextSort = siblings.reduce((m, x) => Math.max(m, x.sortOrder), 0) + 1
   await db.tasks.add({
@@ -45,11 +49,37 @@ async function createRescheduledCopy(task: DbTask, newDate: string): Promise<voi
     id: uuid(),
     status: 'pendente',
     actualHours: 0,
-    dueDate: toIsoAt(newDate, '12:00'),
+    dueDate: toIsoAt(newDate, hhmm),
     createdAt: new Date().toISOString(),
     sortOrder: nextSort,
     title: `${task.title} (reagendada)`,
   })
+}
+
+async function createRetroEventSafely(
+  task: DbTask,
+  payload: Parameters<typeof createEventValidated>[0],
+  context: 'attendance-ocorreu' | 'attendance-nao-ocorreu',
+): Promise<void> {
+  try {
+    await createEventValidated(payload)
+  } catch (err) {
+    // Atendimento não deve falhar por sync remoto de evento; mantém operação local e agenda re-sync.
+    const msg = err instanceof Error ? err.message : String(err)
+    console.warn('[attendance] evento retroativo pendente de sincronização', {
+      context,
+      taskId: task.id,
+      projectId: task.projectId,
+      error: msg,
+    })
+    if (task.projectId) {
+      enqueuePendingProjectGraphSync(task.projectId, {
+        lastErrorCode: 'ATT_EVENT_SYNC',
+        lastErrorMessage: msg,
+        opId: crypto.randomUUID(),
+      })
+    }
+  }
 }
 
 export async function registerTaskAttendance(input: RegisterAttendanceInput): Promise<void> {
@@ -106,7 +136,9 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
     }
 
     if ((input.createRetroEvent ?? true) && !(await hasEventForTaskOnDate(task.id, execDate))) {
-      await createEventValidated({
+      await createRetroEventSafely(
+        task,
+        {
         title: `${task.code} ${task.title}`.trim(),
         description: notes || 'Registro retroativo criado via atendimento da tarefa.',
         startTime: retroStart,
@@ -116,7 +148,9 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
         taskId: task.id,
         analystId: input.analystId,
         meetingLink: null,
-      })
+        },
+        'attendance-ocorreu',
+      )
     }
   } else {
     const withHours = input.attendanceKind === 'nao_compareceu_sem_aviso'
@@ -137,7 +171,9 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
     )
 
     if ((input.createRetroEvent ?? true) && !(await hasEventForTaskOnDate(task.id, execDate))) {
-      await createEventValidated({
+      await createRetroEventSafely(
+        task,
+        {
         title: `${task.code} ${task.title}`.trim(),
         description:
           notes ||
@@ -151,11 +187,15 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
         taskId: task.id,
         analystId: input.analystId,
         meetingLink: null,
-      })
+        },
+        'attendance-nao-ocorreu',
+      )
     }
 
     if (!input.newDate) throw new Error('Informe a data de reagendamento.')
-    await createRescheduledCopy(task, input.newDate)
+    const rescheduleTime =
+      input.newTime && /^\d{2}:\d{2}$/.test(input.newTime) ? input.newTime : '12:00'
+    await createRescheduledCopy(task, input.newDate, rescheduleTime)
     await setTaskStatus(task.id, 'cancelado', input.actorUserId)
   }
 

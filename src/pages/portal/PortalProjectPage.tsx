@@ -25,7 +25,22 @@ export function PortalProjectPage() {
         const [next, projectAgenda] = await Promise.all([fetchPortalProjectGraph(projectId), fetchPortalAgenda([projectId])])
         if (!alive) return
         setData(next)
-        setAgenda(projectAgenda.slice(0, 6))
+        const startOfToday = new Date()
+        startOfToday.setHours(0, 0, 0, 0)
+        const t0 = startOfToday.getTime()
+        const upcoming = projectAgenda
+          .filter((e) => {
+            if (!e.start_time) return false
+            const t = new Date(String(e.start_time)).getTime()
+            return Number.isFinite(t) && t >= t0
+          })
+          .sort((a, b) => {
+            const ta = a.start_time ? new Date(String(a.start_time)).getTime() : 0
+            const tb = b.start_time ? new Date(String(b.start_time)).getTime() : 0
+            return ta - tb
+          })
+          .slice(0, 8)
+        setAgenda(upcoming)
       } catch (e) {
         if (!alive) return
         toastError(e instanceof Error ? e.message : 'Falha ao carregar andamento do projeto.')
@@ -81,7 +96,7 @@ export function PortalProjectPage() {
       <section className="panel">
         <div className="panel__header">
           <h1>{String(project.project_name ?? 'Projeto')}</h1>
-          <p className="page__subtitle">Acompanhamento em modo leitura para o cliente.</p>
+          <p className="page__subtitle">Dados do projeto em modo leitura (tarefas, fases e horas como na área interna).</p>
         </div>
         <div className="portal-kpis">
           <article className="portal-kpi">
@@ -123,12 +138,14 @@ export function PortalProjectPage() {
               <div className="portal-progress__bar" style={{ width: `${progress.pct}%` }} />
             </div>
             <p className="muted portal-progress-card__meta">
-              {progress.done} de {progress.total} tarefas concluídas
+              {progress.done} de {progress.total} tarefas concluídas · Contrato:{' '}
+              {Number(project.hours_contracted ?? 0).toFixed(1)}h · Utilizadas no projeto:{' '}
+              {Number(project.hours_used ?? 0).toFixed(1)}h
             </p>
           </article>
           <article className="portal-progress-card">
             <div className="portal-progress-card__head">
-              <h3>Horas previstas x realizadas</h3>
+              <h3>Horas das tarefas (previsto x realizado)</h3>
               <span className="pill">
                 {progress.actual.toFixed(1)}h / {progress.estimated.toFixed(1)}h
               </span>
@@ -142,7 +159,7 @@ export function PortalProjectPage() {
               />
             </div>
             <p className="muted portal-progress-card__meta">
-              Contratado: {Number(project.hours_contracted ?? 0).toFixed(1)}h · Usado: {Number(project.hours_used ?? 0).toFixed(1)}h
+              {progress.actual.toFixed(1)}h realizadas · {progress.estimated.toFixed(1)}h previstas (soma das tarefas)
             </p>
           </article>
         </div>
@@ -202,7 +219,8 @@ export function PortalProjectPage() {
 
       <section className="panel">
         <div className="panel__header">
-          <h2>Próximos eventos da agenda</h2>
+          <h2>Próximos eventos (a partir de hoje)</h2>
+          <p className="page__subtitle">Mesmos eventos da agenda do projeto; aqui só os próximos (até 8).</p>
         </div>
         {agenda.length ? (
           <div className="portal-agenda-grid">
@@ -212,7 +230,7 @@ export function PortalProjectPage() {
                   <h3>{String(event.title ?? 'Evento')}</h3>
                   <span className="pill">{String(event.status ?? 'agendado')}</span>
                 </header>
-                <p className="muted">{String(event.description ?? 'Sem descrição detalhada.')}</p>
+                {event.description?.trim() ? <p className="muted">{String(event.description)}</p> : null}
                 <p className="portal-agenda-card__date">
                   <CalendarClock size={14} strokeWidth={2} /> {event.start_time ? formatDateTimePt(String(event.start_time)) : '-'}{' '}
                   {event.end_time ? `até ${formatDateTimePt(String(event.end_time))}` : ''}
@@ -221,7 +239,10 @@ export function PortalProjectPage() {
             ))}
           </div>
         ) : (
-          <p className="muted">Sem eventos agendados para este projeto.</p>
+          <p className="muted">
+            Nenhum evento com início a partir de hoje neste projeto. Em Ver agenda completa aparecem todos os eventos cadastrados
+            (incluindo passados).
+          </p>
         )}
       </section>
     </main>

@@ -52,7 +52,9 @@ export function PortalHomePage() {
         <div className="portal-hero__head">
           <div>
             <h1>Portal do Cliente</h1>
-            <p className="page__subtitle">Acompanhe progresso, agenda e formulários dos seus projetos vinculados.</p>
+            <p className="page__subtitle">
+              Acompanhe progresso e horas dos projetos vinculados. Os eventos agendados no projeto (agenda) aparecem em Ver agenda.
+            </p>
           </div>
           <div className="portal-hero__actions">
             <Link to="/portal/agenda" className="btn btn--ghost">

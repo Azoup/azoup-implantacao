@@ -44,8 +44,8 @@ export async function raiseCustomProjectContractHours(projectId: string, nextHou
   const patch = { hoursContracted: h, planSnapshot: snap }
   if (isSupabaseConfigured()) {
     await withDexieSupabaseSyncMuted(async () => {
-      await db.projects.update(projectId, patch)
       await updateProjectPartialInSupabase(projectId, patch)
+      await db.projects.update(projectId, patch)
     })
   } else {
     await db.projects.update(projectId, patch)

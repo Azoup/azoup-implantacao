@@ -18,32 +18,44 @@ function runIncrementalDomainSyncSafe(): void {
 const POLL_MS = 120_000
 
 let pollTimer: number | null = null
+let liveSyncStartToken = 0
 
-export async function startLiveSyncAfterBridgeReady(): Promise<void> {
-  if (!supabase || typeof window === 'undefined') return
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  if (!session?.user) return
-
-  stopLiveSyncOnLogout()
-
-  startCrossTabDexieSync(() => {
-    runIncrementalDomainSyncSafe()
-  })
-  startSupabaseRealtimeDomainSync()
-  runIncrementalDomainSyncSafe()
-
-  pollTimer = window.setInterval(() => {
-    runIncrementalDomainSyncSafe()
-  }, POLL_MS)
-}
-
-export function stopLiveSyncOnLogout(): void {
+function stopLiveSyncInternal(bumpToken: boolean): void {
+  if (bumpToken) liveSyncStartToken++
   stopSupabaseRealtimeDomainSync()
   stopCrossTabDexieSync()
   if (pollTimer != null) {
     clearInterval(pollTimer)
     pollTimer = null
   }
+}
+
+export async function startLiveSyncAfterBridgeReady(): Promise<void> {
+  if (!supabase || typeof window === 'undefined') return
+  const token = ++liveSyncStartToken
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  if (token !== liveSyncStartToken) return
+  if (!session?.user) return
+
+  stopLiveSyncInternal(false)
+  if (token !== liveSyncStartToken) return
+
+  startCrossTabDexieSync(() => {
+    if (token !== liveSyncStartToken) return
+    runIncrementalDomainSyncSafe()
+  })
+  startSupabaseRealtimeDomainSync()
+  if (token !== liveSyncStartToken) return
+  runIncrementalDomainSyncSafe()
+
+  pollTimer = window.setInterval(() => {
+    if (token !== liveSyncStartToken) return
+    runIncrementalDomainSyncSafe()
+  }, POLL_MS)
+}
+
+export function stopLiveSyncOnLogout(): void {
+  stopLiveSyncInternal(true)
 }

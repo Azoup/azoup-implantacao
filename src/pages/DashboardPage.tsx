@@ -105,6 +105,7 @@ export function DashboardPage() {
   const [editEndTime, setEditEndTime] = useState('')
   const [editMeetingLink, setEditMeetingLink] = useState('')
   const [editAnalystId, setEditAnalystId] = useState('')
+  const [dashboardEventSaving, setDashboardEventSaving] = useState(false)
   const [agendaLinkFilter, setAgendaLinkFilter] = useState<'all' | 'with_link'>('all')
   const [alertKindFilter, setAlertKindFilter] = useState<'all' | DashboardAlertKind>('all')
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
@@ -215,7 +216,7 @@ export function DashboardPage() {
 
   async function saveEventEdit(e: FormEvent) {
     e.preventDefault()
-    if (!editEventId || !editStartDate || !editStartTime || !editEndDate || !editEndTime) return
+    if (!editEventId || !editStartDate || !editStartTime || !editEndDate || !editEndTime || dashboardEventSaving) return
     const startIso = brDateTimeToIso(editStartDate, editStartTime)
     const endIso = brDateTimeToIso(editEndDate, editEndTime)
     if (!startIso || !endIso) {
@@ -228,8 +229,9 @@ export function DashboardPage() {
     }
     const current = await db.events.get(editEventId)
     if (!current) return
+    setDashboardEventSaving(true)
     try {
-      await updateEventValidated(editEventId, {
+      const result = await updateEventValidated(editEventId, {
         title: editTitle.trim() || 'Evento',
         description: editDescription.trim(),
         startTime: startIso,
@@ -241,8 +243,17 @@ export function DashboardPage() {
         meetingLink: editMeetingLink.trim() || null,
       })
       setEditEventId(null)
+      if (result.cloudSync === 'synced') {
+        toast('Evento atualizado e confirmado na nuvem.')
+      } else if (result.cloudSync === 'queued') {
+        toast('Evento atualizado localmente. Nuvem pendente (fila de sincronização).')
+      } else {
+        toast('Evento atualizado (dados locais neste aparelho).')
+      }
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Não foi possível salvar a edição do evento.')
+    } finally {
+      setDashboardEventSaving(false)
     }
   }
 
@@ -722,12 +733,17 @@ export function DashboardPage() {
                                 />
                               </label>
                               <div className="dashboard-event__edit-actions">
-                                <button type="button" className="btn btn--sm btn--ghost" onClick={() => setEditEventId(null)}>
+                                <button
+                                  type="button"
+                                  className="btn btn--sm btn--ghost"
+                                  onClick={() => setEditEventId(null)}
+                                  disabled={dashboardEventSaving}
+                                >
                                   Cancelar
                                 </button>
-                                <button type="submit" className="btn btn--sm btn--primary">
+                                <button type="submit" className="btn btn--sm btn--primary" disabled={dashboardEventSaving}>
                                   <Save size={14} strokeWidth={2} />
-                                  Salvar
+                                  {dashboardEventSaving ? 'Salvando…' : 'Salvar'}
                                 </button>
                               </div>
                             </form>

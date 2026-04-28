@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
-import { defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
+import { ALL_PERMISSION_SCOPES, defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
 import type { DbUser, PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
 import { emptyUsers } from '../lib/stableDexieEmpty'
@@ -107,6 +107,11 @@ async function fetchUsersListForSettings(client: SupabaseClient): Promise<DbUser
 type SettingsTab = 'geral' | 'usuarios' | 'aparencia' | 'console'
 
 const icTab = { size: 18, strokeWidth: 2, absoluteStrokeWidth: true } as const
+const DIAG_LEVEL_LABEL: Record<RuntimeDiagEntry['level'], string> = {
+  error: 'Crítico',
+  warn: 'Atenção',
+  info: 'Informativo',
+}
 
 export function SettingsPage() {
   const { user: current } = useAuth()
@@ -122,6 +127,7 @@ export function SettingsPage() {
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null)
   const [permissionDraft, setPermissionDraft] = useState<PermissionScope[]>([])
+  const [permissionsSaving, setPermissionsSaving] = useState(false)
   const [usersBusy, setUsersBusy] = useState<string | null>(null)
   const [remoteUsers, setRemoteUsers] = useState<DbUser[] | null>(null)
   /** Só para admin: null = ainda carregando lista remota; não usar Dexie como fallback (cache pode ter só 1 perfil). */
@@ -153,6 +159,29 @@ export function SettingsPage() {
   const [portalTemplateFileHint, setPortalTemplateFileHint] = useState<string | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
+  const latestDiag = diag[0] ?? null
+  const hasQueue = pendingSyncCount > 0
+  const hasRealtimeIssue = runtimeSync.realtimeStatus === 'error' || runtimeSync.realtimeStatus === 'timed_out'
+  const hasRecentError = latestDiag?.level === 'error'
+  const diagnosticsSimpleStatus = hasRealtimeIssue || hasRecentError ? 'critical' : hasQueue ? 'attention' : 'ok'
+  const diagnosticsStatusLabel =
+    diagnosticsSimpleStatus === 'critical'
+      ? 'Problema detectado'
+      : diagnosticsSimpleStatus === 'attention'
+        ? 'Atenção necessária'
+        : 'Funcionando normalmente'
+  const diagnosticsStatusHint =
+    diagnosticsSimpleStatus === 'critical'
+      ? 'A sincronização pode falhar para parte da equipe.'
+      : diagnosticsSimpleStatus === 'attention'
+        ? 'Há itens na fila pendente; recomendamos processar agora.'
+        : 'Sem falhas críticas recentes no navegador atual.'
+  const diagnosticsRecommendedAction =
+    diagnosticsSimpleStatus === 'critical'
+      ? 'Clique em "Reabrir realtime". Se continuar, execute "Forçar pull incremental" e envie os detalhes técnicos ao suporte.'
+      : diagnosticsSimpleStatus === 'attention'
+        ? 'Clique em "Processar fila pendente" para reduzir atrasos de sincronização.'
+        : 'Nenhuma ação obrigatória agora. Monitore apenas se houver relato de divergência.'
   const users = useMemo(() => {
     if (!canManageUsers) return cachedUsers
     if (remoteUsers !== null) return remoteUsers
@@ -166,6 +195,16 @@ export function SettingsPage() {
     const e = err as { message?: string; code?: string; details?: string; hint?: string }
     const parts = [e.message, e.code ? `code=${e.code}` : null, e.details, e.hint].filter(Boolean)
     return parts.length > 0 ? parts.join(' | ') : fallback
+  }
+
+  function diagSourceLabel(source: string): string {
+    const s = source.toLowerCase()
+    if (s.includes('auth')) return 'Autenticação'
+    if (s.includes('realtime')) return 'Tempo real'
+    if (s.includes('incremental') || s.includes('pull')) return 'Sincronização'
+    if (s.includes('cache') || s.includes('dexie') || s.includes('indexeddb')) return 'Cache local'
+    if (s.includes('queue') || s.includes('pending')) return 'Fila'
+    return source.length > 26 ? `${source.slice(0, 26)}...` : source
   }
 
   async function loadUsersFromSupabase() {
@@ -201,7 +240,13 @@ export function SettingsPage() {
         if (cancelled || gen !== usersListEffectGen.current) return
         setRemoteUsers(list)
         setUsersRemoteLoadError(null)
-        void refreshSupabaseDexieCache().catch(() => undefined)
+        try {
+          await refreshSupabaseDexieCache()
+        } catch (e) {
+          if (!cancelled && gen === usersListEffectGen.current) {
+            toastError(e instanceof Error ? e.message : 'Cache local não atualizou após carregar usuários.')
+          }
+        }
       } catch (e) {
         if (cancelled || gen !== usersListEffectGen.current) return
         const msg = e instanceof Error ? e.message : 'Falha ao carregar usuários do Supabase.'
@@ -212,7 +257,7 @@ export function SettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [canManageUsers, current?.id, tab])
+  }, [canManageUsers, current?.id, tab, toastError])
 
   const loadPortalAdminData = useCallback(async () => {
     if (!canManageUsers || !supabase) return
@@ -250,36 +295,102 @@ export function SettingsPage() {
   function openPermissions(userId: string) {
     const target = users.find((u) => u.id === userId)
     if (!target) return
+    setErr(null)
     setPermissionsUserId(userId)
     setPermissionDraft(scopesForUser(target))
     setPermissionsOpen(true)
   }
 
-  function closePermissions() {
+  function resetPermissionsModal() {
+    setPermissionsSaving(false)
     setPermissionsOpen(false)
     setPermissionsUserId(null)
     setPermissionDraft([])
+    setErr(null)
+  }
+
+  function closePermissions() {
+    if (permissionsSaving) return
+    resetPermissionsModal()
   }
 
   async function savePermissions() {
-    if (!permissionsUserId || !canManageUsers) return
+    if (!permissionsUserId || !canManageUsers || permissionsSaving) return
     if (!supabase) {
       const msg = 'Supabase não configurado.'
       setErr(msg)
       throw new Error(msg)
     }
-    const { error } = await supabase.rpc('admin_set_profile_permissions', {
-      p_target_user_id: permissionsUserId,
-      p_permissions: permissionDraft,
-    })
-    if (error) {
-      const msg = formatSupabaseError(error, 'Não foi possível salvar permissões.')
-      setErr(msg)
-      throw new Error(msg)
+    const targetId = permissionsUserId
+    const draftSnapshot: PermissionScope[] = [...permissionDraft]
+    const allScopesGranted = ALL_PERMISSION_SCOPES.every((scope) => draftSnapshot.includes(scope))
+    const shouldPromoteToAdmin =
+      !!editingPermissionUser && editingPermissionUser.userType !== 'client' && allScopesGranted
+    // #region agent log
+    fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:start',message:'Saving permissions started',data:{targetId,scopeCount:draftSnapshot.length,allScopesGranted,shouldPromoteToAdmin},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    setPermissionsSaving(true)
+    setErr(null)
+    try {
+      const { error } = await supabase.rpc('admin_set_profile_permissions', {
+        p_target_user_id: targetId,
+        p_permissions: draftSnapshot,
+      })
+      if (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:rpcError',message:'admin_set_profile_permissions failed',data:{targetId,error:error.message},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        const msg = formatSupabaseError(error, 'Não foi possível salvar permissões.')
+        setErr(msg)
+        throw new Error(msg)
+      }
+      if (shouldPromoteToAdmin) {
+        const { error: roleErr } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', targetId)
+        if (roleErr) {
+          // #region agent log
+          fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:roleUpdateError',message:'Role promotion failed',data:{targetId,error:roleErr.message},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          const msg = formatSupabaseError(
+            roleErr,
+            'Permissões salvas, mas não foi possível promover o perfil para admin.',
+          )
+          setErr(msg)
+          throw new Error(msg)
+        }
+        // #region agent log
+        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:roleUpdated',message:'Role promoted to admin',data:{targetId},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+      }
+      await loadUsersFromSupabase()
+      setRemoteUsers((prev) => {
+        if (!prev?.length) return prev
+        return prev.map((u) =>
+          u.id === targetId
+            ? {
+                ...u,
+                permissions: draftSnapshot.length ? draftSnapshot : null,
+                role: shouldPromoteToAdmin ? 'admin' : u.role,
+              }
+            : u,
+        )
+      })
+      const { error: sessErr } = await supabase.auth.refreshSession()
+      if (sessErr) {
+        // #region agent log
+        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H4',location:'SettingsPage.tsx:savePermissions:refreshSessionError',message:'refreshSession failed after permissions save',data:{targetId,error:sessErr.message},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
+        console.warn('[Settings] refreshSession após salvar permissões:', sessErr)
+      }
+      try {
+        await refreshSupabaseDexieCache()
+      } catch (e) {
+        toastError(e instanceof Error ? e.message : 'Cache local não atualizou após salvar permissões.')
+      }
+      toast('Permissões salvas.')
+      resetPermissionsModal()
+    } finally {
+      setPermissionsSaving(false)
     }
-    await loadUsersFromSupabase()
-    void refreshSupabaseDexieCache().catch(() => undefined)
-    closePermissions()
   }
 
   const permissionsDraftDirty = useMemo(() => {
@@ -320,7 +431,20 @@ export function SettingsPage() {
       })
       if (error) throw error
       await loadUsersFromSupabase()
-      void refreshSupabaseDexieCache().catch(() => undefined)
+      const { error: sessErr } = await supabase.auth.refreshSession()
+      if (sessErr) {
+        console.warn('[Settings] refreshSession após status:', sessErr)
+        toastError(
+          sessErr.message
+            ? `Sessão não renovou após alterar status: ${sessErr.message}.`
+            : 'Sessão não renovou após alterar status do usuário.',
+        )
+      }
+      try {
+        await refreshSupabaseDexieCache()
+      } catch (e) {
+        toastError(e instanceof Error ? e.message : 'Cache local não atualizou após mudar status.')
+      }
       if (nextStatus === 'inactive') toast('Usuário inativado.')
       else if (nextStatus === 'pending') toast('Usuário movido para pendente.')
       else toast('Usuário aprovado/reativado.')
@@ -356,12 +480,20 @@ export function SettingsPage() {
         })
         if (fallback.error) throw error
         await loadUsersFromSupabase()
-        void refreshSupabaseDexieCache().catch(() => undefined)
+        try {
+          await refreshSupabaseDexieCache()
+        } catch (e) {
+          toastError(e instanceof Error ? e.message : 'Cache local não atualizou.')
+        }
         toast('Exclusão bloqueada pelo banco. Login inativado com sucesso.')
         return
       }
       await loadUsersFromSupabase()
-      void refreshSupabaseDexieCache().catch(() => undefined)
+      try {
+        await refreshSupabaseDexieCache()
+      } catch (e) {
+        toastError(e instanceof Error ? e.message : 'Cache local não atualizou após excluir login.')
+      }
       toast('Login excluído com sucesso.')
     } catch (e) {
       toastError(formatSupabaseError(e, 'Falha ao excluir login.'))
@@ -974,6 +1106,52 @@ export function SettingsPage() {
             </div>
           </div>
 
+          <section className="settings-console-summary" aria-labelledby="settings-console-summary-title">
+            <h3 id="settings-console-summary-title" className="settings-console-summary__title">
+              Diagnóstico rápido
+            </h3>
+            <div className="settings-console-summary__grid">
+              <article className="settings-console-summary__card">
+                <strong className="settings-console-summary__label">Status simples</strong>
+                <p className="settings-console-summary__value">
+                  <span
+                    className={
+                      'pill settings-console-summary__status' +
+                      (diagnosticsSimpleStatus === 'ok'
+                        ? ' pill--ok'
+                        : diagnosticsSimpleStatus === 'attention'
+                          ? ' pill--warn'
+                          : ' settings-console-summary__status--critical')
+                    }
+                  >
+                    {diagnosticsStatusLabel}
+                  </span>
+                </p>
+                <p className="muted settings-console-summary__hint">{diagnosticsStatusHint}</p>
+              </article>
+
+              <article className="settings-console-summary__card">
+                <strong className="settings-console-summary__label">Ação recomendada</strong>
+                <p className="settings-console-summary__hint">{diagnosticsRecommendedAction}</p>
+              </article>
+            </div>
+
+            <details className="settings-console-summary__details">
+              <summary>Detalhes técnicos (IA/suporte)</summary>
+              <ul className="settings-console-summary__tech muted">
+                <li>Realtime: {runtimeSync.realtimeStatus}</li>
+                <li>Fila pendente: {pendingSyncCount}</li>
+                <li>
+                  Último pull incremental:{' '}
+                  {runtimeSync.incrementalLastRunAt
+                    ? formatDatePt(runtimeSync.incrementalLastRunAt, 'dd/MM/yyyy HH:mm:ss')
+                    : 'nunca'}
+                </li>
+                <li>Último diagnóstico: {latestDiag ? `${latestDiag.source} · ${latestDiag.level} · ${latestDiag.message}` : 'sem registros'}</li>
+              </ul>
+            </details>
+          </section>
+
           <div className="settings-console-kpis">
             <div className="settings-console-kpi">
               <strong className="settings-console-kpi__label">Modo de dados</strong>
@@ -1149,9 +1327,19 @@ export function SettingsPage() {
                   diag.slice(0, 50).map((d) => (
                     <tr key={d.id}>
                       <td>{formatDatePt(d.at, 'dd/MM/yyyy HH:mm:ss')}</td>
-                      <td>{d.source}</td>
-                      <td>{d.level}</td>
-                      <td title={d.details ?? ''}>{d.message}</td>
+                      <td>{diagSourceLabel(d.source)}</td>
+                      <td>
+                        <span className={`diag-severity-chip diag-severity-chip--${d.level}`}>{DIAG_LEVEL_LABEL[d.level]}</span>
+                      </td>
+                      <td>
+                        <p className="settings-console-diag-msg">{d.message}</p>
+                        {d.details ? (
+                          <details className="settings-console-diag-tech">
+                            <summary>Detalhes técnicos</summary>
+                            <pre>{d.details}</pre>
+                          </details>
+                        ) : null}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1257,7 +1445,11 @@ export function SettingsPage() {
       ) : null}
 
       {permissionsOpen && editingPermissionUser && canManageUsers ? (
-        <div className="modal-backdrop" role="presentation" onClick={closePermissions}>
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={permissionsSaving ? undefined : closePermissions}
+        >
           <div className="modal modal--md settings-permissions-modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <h2 className="modal__title settings-permissions-modal__title">Permissões · {editingPermissionUser.name}</h2>
             <p className="muted settings-permissions-modal__lead">
@@ -1276,6 +1468,7 @@ export function SettingsPage() {
                     <input
                       type="checkbox"
                       checked={permissionDraft.includes(m.view)}
+                      disabled={permissionsSaving}
                       onChange={(e) => {
                         toggleScope(m.view, e.target.checked)
                         if (!e.target.checked && m.edit) toggleScope(m.edit, false)
@@ -1288,6 +1481,7 @@ export function SettingsPage() {
                       <input
                         type="checkbox"
                         checked={permissionDraft.includes(m.edit)}
+                        disabled={permissionsSaving}
                         onChange={(e) => {
                           toggleScope(m.edit!, e.target.checked)
                           if (e.target.checked) toggleScope(m.view, true)
@@ -1302,22 +1496,36 @@ export function SettingsPage() {
               ))}
             </div>
             <div className="modal__actions settings-permissions-modal__actions">
-              <button type="button" className="btn btn--ghost" onClick={closePermissions}>
+              <button type="button" className="btn btn--ghost" onClick={closePermissions} disabled={permissionsSaving}>
                 Cancelar
               </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setPermissionDraft(defaultScopesForRole('user'))}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setPermissionDraft(defaultScopesForRole('user'))}
+                disabled={permissionsSaving}
+              >
                 Preset Usuário
               </button>
-              <button type="button" className="btn btn--ghost" onClick={() => setPermissionDraft(defaultScopesForRole('admin'))}>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setPermissionDraft(defaultScopesForRole('admin'))}
+                disabled={permissionsSaving}
+              >
                 Preset Admin
               </button>
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => void savePermissions().catch(() => undefined)}
-                disabled={!canEditSettings}
+                onClick={() =>
+                  void savePermissions().catch((e) =>
+                    toastError(e instanceof Error ? e.message : 'Não foi possível salvar permissões.'),
+                  )
+                }
+                disabled={!canEditSettings || permissionsSaving}
               >
-                Salvar permissões
+                {permissionsSaving ? 'Salvando…' : 'Salvar permissões'}
               </button>
             </div>
           </div>

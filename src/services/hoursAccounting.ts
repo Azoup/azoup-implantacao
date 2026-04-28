@@ -1,6 +1,10 @@
 import { db } from '../db/database'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
-import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
+import {
+  enqueuePendingProjectGraphSync,
+  updateProjectPartialInSupabase,
+  withDexieSupabaseSyncMuted,
+} from '../sync/supabaseDexieBridge'
 
 /** Soma horas registradas via modal de log (inclui 0 em cancelado sem horas). */
 export async function sumTimeLogHoursForTask(taskId: string): Promise<number> {
@@ -41,13 +45,20 @@ export async function recalculateProjectHoursUsed(projectId: string): Promise<vo
     if (!t.isInformational) sum += t.actualHours
   }
   const rounded = Math.round(sum * 1000) / 1000
+  await db.projects.update(projectId, { hoursUsed: rounded })
   if (isSupabaseConfigured()) {
-    await withDexieSupabaseSyncMuted(async () => {
-      await updateProjectPartialInSupabase(projectId, { hoursUsed: rounded })
-      await db.projects.update(projectId, { hoursUsed: rounded })
-    })
-  } else {
-    await db.projects.update(projectId, { hoursUsed: rounded })
+    try {
+      await withDexieSupabaseSyncMuted(async () => {
+        await updateProjectPartialInSupabase(projectId, { hoursUsed: rounded })
+      })
+    } catch (err) {
+      console.warn('[hours] Falha ao sincronizar hours_used do projeto (será retentado na fila).', projectId, err)
+      enqueuePendingProjectGraphSync(projectId, {
+        lastErrorCode: 'PRJ_HOURS_SYNC',
+        lastErrorMessage: err instanceof Error ? err.message : String(err),
+        opId: crypto.randomUUID(),
+      })
+    }
   }
 }
 

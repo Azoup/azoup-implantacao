@@ -37,20 +37,27 @@ export function PortalAgendaPage() {
       <section className="panel">
         <div className="panel__header">
           <h1>Agenda do Cliente</h1>
-          <p className="page__subtitle">Eventos vinculados aos seus projetos com status e datas atualizadas.</p>
+          <p className="page__subtitle">
+            Eventos cadastrados nos seus projetos vinculados — a mesma agenda que a equipe usa no sistema.
+          </p>
+          <p className="muted" style={{ marginTop: '0.5rem', maxWidth: '42rem' }}>
+            Esta tela é somente leitura: mostra compromissos já gravados na nuvem para os seus projetos. Novas datas ou
+            alterações feitas pela equipe podem levar alguns instantes para aparecer; atualize a página se acabou de
+            salvar algo no app principal.
+          </p>
         </div>
         <div className="portal-kpis">
           <article className="portal-kpi">
             <span className="portal-kpi__label">
               <CalendarClock size={14} strokeWidth={2} />
-              Projetos monitorados
+              Projetos vinculados
             </span>
             <strong className="portal-kpi__value">{projectsCount}</strong>
           </article>
           <article className="portal-kpi">
             <span className="portal-kpi__label">
               <Timer size={14} strokeWidth={2} />
-              Eventos totais
+              Eventos listados
             </span>
             <strong className="portal-kpi__value">{events.length}</strong>
           </article>
@@ -81,7 +88,7 @@ export function PortalAgendaPage() {
                     {String(event.status ?? '')}
                   </span>
                 </header>
-                <p className="muted">{String(event.description ?? 'Sem descrição detalhada.')}</p>
+                {event.description?.trim() ? <p className="muted">{String(event.description)}</p> : null}
                 <p className="portal-agenda-card__date">
                   <CalendarClock size={14} strokeWidth={2} />
                   {event.start_time ? formatDateTimePt(String(event.start_time)) : '-'}
@@ -91,7 +98,7 @@ export function PortalAgendaPage() {
             ))}
           </div>
         ) : (
-          <p>Nenhum evento para os projetos vinculados.</p>
+          <p>Não há eventos cadastrados nos projetos vinculados.</p>
         )}
       </section>
     </main>

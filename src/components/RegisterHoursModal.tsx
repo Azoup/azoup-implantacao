@@ -111,7 +111,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     return String(err || fallback)
   }
 
-  async function withTimeout<T>(promise: Promise<T>, label: string, ms = 35_000): Promise<T> {
+  async function withTimeout<T>(promise: Promise<T>, label: string, ms = 90_000): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -133,6 +133,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
   const [notes, setNotes] = useState('')
   const [analystId, setAnalystId] = useState<string>('')
   const [newDate, setNewDate] = useState('')
+  const [newTime, setNewTime] = useState('12:00')
   const [docPendingFiles, setDocPendingFiles] = useState<{ localId: string; file: File }[]>([])
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingHours, setEditingHours] = useState('')
@@ -207,6 +208,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
 
   useEffect(() => {
     if (!open || !task) return
+    setBusy(false)
     setAttendanceKind('ocorreu')
     setActiveTab('manual')
     setHours(task.estimatedHours > 0 ? formatClockHmsFromHours(task.estimatedHours) : '')
@@ -216,6 +218,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     setNotes('')
     setAnalystId(task.assignedTo ?? projectAnalystId ?? '')
     setNewDate('')
+    setNewTime('12:00')
     setDocPendingFiles([])
     setEditingSessionId(null)
     setEditingHours('')
@@ -383,6 +386,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (busy) return
     if (!task) return
     const hFromField = parseDurationFlexibleToHours(hours)
     const isTimerFlow = attendanceKind === 'ocorreu' && entryMode === 'timer'
@@ -407,9 +411,15 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
         return
       }
     }
-    if (attendanceKind !== 'ocorreu' && !newDate) {
-      toast('Informe a data para reagendar a tarefa.', 'warn')
-      return
+    if (attendanceKind !== 'ocorreu') {
+      if (!newDate) {
+        toast('Informe a data para reagendar a tarefa.', 'warn')
+        return
+      }
+      if (!newTime || !/^\d{2}:\d{2}$/.test(newTime)) {
+        toast('Informe a hora do reagendamento.', 'warn')
+        return
+      }
     }
     setBusy(true)
     try {
@@ -426,6 +436,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
           analystId: analystId || null,
           taskStatus: attendanceKind === 'ocorreu' ? taskStatus : undefined,
           newDate: newDate || null,
+          newTime: attendanceKind !== 'ocorreu' ? newTime : null,
         }),
         'registrar atendimento',
       )
@@ -493,7 +504,16 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
               Registrar atendimento
             </h2>
           </div>
-          <button type="button" className="modal__close" onClick={onClose} aria-label="Fechar">
+          <button
+            type="button"
+            className="modal__close"
+            onClick={() => {
+              if (busy) return
+              onClose()
+            }}
+            aria-label="Fechar"
+            disabled={busy}
+          >
             <X size={20} strokeWidth={2} />
           </button>
         </header>
@@ -619,10 +639,16 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
             </div>
 
             {attendanceKind !== 'ocorreu' ? (
-              <label className="register-hours-modal__field">
-                <span className="register-hours-modal__label">Reagendar para</span>
-                <input className="input" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
-              </label>
+              <div className="register-hours-modal__grid2">
+                <label className="register-hours-modal__field">
+                  <span className="register-hours-modal__label">Data do reagendamento</span>
+                  <input className="input" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                </label>
+                <label className="register-hours-modal__field">
+                  <span className="register-hours-modal__label">Hora do reagendamento</span>
+                  <input className="input" type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+                </label>
+              </div>
             ) : null}
 
             <div className="register-hours-modal__tabs" role="tablist" aria-label="Forma de lançamento">
@@ -933,6 +959,9 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
                           ? hours
                           : MANUAL_DURATION_ZERO
                     }`
+                  : ''}
+                {attendanceKind !== 'ocorreu' && newDate
+                  ? ` · Novo prazo: ${safeFormatDate(newDate, 'dd/MM/yyyy', newDate)} · ${newTime || '—'}`
                   : ''}
               </span>
             </div>

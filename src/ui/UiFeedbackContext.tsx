@@ -149,16 +149,35 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H0',location:'UiFeedbackContext.tsx:mount',message:'UiFeedbackProvider mounted',data:{ok:true},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }, [])
+
+  useEffect(() => {
     const lastByTable = new Map<string, number>()
+    const toFriendlySyncMessage = (table: string, raw: string): string => {
+      const msg = String(raw || '')
+      if (msg.includes('PRJ_CREATE_RLS') || /policy|permission denied|row-level security/i.test(msg)) {
+        return `Permissão de nuvem negada para ${table}. Verifique vínculo do usuário no projeto (owner/analista) ou perfil admin.`
+      }
+      if (msg.includes('PRJ_CREATE_TIMEOUT') || /timeout|tempo esgotado/i.test(msg)) {
+        return `Sincronização da nuvem está lenta para ${table}. Alteração local foi mantida e o retry será tentado.`
+      }
+      return `Falha de sincronização na nuvem (${table}): ${msg}`
+    }
     const onFail = (ev: Event) => {
       const ce = ev as CustomEvent<SyncFailureDetail>
       const d = ce.detail
       if (!d?.table || !d.message) return
+      // #region agent log
+      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H2',location:'UiFeedbackContext.tsx:syncFailureListener',message:'SYNC_FAILURE_EVENT received',data:{table:d.table,operation:d.operation,message:d.message},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       const now = Date.now()
       const prev = lastByTable.get(d.table) ?? 0
       if (now - prev < 25_000) return
       lastByTable.set(d.table, now)
-      toastWarn(`Sincronização (${d.table}): ${d.message}`)
+      toastWarn(toFriendlySyncMessage(d.table, d.message))
     }
     window.addEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
     return () => window.removeEventListener(SYNC_FAILURE_EVENT, onFail as EventListener)
@@ -167,6 +186,9 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onUnhandledRejection = (ev: PromiseRejectionEvent) => {
       const reason = ev.reason instanceof Error ? ev.reason.message : String(ev.reason ?? 'Erro desconhecido')
+      // #region agent log
+      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H3',location:'UiFeedbackContext.tsx:onUnhandledRejection',message:'Unhandled rejection captured',data:{reason},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       pushRuntimeDiagnostic({
         source: 'window.unhandledrejection',
         level: 'error',

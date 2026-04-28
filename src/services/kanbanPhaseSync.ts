@@ -2,6 +2,7 @@ import { db } from '../db/database'
 import type { DbPhase, DbProject, DbTask, KanbanColumn, PhaseStatus } from '../db/types'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
+  enqueuePendingProjectGraphSync,
   updateProjectPartialInSupabase,
   upsertProjectGraphFromDexie,
   withDexieSupabaseSyncMuted,
@@ -66,13 +67,20 @@ export async function syncProjectKanbanFromPlanState(projectId: string): Promise
   const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
   const next = deriveKanbanColumnFromPlanState(project, phases, tasks)
   if (next !== project.kanbanColumn) {
+    await db.projects.update(projectId, { kanbanColumn: next })
     if (isSupabaseConfigured()) {
-      await withDexieSupabaseSyncMuted(async () => {
-        await updateProjectPartialInSupabase(projectId, { kanbanColumn: next })
-        await db.projects.update(projectId, { kanbanColumn: next })
-      })
-    } else {
-      await db.projects.update(projectId, { kanbanColumn: next })
+      try {
+        await withDexieSupabaseSyncMuted(async () => {
+          await updateProjectPartialInSupabase(projectId, { kanbanColumn: next })
+        })
+      } catch (err) {
+        console.warn('[kanban] Falha ao sincronizar coluna do projeto (será retentado na fila).', projectId, err)
+        enqueuePendingProjectGraphSync(projectId, {
+          lastErrorCode: 'PRJ_KANBAN_SYNC',
+          lastErrorMessage: err instanceof Error ? err.message : String(err),
+          opId: crypto.randomUUID(),
+        })
+      }
     }
   }
 }

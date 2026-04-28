@@ -586,6 +586,35 @@
   flex: 0 0 11px;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 82%, transparent);
 }
+.pd-sync-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.2rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-2) 56%, var(--surface));
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: var(--text-muted);
+}
+.pd-sync-pill.is-synced {
+  color: color-mix(in srgb, var(--success) 86%, var(--text));
+  border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+.pd-sync-pill.is-pending {
+  color: color-mix(in srgb, var(--warning) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 11%, var(--surface));
+}
+.pd-sync-pill.is-failed {
+  color: color-mix(in srgb, var(--danger) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
 .pd-sync-dot.is-synced {
   background: var(--success);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 42%, var(--border));

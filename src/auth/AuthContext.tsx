@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -87,10 +88,14 @@ function profileBlockedMessage(status: DbUser['status']): string {
   return 'Seu perfil está inativo. Procure o administrador para reativação.'
 }
 
+const VISIBILITY_PROFILE_REFRESH_MS = 45_000
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const useSb = isSupabaseConfigured() && supabase !== null
   const [ready, setReady] = useState(false)
   const [user, setUser] = useState<DbUser | null>(null)
+  const lastVisibilityProfileRefreshAt = useRef(0)
+  const authEventSeqRef = useRef(0)
 
   const loadDexieUser = useCallback(async (userId: string) => {
     const u = await db.users.get(userId)
@@ -140,30 +145,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           if (!cancelled) setReady(true)
 
-          const { data } = client.auth.onAuthStateChange(async (event, session) => {
-            if (cancelled) return
-            if (event === 'SIGNED_OUT' || !session?.user) {
-              stopLiveSyncOnLogout()
-              setUser(null)
-              return
-            }
-            const u = await fetchProfileUser(session.user.id)
-            if (cancelled) return
-            if (u?.status === 'active') {
-              setUser(u)
+          const { data } = client.auth.onAuthStateChange((event, session) => {
+            const seq = ++authEventSeqRef.current
+            void (async () => {
               try {
-                stopLiveSyncOnLogout()
-                await refreshSupabaseDexieCache()
-                await cleanupLegacyTaskCodePrefixes()
-                await startLiveSyncAfterBridgeReady()
+                if (cancelled || seq !== authEventSeqRef.current) return
+                if (event === 'SIGNED_OUT' || !session?.user) {
+                  stopLiveSyncOnLogout()
+                  setUser(null)
+                  return
+                }
+                const u = await fetchProfileUser(session.user.id)
+                if (cancelled || seq !== authEventSeqRef.current) return
+                if (u?.status === 'active') {
+                  setUser(u)
+                  try {
+                    stopLiveSyncOnLogout()
+                    await refreshSupabaseDexieCache()
+                    await cleanupLegacyTaskCodePrefixes()
+                    await startLiveSyncAfterBridgeReady()
+                  } catch (err) {
+                    console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie após auth change.', err)
+                  }
+                } else {
+                  stopLiveSyncOnLogout()
+                  await client.auth.signOut()
+                  if (cancelled || seq !== authEventSeqRef.current) return
+                  setUser(null)
+                }
               } catch (err) {
-                console.warn('[Auth] Falha ao sincronizar cache Supabase/Dexie após auth change.', err)
+                console.warn('[Auth] Falha no processamento de onAuthStateChange.', err)
               }
-            } else {
-              stopLiveSyncOnLogout()
-              await client.auth.signOut()
-              setUser(null)
-            }
+            })()
           })
           subscription = data.subscription
         } else {
@@ -183,36 +196,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true
+      authEventSeqRef.current++
       subscription?.unsubscribe()
     }
   }, [useSb, loadDexieUser])
-
-  /** Após muito tempo em segundo plano o access token pode expirar; revalidar ao voltar à aba reduz falhas em gravar/excluir. */
-  useEffect(() => {
-    if (!useSb || !supabase) return
-    const client = supabase
-    const onVis = () => {
-      if (document.visibilityState !== 'visible') return
-      void (async () => {
-        try {
-          const {
-            data: { session },
-          } = await client.auth.getSession()
-          if (!session) return
-          const expMs = session.expires_at ? session.expires_at * 1000 : null
-          const skewMs = 120_000
-          if (expMs != null && expMs < Date.now() + skewMs) {
-            const { error } = await client.auth.refreshSession()
-            if (error) console.warn('[Auth] refreshSession ao focar a aba:', error.message)
-          }
-        } catch (e) {
-          console.warn('[Auth] Falha ao revalidar sessão ao focar a aba.', e)
-        }
-      })()
-    }
-    document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
-  }, [useSb])
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -260,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(async () => {
+    authEventSeqRef.current++
     stopLiveSyncOnLogout()
     writeSession(null)
     setUser(null)
@@ -282,6 +270,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const s = readSession()
     if (s?.userId) await loadDexieUser(s.userId)
   }, [useSb, loadDexieUser])
+
+  /**
+   * Token perto da expiração: refresh. Perfil no Supabase: refetch com throttle ao voltar à aba
+   * (ex.: permissões alteradas em outra sessão) sem martelar a API a cada foco.
+   */
+  useEffect(() => {
+    if (!useSb || !supabase) return
+    const client = supabase
+    const onVis = () => {
+      if (document.visibilityState !== 'visible') return
+      void (async () => {
+        try {
+          const {
+            data: { session },
+          } = await client.auth.getSession()
+          if (!session?.user) return
+          const expMs = session.expires_at ? session.expires_at * 1000 : null
+          const skewMs = 120_000
+          let refreshedToken = false
+          if (expMs != null && expMs < Date.now() + skewMs) {
+            const { error } = await client.auth.refreshSession()
+            if (error) console.warn('[Auth] refreshSession ao focar a aba:', error.message)
+            else refreshedToken = true
+          }
+          const now = Date.now()
+          const dueProfile =
+            refreshedToken || now - lastVisibilityProfileRefreshAt.current >= VISIBILITY_PROFILE_REFRESH_MS
+          if (!dueProfile) return
+          lastVisibilityProfileRefreshAt.current = now
+          await refreshUser()
+        } catch (e) {
+          console.warn('[Auth] Falha ao revalidar sessão/perfil ao focar a aba.', e)
+        }
+      })()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [useSb, refreshUser])
 
   const signUp = useCallback(
     async (email: string, password: string, fullName: string) => {

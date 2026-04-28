@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.9.0 (2026-04-28)
+
+- Release de consolidação com melhorias amplas na autenticação, páginas de agenda/dashboard/projetos, sincronização local/nuvem e serviços de negócio.
+- Ajustes visuais e de UX em modais, portal do cliente e estilos globais para maior consistência e estabilidade da experiência.
+- Hardening e evolução da camada SQL do Supabase com novos scripts de permissão, segurança e checagens pós-ajuste.
+
 ## v2.6.0 (2026-04-23)
 
 - **Reestruturação frontend:** rotas em lazy loading com fallback dedicado, divisão de estilos em módulos (`src/styles/part*.css`) e cleanup de imports dinâmicos no Dexie.

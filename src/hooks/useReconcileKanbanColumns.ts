@@ -17,9 +17,14 @@ export function useReconcileKanbanColumns(
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      for (const id of idsNeedingSync) {
-        if (cancelled) break
-        await syncProjectKanbanFromPlanState(id)
+      try {
+        for (const id of idsNeedingSync) {
+          if (cancelled) break
+          await syncProjectKanbanFromPlanState(id)
+        }
+      } catch (err) {
+        // Evita Promise rejeitada sem tratamento na reconciliação automática.
+        console.warn('[kanban] reconcile automático falhou; seguirá em próxima rodada.', err)
       }
     })()
     return () => {

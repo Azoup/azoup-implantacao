@@ -16,7 +16,16 @@ function notifyProjectCloudSyncDeferred(detail: string) {
   dispatchSyncFailure({
     table: 'projects',
     operation: 'upsert',
-    message: `Salvo localmente; a nuvem tentará de novo em breve. ${detail}`,
+    message: `Falha na sincronização com a nuvem; nova tentativa já está na fila. ${detail}`,
+  })
+}
+
+function scheduleProjectGraphSync(projectId: string): void {
+  void upsertProjectGraphFromDexie(projectId).catch((e) => {
+    const detail = e instanceof Error ? e.message : 'Falha desconhecida'
+    enqueuePendingProjectGraphSync(projectId)
+    notifyProjectCloudSyncDeferred(detail)
+    console.warn('[Supabase] projeto enfileirado para re-sync em background', { projectId, detail })
   })
 }
 
@@ -119,8 +128,9 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
     try {
       await withDexieSupabaseSyncMuted(async () => {
         await build()
-        await upsertProjectGraphFromDexie(projectId)
       })
+      // Escrita remota completa roda em background para não travar UX.
+      scheduleProjectGraphSync(projectId)
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Falha desconhecida'
       enqueuePendingProjectGraphSync(projectId)
@@ -244,14 +254,14 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
     try {
       await withDexieSupabaseSyncMuted(async () => {
         await buildGraphInDexie()
-        await upsertProjectGraphFromDexie(projectId)
       })
+      // A confirmação de nuvem é assíncrona; local já persistiu com sucesso.
+      scheduleProjectGraphSync(projectId)
     } catch (e) {
       const detail = e instanceof Error ? e.message : 'Falha desconhecida'
       enqueuePendingProjectGraphSync(projectId)
       notifyProjectCloudSyncDeferred(detail)
-      // Mantém a UX responsiva: salva local e agenda reenvio automático da estrutura na nuvem.
-      console.warn('[Supabase] projeto enfileirado para re-sync em background', { projectId, detail })
+      console.warn('[Supabase] projeto enfileirado para re-sync', { projectId, detail })
     }
   } else {
     await buildGraphInDexie()

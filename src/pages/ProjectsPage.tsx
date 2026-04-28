@@ -307,10 +307,10 @@ export function ProjectsPage() {
           const syncMeta = getProjectCloudSyncMeta(p.id)
           const syncStatusLabel =
             syncMeta.state === 'synced'
-              ? 'Sincronizado com a nuvem'
+              ? 'Nuvem confirmada'
               : syncMeta.state === 'pending'
-                ? 'Pendente de sincronização'
-                : 'Falha na sincronização'
+                ? 'Salvo localmente; sincronizando com a nuvem'
+                : 'Falha na sincronização; nova tentativa na fila'
           const syncStatusTitle = syncMeta.lastErrorCode ?? syncStatusLabel
 
           const resolveCodeColor = (code: string): string | null => {
@@ -444,8 +444,8 @@ export function ProjectsPage() {
                             const meta = getProjectCloudSyncMeta(p.id)
                             toast(
                               meta.state === 'synced'
-                                ? 'Projeto sincronizado com a nuvem.'
-                                : 'Reenvio concluído, aguardando confirmação da nuvem.',
+                                ? 'Nuvem confirmou o projeto.'
+                                : 'Salvo localmente; sincronizando com a nuvem.',
                             )
                           } catch (e) {
                             toastError(e instanceof Error ? e.message : 'Falha ao sincronizar projeto.')
@@ -458,7 +458,7 @@ export function ProjectsPage() {
                       <RotateCcw size={15} strokeWidth={2.1} />
                     </button>
                   ) : null}
-                  {(user.role === 'admin' || p.createdBy === user.id) && canEditProjects ? (
+                  {canEditProjects ? (
                     <>
                     <button
                       type="button"
@@ -472,15 +472,17 @@ export function ProjectsPage() {
                     >
                       <Pencil size={15} strokeWidth={2.15} />
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn--ghost btn--icon proj-card__icon-action proj-card__icon-action--danger"
-                      aria-label="Excluir projeto"
-                      title="Excluir projeto"
-                      onClick={() => onDelete(p.id)}
-                    >
-                      <Trash2 size={15} strokeWidth={2.1} />
-                    </button>
+                    {user.role === 'admin' || p.createdBy === user.id ? (
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--icon proj-card__icon-action proj-card__icon-action--danger"
+                        aria-label="Excluir projeto"
+                        title="Excluir projeto"
+                        onClick={() => onDelete(p.id)}
+                      >
+                        <Trash2 size={15} strokeWidth={2.1} />
+                      </button>
+                    ) : null}
                     </>
                   ) : null}
                 </span>

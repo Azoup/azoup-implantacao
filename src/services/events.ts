@@ -1,5 +1,9 @@
 import { db } from '../db/database'
+import type { DbEvent } from '../db/types'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { uuid } from '../lib/uuid'
+import { syncEventRowToSupabase } from '../sync/supabaseDexieBridge'
+import { dispatchSyncFailure } from '../sync/syncFailure'
 
 type EventInput = {
   title: string
@@ -11,6 +15,11 @@ type EventInput = {
   taskId: string | null
   analystId: string | null
   meetingLink: string | null
+}
+
+export type EventWriteResult = {
+  id: string
+  cloudSync: 'local_only' | 'queued' | 'synced'
 }
 
 function ensureValidEventWindow(startTime: string, endTime: string): void {
@@ -59,19 +68,29 @@ async function validateEventLinks(data: EventInput): Promise<EventInput> {
   return { ...data, projectId, taskId, meetingLink: cleanLink }
 }
 
-export async function createEventValidated(input: EventInput): Promise<string> {
+export async function createEventValidated(input: EventInput): Promise<EventWriteResult> {
   const valid = await validateEventLinks(input)
   const id = uuid()
-  await db.events.add({
+  const row: DbEvent = {
     id,
     ...valid,
     createdAt: new Date().toISOString(),
     recordingLink: null,
-  })
-  return id
+  }
+  await db.events.add(row)
+  if (!isSupabaseConfigured()) return { id, cloudSync: 'local_only' }
+  try {
+    await syncEventRowToSupabase(row)
+    return { id, cloudSync: 'synced' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    dispatchSyncFailure({ table: 'events', operation: 'upsert', message })
+    console.warn('[events] created event saved locally; cloud sync queued', { id, err })
+    return { id, cloudSync: 'queued' }
+  }
 }
 
-export async function updateEventValidated(eventId: string, input: EventInput): Promise<void> {
+export async function updateEventValidated(eventId: string, input: EventInput): Promise<EventWriteResult> {
   const current = await db.events.get(eventId)
   if (!current) throw new Error('Evento não encontrado.')
   const valid = await validateEventLinks(input)
@@ -86,5 +105,17 @@ export async function updateEventValidated(eventId: string, input: EventInput): 
     analystId: valid.analystId,
     meetingLink: valid.meetingLink,
   })
+  if (!isSupabaseConfigured()) return { id: eventId, cloudSync: 'local_only' }
+  const updated = await db.events.get(eventId)
+  if (!updated) return { id: eventId, cloudSync: 'queued' }
+  try {
+    await syncEventRowToSupabase(updated)
+    return { id: eventId, cloudSync: 'synced' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    dispatchSyncFailure({ table: 'events', operation: 'upsert', message })
+    console.warn('[events] updated event saved locally; cloud sync queued', { id: eventId, err })
+    return { id: eventId, cloudSync: 'queued' }
+  }
 }
 

@@ -21,6 +21,8 @@ A) PIPELINE BASE (novo projeto ou schema do zero) — pasta supabase/sql/, raiz
    6. 006_seed_builtin_plan_models.sql
    7. 007_seed_plan_phases_tasks.sql
    8. 008_analysts_profile_link.sql   ← coluna analysts.profile_id + RLS can_edit_project
+   9. 012_projects_update_by_permissions.sql ← UPDATE de projects por scope `projects.edit` (sem depender de vínculo de analista)
+   10. 013_security_definer_execute_hardening.sql ← hardening de EXECUTE em funções SECURITY DEFINER / RPC
 
    Em banco JÁ em uso: rode só os arquivos que ainda não foram aplicados (ex.: só 008).
 
@@ -60,5 +62,13 @@ Geradores Python (regeneram arquivos acima a partir de CSVs):
    scripts/gen_plan_templates_sql.py   → sql/007_seed_plan_phases_tasks.sql
    scripts/gen_migration_sql.py        → import/legacy_full_import_with_user_map.sql
    scripts/gen_project_docs_sql.py     → import/legacy_restore_project_docs_comments.sql
+
+--------------------------------------------------------------------------------
+F) CHECKS PÓS-AJUSTE (somente leitura)
+
+   - 014_post_hardening_checks.sql
+     → valida policy projects_update e grants EXECUTE (anon/authenticated) em funções sensíveis.
+   - 015_rpc_anon_execute_lockdown.sql
+     → correção complementar quando `anon_can_execute` continuar true após 013.
 
 ================================================================================

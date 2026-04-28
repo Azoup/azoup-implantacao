@@ -820,6 +820,7 @@
   padding: 0.75rem 1rem;
   border-radius: 12px;
   border: 1px solid var(--border);
+  border-left-width: 4px;
   background: var(--surface);
   color: var(--text);
   font-size: 0.9rem;
@@ -842,15 +843,18 @@
 
 .ui-toast--info {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-left-color: color-mix(in srgb, var(--info) 78%, var(--accent));
 }
 
 .ui-toast--warn {
   border-color: color-mix(in srgb, var(--accent-deep) 35%, var(--border));
+  border-left-color: color-mix(in srgb, var(--warning) 82%, var(--accent-deep));
   background: color-mix(in srgb, var(--accent-dim) 22%, var(--surface));
 }
 
 .ui-toast--error {
   border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
+  border-left-color: color-mix(in srgb, var(--danger) 88%, #000 12%);
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
   font-weight: 600;
 }

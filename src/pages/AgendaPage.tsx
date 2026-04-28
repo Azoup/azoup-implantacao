@@ -17,6 +17,7 @@ import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { compareTaskCode } from '../lib/taskCode'
 import type { DbEvent, DbProject, DbTask } from '../db/types'
 import { createEventValidated, updateEventValidated } from '../services/events'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
@@ -125,6 +126,7 @@ export function AgendaPage() {
   const [modalTaskId, setModalTaskId] = useState<string | null>(null)
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [agendaModalBaseline, setAgendaModalBaseline] = useState<string | null>(null)
+  const [agendaEventSaving, setAgendaEventSaving] = useState(false)
 
   function prefillModalFromTask(task: DbTask, projectRow?: DbProject | null) {
     if (!canEditAgenda) return
@@ -184,7 +186,9 @@ export function AgendaPage() {
         setModalProjectId(ev.projectId)
         setModalTaskId(ev.taskId)
         setModalOpen(true)
-      })()
+      })().catch((err) => {
+        console.warn('[agenda] Falha ao abrir evento para edição.', err)
+      })
       return
     }
 
@@ -216,7 +220,9 @@ export function AgendaPage() {
       setModalTaskId(task.id)
       setEditingEventId(null)
       setModalOpen(true)
-    })()
+    })().catch((err) => {
+      console.warn('[agenda] Falha ao abrir pre-preenchimento de evento.', err)
+    })
   }, [location.state, location.key, location.pathname, navigate, canEditAgenda, toastError, toastWarn])
 
   const todayKey = dayKey(zonedNow())
@@ -379,7 +385,9 @@ export function AgendaPage() {
     setViewMode('day')
   }, [])
 
-  function closeEventModal() {
+  function resetAgendaEventModal() {
+    setAgendaEventSaving(false)
+    setAgendaModalBaseline(null)
     setModalOpen(false)
     setModalProjectId(null)
     setModalTaskId(null)
@@ -394,9 +402,14 @@ export function AgendaPage() {
     setMeetingLink('')
   }
 
+  function closeEventModal() {
+    if (agendaEventSaving) return
+    resetAgendaEventModal()
+  }
+
   async function saveEventFromModal(e: FormEvent) {
     e.preventDefault()
-    if (!canEditAgenda) return
+    if (!canEditAgenda || agendaEventSaving) return
     if (!startDate || !startTime || !endDate || !endTime) return
     const startIso = brDateTimeToIso(startDate, startTime)
     const endIso = brDateTimeToIso(endDate, endTime)
@@ -404,6 +417,8 @@ export function AgendaPage() {
       toast('Use o formato BR: data dd/MM/aaaa e hora HH:mm.', 'warn')
       return
     }
+    setAgendaEventSaving(true)
+    let cloudSync: 'local_only' | 'queued' | 'synced' = 'local_only'
     try {
       if (editingEventId) {
         const current = await db.events.get(editingEventId)
@@ -411,7 +426,7 @@ export function AgendaPage() {
           toastError('Evento não encontrado.')
           return
         }
-        await updateEventValidated(editingEventId, {
+        const result = await updateEventValidated(editingEventId, {
           title: title.trim() || 'Evento',
           description: description.trim(),
           startTime: startIso,
@@ -422,8 +437,9 @@ export function AgendaPage() {
           analystId: analystId || null,
           meetingLink: meetingLink.trim() || null,
         })
+        cloudSync = result.cloudSync
       } else {
-        await createEventValidated({
+        const result = await createEventValidated({
           title: title.trim() || 'Evento',
           description: description.trim(),
           startTime: startIso,
@@ -434,12 +450,22 @@ export function AgendaPage() {
           analystId: analystId || null,
           meetingLink: meetingLink.trim() || null,
         })
+        cloudSync = result.cloudSync
       }
     } catch (err) {
       toastError(err instanceof Error ? err.message : 'Não foi possível salvar o evento.')
       return
+    } finally {
+      setAgendaEventSaving(false)
     }
-    closeEventModal()
+    resetAgendaEventModal()
+    if (cloudSync === 'synced') {
+      toast('Evento salvo e confirmado na nuvem.')
+    } else if (cloudSync === 'queued') {
+      toastWarn('Evento salvo localmente. Nuvem pendente (fila de sincronização).')
+    } else {
+      toast('Evento salvo (dados locais neste aparelho).')
+    }
   }
 
   useLayoutEffect(() => {
@@ -530,7 +556,7 @@ export function AgendaPage() {
   return (
     <div className="page page--wide agenda-page agenda-page--gc">
       <div className="agenda-gc-layout">
-        <aside className="agenda-gc-sidebar panel">
+        <aside className="agenda-gc-sidebar panel" aria-label="Calendário em miniatura e filtros da agenda">
           <AgendaMiniMonth
             anchor={monthCursor}
             todayKeyStr={todayKey}
@@ -584,7 +610,7 @@ export function AgendaPage() {
         </aside>
 
         <div className="agenda-gc-main">
-          <header className="agenda-gc-bar">
+          <header className="agenda-gc-bar" aria-label="Período e visualização da agenda">
             <div className="agenda-gc-bar__left">
               <h1 className="agenda-gc-bar__title">Agenda</h1>
               <p className="agenda-gc-bar__sub">{subtitle}</p>
@@ -776,7 +802,7 @@ export function AgendaPage() {
           </section>
         </div>
 
-        <aside className="panel agenda-side agenda-side--gc">
+        <aside className="panel agenda-side agenda-side--gc" aria-label="Tarefas sem compromisso na agenda">
           <h2 className="panel__title">Tarefas não agendadas</h2>
           <p className="muted agenda-unsched-intro">
             O mesmo filtro de projeto abaixo também limita os eventos na grade ao projeto escolhido. Clique numa
@@ -847,159 +873,176 @@ export function AgendaPage() {
 
       {modalOpen ? (
         <div
-          className="modal-backdrop"
+          className="modal-backdrop modal-backdrop--agenda-event"
           role="presentation"
-          onClick={closeEventModal}
+          onClick={agendaEventSaving ? undefined : closeEventModal}
         >
-          <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__title">{editingEventId ? 'Editar evento' : 'Novo evento'}</h2>
-            <p className="muted">Fuso: {CAL_TZ}</p>
-            {modalTaskId ? (
-              <p className="agenda-modal__link-hint muted">
-                Vinculado a uma tarefa: o compromisso aparece no projeto e pode seguir o analista da tarefa.
-              </p>
-            ) : modalProjectId ? (
-              <p className="agenda-modal__link-hint muted">Vinculado ao projeto (sem tarefa específica).</p>
-            ) : null}
-            <form className="stack" onSubmit={saveEventFromModal}>
-              <label className="field">
-                <span>Projeto (opcional)</span>
-                <select
-                  value={modalProjectId ?? ''}
-                  autoFocus={!editingEventId}
-                  onChange={(e) => {
-                    const v = e.target.value || null
-                    setModalProjectId(v)
-                    setModalTaskId((cur) => {
-                      if (!cur || !v) return null
-                      const tk = tasks.find((t) => t.id === cur)
-                      return tk?.projectId === v ? cur : null
-                    })
-                  }}
-                >
-                  <option value="">— Nenhum</option>
-                  {projectsForPickers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.projectName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Tarefa (opcional)</span>
-                <select
-                  value={modalTaskId ?? ''}
-                  disabled={!modalProjectId}
-                  onChange={(e) => {
-                    const v = e.target.value || null
-                    setModalTaskId(v)
-                    if (!v) return
-                    const task = tasks.find((t) => t.id === v)
-                    if (!task) return
-                    setModalProjectId(task.projectId)
-                    setTitle(`${task.code} ${task.title}`.trim())
-                    const proj = projects.find((pr) => pr.id === task.projectId)
-                    setAnalystId(task.assignedTo ?? proj?.analystId ?? '')
-                  }}
-                >
-                  <option value="">— Nenhuma</option>
-                  {openTasksForModalSelect.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.code} {t.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {!modalProjectId ? (
-                <p className="agenda-modal-field-hint muted">
-                  Escolha um projeto para listar tarefas em aberto e vincular ao cronograma.
+          <div
+            className="modal modal--agenda-event"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agenda-event-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal--agenda-event__header">
+              <h2 id="agenda-event-dialog-title" className="modal__title">
+                {editingEventId ? 'Editar evento' : 'Novo evento'}
+              </h2>
+              <p className="muted modal--agenda-event__tz">Fuso: {CAL_TZ}</p>
+              {modalTaskId ? (
+                <p className="agenda-modal__link-hint muted">
+                  Vinculado a uma tarefa: o compromisso aparece no projeto e pode seguir o analista da tarefa.
                 </p>
+              ) : modalProjectId ? (
+                <p className="agenda-modal__link-hint muted">Vinculado ao projeto (sem tarefa específica).</p>
               ) : null}
-              <label className="field">
-                <span>Título</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!!editingEventId} />
-              </label>
-              <label className="field">
-                <span>Descrição (opcional)</span>
-                <textarea
-                  rows={2}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Notas visíveis no Google Agenda ao exportar…"
-                />
-              </label>
-              <label className="field">
-                <span>Data início</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="dd/MM/aaaa"
-                  value={startDate}
-                  onChange={(e) => setStartDate(normalizeBrDateInput(e.target.value))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Hora início</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="HH:mm"
-                  value={startTime}
-                  onChange={(e) => setStartTime(normalizeTimeInput(e.target.value))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Data fim</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="dd/MM/aaaa"
-                  value={endDate}
-                  onChange={(e) => setEndDate(normalizeBrDateInput(e.target.value))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Hora fim</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="HH:mm"
-                  value={endTime}
-                  onChange={(e) => setEndTime(normalizeTimeInput(e.target.value))}
-                  required
-                />
-              </label>
-              <label className="field">
-                <span>Analista (define a cor na grade)</span>
-                <select value={analystId} onChange={(e) => setAnalystId(e.target.value)}>
-                  <option value="">— Sem responsável (cor neutra)</option>
-                  {analysts
-                    .filter((a) => a.active)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Link da reunião (Meet, Zoom…)</span>
-                <input
-                  type="url"
-                  value={meetingLink}
-                  onChange={(e) => setMeetingLink(e.target.value)}
-                  placeholder="https://…"
-                />
-              </label>
-              <div className="modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={closeEventModal}>
+            </div>
+            <form className="agenda-event-form" onSubmit={saveEventFromModal}>
+              <div className="modal--agenda-event__scroll">
+                <div className="agenda-event-form__grid">
+                  <label className="field">
+                    <span>Projeto (opcional)</span>
+                    <select
+                      value={modalProjectId ?? ''}
+                      autoFocus={!editingEventId}
+                      onChange={(e) => {
+                        const v = e.target.value || null
+                        setModalProjectId(v)
+                        setModalTaskId((cur) => {
+                          if (!cur || !v) return null
+                          const tk = tasks.find((t) => t.id === cur)
+                          return tk?.projectId === v ? cur : null
+                        })
+                      }}
+                    >
+                      <option value="">— Nenhum</option>
+                      {projectsForPickers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.projectName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Tarefa (opcional)</span>
+                    <select
+                      value={modalTaskId ?? ''}
+                      disabled={!modalProjectId}
+                      onChange={(e) => {
+                        const v = e.target.value || null
+                        setModalTaskId(v)
+                        if (!v) return
+                        const task = tasks.find((t) => t.id === v)
+                        if (!task) return
+                        setModalProjectId(task.projectId)
+                        setTitle(`${task.code} ${task.title}`.trim())
+                        const proj = projects.find((pr) => pr.id === task.projectId)
+                        setAnalystId(task.assignedTo ?? proj?.analystId ?? '')
+                      }}
+                    >
+                      <option value="">— Nenhuma</option>
+                      {openTasksForModalSelect.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.code} {t.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {!modalProjectId ? (
+                    <p className="agenda-modal-field-hint muted agenda-event-form__span2">
+                      Escolha um projeto para listar tarefas em aberto e vincular ao cronograma.
+                    </p>
+                  ) : null}
+                  <label className="field agenda-event-form__span2">
+                    <span>Título</span>
+                    <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!!editingEventId} />
+                  </label>
+                  <label className="field agenda-event-form__span2">
+                    <span>Descrição (opcional)</span>
+                    <textarea
+                      rows={2}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Notas visíveis no Google Agenda ao exportar…"
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Data início</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="dd/MM/aaaa"
+                      value={startDate}
+                      onChange={(e) => setStartDate(normalizeBrDateInput(e.target.value))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Hora início</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="HH:mm"
+                      value={startTime}
+                      onChange={(e) => setStartTime(normalizeTimeInput(e.target.value))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Data fim</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="dd/MM/aaaa"
+                      value={endDate}
+                      onChange={(e) => setEndDate(normalizeBrDateInput(e.target.value))}
+                      required
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Hora fim</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="HH:mm"
+                      value={endTime}
+                      onChange={(e) => setEndTime(normalizeTimeInput(e.target.value))}
+                      required
+                    />
+                  </label>
+                  <label className="field agenda-event-form__span2">
+                    <span>Analista (define a cor na grade)</span>
+                    <select value={analystId} onChange={(e) => setAnalystId(e.target.value)}>
+                      <option value="">— Sem responsável (cor neutra)</option>
+                      {analysts
+                        .filter((a) => a.active)
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="field agenda-event-form__span2">
+                    <span>Link da reunião (Meet, Zoom…)</span>
+                    <input
+                      type="url"
+                      value={meetingLink}
+                      onChange={(e) => setMeetingLink(e.target.value)}
+                      placeholder="https://…"
+                    />
+                  </label>
+                </div>
+              </div>
+              <div className="modal__actions modal__actions--sticky">
+                {isSupabaseConfigured() ? (
+                  <span className="muted">Salvar agora, sincronizar na nuvem em segundo plano.</span>
+                ) : null}
+                <button type="button" className="btn btn--ghost" onClick={closeEventModal} disabled={agendaEventSaving}>
                   Fechar
                 </button>
-                <button type="submit" className="btn btn--primary" disabled={!canEditAgenda}>
-                  Salvar
+                <button type="submit" className="btn btn--primary" disabled={!canEditAgenda || agendaEventSaving}>
+                  {agendaEventSaving ? 'Salvando…' : 'Salvar'}
                 </button>
               </div>
             </form>

@@ -18,12 +18,13 @@ import {
   formatCnpjDisplay,
   formatPhoneBrDisplay,
 } from '../lib/brazilFormat'
-import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
   enqueuePendingProjectGraphSync,
   updateProjectPartialInSupabase,
   withDexieSupabaseSyncMuted,
 } from '../sync/supabaseDexieBridge'
+import { dispatchSyncFailure } from '../sync/syncFailure'
 import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { createCustomProject, createProjectFromPlan } from '../services/project'
 import { getBillableEstimatedSumForProject } from '../services/customProjectHours'
@@ -86,60 +87,32 @@ function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
   return byCode[code] ?? `Falha ao criar projeto na nuvem (${code}).`
 }
 
-function isRetryableCloudSyncFailure(raw: unknown): boolean {
-  const message = raw instanceof Error ? raw.message : String(raw ?? '')
-  return (
-    message.includes('PRJ_CREATE_TIMEOUT') ||
-    message.includes('PRJ_CREATE_NETWORK') ||
-    message.includes('PRJ_CREATE_AMBIGUOUS') ||
-    message.includes('PRJ_CREATE_SYNC')
-  )
-}
-
 function emptyToNull(s: string): string | null {
   const t = s.trim()
   return t ? t : null
 }
 
-function authSyncError(): Error {
-  return new Error(
-    'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Sessão inválida ou expirada.|action=Faça login novamente e tente salvar.',
-  )
-}
-
-async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(message)), ms)
+function queueProjectPatchSync(projectId: string, patch: Partial<DbProject>, opId: string): void {
+  if (!isSupabaseConfigured()) return
+  void updateProjectPartialInSupabase(projectId, patch, opId).catch((syncErr) => {
+    const msg = syncErr instanceof Error ? syncErr.message : String(syncErr)
+    const code = msg.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? 'PRJ_CREATE_SYNC'
+    enqueuePendingProjectGraphSync(projectId, {
+      opId,
+      lastErrorCode: code,
+      lastErrorMessage: msg,
     })
-    return await Promise.race([promise, timeoutPromise])
-  } finally {
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
-
-async function ensureCloudSessionForProjectWrite(): Promise<void> {
-  if (!supabase) return
-  const {
-    data: { session },
-    error: getErr,
-  } = await withTimeout(
-    supabase.auth.getSession(),
-    10_000,
-    'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Timeout ao validar sessão.|action=Faça login novamente e tente salvar.',
-  )
-  if (getErr || !session) throw authSyncError()
-  const expMs = session.expires_at ? session.expires_at * 1000 : null
-  const skewMs = 120_000
-  if (expMs != null && expMs < Date.now() + skewMs) {
-    const { error: refreshErr } = await withTimeout(
-      supabase.auth.refreshSession(),
-      10_000,
-      'PRJ_CREATE_AUTH|op=projects|type=auth|reason=Timeout ao renovar sessão.|action=Faça login novamente e tente salvar.',
-    )
-    if (refreshErr) throw authSyncError()
-  }
+    dispatchSyncFailure({
+      table: 'projects',
+      operation: 'upsert',
+      message: `Sincronização pendente na nuvem após salvar localmente. ${msg}`,
+    })
+    console.warn('[Supabase] edição enfileirada para re-sync em background', {
+      projectId,
+      opId,
+      error: msg,
+    })
+  })
 }
 
 function isoToDateInput(iso: string | null | undefined): string {
@@ -216,6 +189,10 @@ export function ProjectCreateModal({
 
   useEffect(() => {
     if (!open) return
+    setSaving(false)
+    setCnpjLoading(false)
+    setCepLoading(false)
+    setAiOpenField(null)
     const edit = projectToEdit
     if (edit) {
       setProjectName(edit.projectName)
@@ -337,6 +314,7 @@ export function ProjectCreateModal({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
+    if (saving) return
     setErr(null)
     const name = projectName.trim()
     if (name.length < 2) {
@@ -410,58 +388,11 @@ export function ProjectCreateModal({
         }
         if (isSupabaseConfigured()) {
           const opId = crypto.randomUUID()
-          let preflightSyncErr: string | null = null
-          try {
-            await ensureCloudSessionForProjectWrite()
-          } catch (authErr) {
-            preflightSyncErr = authErr instanceof Error ? authErr.message : String(authErr)
-          }
-
           await withDexieSupabaseSyncMuted(async () => {
             await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
           })
-
-          if (preflightSyncErr) {
-            const code = preflightSyncErr.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? 'PRJ_CREATE_AUTH'
-            enqueuePendingProjectGraphSync(projectToEdit.id, {
-              opId,
-              lastErrorCode: code,
-              lastErrorMessage: preflightSyncErr,
-            })
-            console.warn('[Supabase] edição salva local e pendente por sessão inválida', {
-              projectId: projectToEdit.id,
-              opId,
-              error: preflightSyncErr,
-            })
-            setLookupHint(
-              'Alterações salvas localmente. Sessão expirada para nuvem; faça login novamente e use "Sincronizar".',
-            )
-          } else {
-            try {
-              await withTimeout(
-                updateProjectPartialInSupabase(projectToEdit.id, patch as Partial<DbProject>, opId),
-                70_000,
-                'PRJ_CREATE_TIMEOUT|op=projects|type=timeout|reason=Tempo limite ao salvar projeto na nuvem.|action=Tente novamente em instantes.',
-              )
-            } catch (syncErr) {
-              const msg = syncErr instanceof Error ? syncErr.message : String(syncErr)
-              const code = msg.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? null
-              enqueuePendingProjectGraphSync(projectToEdit.id, {
-                opId,
-                lastErrorCode: code,
-                lastErrorMessage: msg,
-              })
-              console.warn('[Supabase] edição enfileirada para re-sync em background', {
-                projectId: projectToEdit.id,
-                opId,
-                error: msg,
-                retryable: isRetryableCloudSyncFailure(syncErr),
-              })
-              setLookupHint(
-                'Alterações salvas localmente e enfileiradas para sincronizar com a nuvem.',
-              )
-            }
-          }
+          queueProjectPatchSync(projectToEdit.id, patch as Partial<DbProject>, opId)
+          setLookupHint('Alterações salvas localmente. Sincronização pendente na nuvem.')
         } else {
           await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
         }

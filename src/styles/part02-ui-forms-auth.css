@@ -1,4 +1,4 @@
-﻿/* Page */
+/* Page */
 .page {
   padding: 1.75rem 2rem 3rem;
   max-width: 1200px;
@@ -571,6 +571,69 @@
   gap: 1rem;
   padding-top: 0.2rem;
 }
+.settings-console-summary {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 0.92rem;
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  display: grid;
+  gap: 0.72rem;
+}
+.settings-console-summary__title {
+  margin: 0;
+  font-size: 0.96rem;
+}
+.settings-console-summary__grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+.settings-console-summary__card {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 10px;
+  padding: 0.7rem 0.78rem;
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+  display: grid;
+  gap: 0.42rem;
+}
+.settings-console-summary__label {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.settings-console-summary__value {
+  margin: 0;
+}
+.settings-console-summary__hint {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.settings-console-summary__status--critical {
+  border-color: color-mix(in srgb, var(--danger) 70%, var(--border));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.settings-console-summary__details {
+  border-top: 1px dashed color-mix(in srgb, var(--border) 80%, transparent);
+  padding-top: 0.62rem;
+}
+.settings-console-summary__details summary {
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+.settings-console-summary__details[open] summary {
+  color: var(--text);
+}
+.settings-console-summary__tech {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.24rem;
+  font-size: 0.84rem;
+}
 .settings-console-kpis {
   display: grid;
   gap: 0.8rem;
@@ -637,6 +700,59 @@
 }
 .settings-console__table-wrap {
   margin-top: 0.15rem;
+}
+.diag-severity-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+.diag-severity-chip--info {
+  color: color-mix(in srgb, var(--info) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
+  background: color-mix(in srgb, var(--info) 13%, var(--surface));
+}
+.diag-severity-chip--warn {
+  color: color-mix(in srgb, var(--warning) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 13%, var(--surface));
+}
+.diag-severity-chip--error {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--danger) 13%, var(--surface));
+}
+.settings-console-diag-msg {
+  margin: 0;
+  line-height: 1.35;
+}
+.settings-console-diag-tech {
+  margin-top: 0.3rem;
+}
+.settings-console-diag-tech > summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+.settings-console-diag-tech > pre {
+  margin: 0.32rem 0 0;
+  padding: 0.5rem 0.58rem;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  max-width: min(56ch, 100%);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .palette-grid {
   list-style: none;

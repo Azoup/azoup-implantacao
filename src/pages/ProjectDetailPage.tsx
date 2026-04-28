@@ -436,10 +436,10 @@ export function ProjectDetailPage() {
   const projectCloudSyncMeta = getProjectCloudSyncMeta(proj.id)
   const syncStatusLabel =
     projectCloudSyncMeta.state === 'synced'
-      ? 'Sincronizado com a nuvem'
+      ? 'Nuvem sincronizada'
       : projectCloudSyncMeta.state === 'pending'
-        ? 'Pendente de sincronização'
-        : 'Falha na sincronização'
+        ? 'Sincronização pendente'
+        : 'Falha de sincronização'
   const syncStatusTitle = projectCloudSyncMeta.lastErrorCode ?? syncStatusLabel
   const projectAnalyst = proj.analystId ? analystsAll.find((a) => a.id === proj.analystId) ?? null : null
   const planName = planSummaryLabel(proj.planType)
@@ -836,6 +836,9 @@ export function ProjectDetailPage() {
               aria-label={`Status de sincronização: ${syncStatusLabel}`}
               title={syncStatusTitle}
             />
+            <span className={'pd-sync-pill is-' + projectCloudSyncMeta.state} title={syncStatusTitle}>
+              {syncStatusLabel}
+            </span>
             <span
               className={planPillClass(proj.planType)}
               title={`Contrato: ${formatDurationHmFromHours(proj.hoursContracted)}`}
@@ -879,11 +882,11 @@ export function ProjectDetailPage() {
                     const meta = getProjectCloudSyncMeta(proj.id)
                     toast(
                       meta.state === 'synced'
-                        ? 'Projeto sincronizado com a nuvem.'
-                        : 'Reenvio concluído, aguardando confirmação da nuvem.',
+                        ? 'Nuvem sincronizada.'
+                        : 'Sincronização pendente na nuvem. Reenvio concluído.',
                     )
                   } catch (e) {
-                    toastError(e instanceof Error ? e.message : 'Falha ao sincronizar projeto.')
+                    toastError(e instanceof Error ? e.message : 'Falha de sincronização com a nuvem.')
                   } finally {
                     setProjectSyncBusy(false)
                   }
@@ -1102,7 +1105,9 @@ export function ProjectDetailPage() {
                                 onClick={(ev) => {
                                   const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
                                   det?.removeAttribute('open')
-                                  void moveProjectPhase(proj.id, phase.id, 'up')
+                                  void moveProjectPhase(proj.id, phase.id, 'up').catch((e) => {
+                                    toastError(e instanceof Error ? e.message : 'Não foi possível mover a fase.')
+                                  })
                                 }}
                               >
                                 <ChevronUp {...icSm} aria-hidden />
@@ -1115,7 +1120,9 @@ export function ProjectDetailPage() {
                                 onClick={(ev) => {
                                   const det = ev.currentTarget.closest('details') as HTMLDetailsElement | null
                                   det?.removeAttribute('open')
-                                  void moveProjectPhase(proj.id, phase.id, 'down')
+                                  void moveProjectPhase(proj.id, phase.id, 'down').catch((e) => {
+                                    toastError(e instanceof Error ? e.message : 'Não foi possível mover a fase.')
+                                  })
                                 }}
                               >
                                 <ChevronDown {...icSm} aria-hidden />
@@ -1221,11 +1228,6 @@ export function ProjectDetailPage() {
                                     aria-hidden
                                   >
                                     <Link2 size={13} strokeWidth={2.25} />
-                                  </span>
-                                ) : null}
-                                {scheduledEv ? (
-                                  <span className="pd-task__schedule-badge" title="Compromisso na agenda">
-                                    Agendada
                                   </span>
                                 ) : null}
                               </div>
@@ -1543,7 +1545,9 @@ export function ProjectDetailPage() {
                     aria-label="Excluir contato"
                     onClick={() => {
                       if (!canEditProjects) return
-                      void deleteProjectContact(c.id)
+                      void deleteProjectContact(c.id).catch((e) => {
+                        toastError(e instanceof Error ? e.message : 'Não foi possível excluir o contato.')
+                      })
                     }}
                     disabled={!canEditProjects}
                   >

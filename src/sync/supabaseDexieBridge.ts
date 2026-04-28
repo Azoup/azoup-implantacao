@@ -1,3 +1,4 @@
+import type { Table } from 'dexie'
 import { db } from '../db/database'
 import { supabase } from '../lib/supabaseClient'
 import type {
@@ -85,6 +86,8 @@ const TABLES_GUARD_EMPTY_REMOTE = new Set<string>([
 
 const FORCE_CACHE_REFRESH_KEY = 'vyntask_force_empty_remote_cache.v1'
 const PENDING_PROJECT_GRAPH_SYNC_KEY = 'vyntask_pending_project_graph_sync.v1'
+/** Evita loop agressivo de retry no focus/online quando a nuvem está instável. */
+const PENDING_PROJECT_SYNC_COOLDOWN_MS = 90_000
 
 function allowReplaceCacheWithEmptyRemote(remoteTable: string): boolean {
   if (!TABLES_GUARD_EMPTY_REMOTE.has(remoteTable)) return true
@@ -837,9 +840,15 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<bo
 
 export async function flushPendingProjectGraphSyncQueue(): Promise<void> {
   if (!supabase) return
-  const queue = readPendingProjectGraphSyncItems().map((x) => x.projectId)
+  const queue = readPendingProjectGraphSyncItems()
   if (queue.length === 0) return
-  for (const projectId of queue) {
+  const now = Date.now()
+  for (const item of queue) {
+    const projectId = item.projectId
+    const lastAttemptMs = item.lastAttemptAt ? Date.parse(item.lastAttemptAt) : Number.NaN
+    const inCooldown =
+      Number.isFinite(lastAttemptMs) && now - lastAttemptMs < PENDING_PROJECT_SYNC_COOLDOWN_MS
+    if (inCooldown) continue
     try {
       updatePendingProjectGraphSyncAttempt(projectId)
       const synced = await upsertProjectGraphFromDexie(projectId)
@@ -1323,18 +1332,27 @@ export async function applyRemoteRowFromSupabase(
   }
 }
 
-async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown): Promise<void> {
-  const client = assertSupabase()
+/** @returns true se gravou (ou tabela opcional ausente); false após esgotar tentativas. */
+async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown): Promise<boolean> {
   const payload = def.toRemote(localRow)
   let lastMsg = 'Falha desconhecida ao sincronizar.'
   for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
-    const { error } = await client.from(def.remoteTable).upsert(payload)
+    let error: { message?: string } | null = null
+    try {
+      const client = assertSupabase()
+      const res = await client.from(def.remoteTable).upsert(payload)
+      error = res.error
+    } catch (err) {
+      error = {
+        message: err instanceof Error ? err.message : String(err),
+      }
+    }
     if (!error) {
       broadcastDexieSyncHint()
-      return
+      return true
     }
-    if (shouldIgnoreMissingTable(def.remoteTable, error)) return
-    lastMsg = error.message || lastMsg
+    if (shouldIgnoreMissingTable(def.remoteTable, error)) return true
+    lastMsg = error.message ?? lastMsg
     if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
   }
   dispatchSyncFailure({ table: def.remoteTable, operation: 'upsert', message: lastMsg })
@@ -1344,19 +1362,94 @@ async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown)
     message: `Falha em upsert remoto (${def.remoteTable}).`,
     details: lastMsg,
   })
+  const syncInfo = classifyProjectSyncError({ message: lastMsg })
+  if (def.remoteTable === 'projects') {
+    try {
+      const client = assertSupabase()
+      const { data: userData } = await client.auth.getUser()
+      const uid = userData.user?.id ?? null
+      let profileRole: string | null = null
+      let profileStatus: string | null = null
+      let profileErr: string | null = null
+      if (uid) {
+        const { data: profile, error: pErr } = await client
+          .from('profiles')
+          .select('role,status')
+          .eq('id', uid)
+          .maybeSingle()
+        if (pErr) profileErr = pErr.message
+        profileRole = (profile as { role?: string } | null)?.role ?? null
+        profileStatus = (profile as { status?: string } | null)?.status ?? null
+      }
+      // #region agent log
+      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H5',location:'supabaseDexieBridge.ts:upsertRemoteWithRetry:projectsFail',message:'Project upsert failed after retries',data:{lastMsg,uid,profileRole,profileStatus,profileErr},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      pushRuntimeDiagnostic({
+        source: 'dexie-bridge',
+        level: 'warn',
+        message: 'Falha em upsert remoto (projects) com contexto de perfil.',
+        details: `uid=${uid ?? 'null'} role=${profileRole ?? 'null'} status=${profileStatus ?? 'null'} err=${profileErr ?? 'none'} msg=${lastMsg}`,
+      })
+    } catch {
+      // ignore debug-only probe failures
+    }
+  }
+  if (
+    (def.remoteTable === 'projects' || def.remoteTable === 'phases' || def.remoteTable === 'tasks') &&
+    localRow &&
+    typeof localRow === 'object'
+  ) {
+    const src = localRow as { id?: unknown; projectId?: unknown }
+    const projectId =
+      def.remoteTable === 'projects'
+        ? typeof src.id === 'string'
+          ? src.id
+          : null
+        : typeof src.projectId === 'string'
+          ? src.projectId
+          : null
+    if (projectId && syncInfo.type !== 'policy') {
+      enqueuePendingProjectGraphSync(projectId, {
+        lastErrorCode: 'PRJ_BG_SYNC',
+        lastErrorMessage: lastMsg,
+      })
+    }
+  }
+  return false
+}
+
+const eventBridgeDef = defs.find((d) => d.localTable === 'events')
+
+/** Upsert explícito na nuvem (hooks Dexie não aguardam Promise; use após gravar local com sync mutado). */
+export async function syncEventRowToSupabase(ev: DbEvent): Promise<void> {
+  if (!supabase || !eventBridgeDef) return
+  const ok = await upsertRemoteWithRetry(eventBridgeDef, ev)
+  if (!ok) {
+    throw new Error(
+      'O evento foi salvo localmente, mas não na nuvem. Verifique conexão, sessão e permissões; tente salvar de novo.',
+    )
+  }
 }
 
 async function deleteRemoteWithRetry(def: BridgeDef<unknown>, id: string): Promise<void> {
-  const client = assertSupabase()
   let lastMsg = 'Falha desconhecida ao excluir na nuvem.'
   for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
-    const { error } = await client.from(def.remoteTable).delete().eq('id', id)
+    let error: { message?: string } | null = null
+    try {
+      const client = assertSupabase()
+      const res = await client.from(def.remoteTable).delete().eq('id', id)
+      error = res.error
+    } catch (err) {
+      error = {
+        message: err instanceof Error ? err.message : String(err),
+      }
+    }
     if (!error) {
       broadcastDexieSyncHint()
       return
     }
     if (shouldIgnoreMissingTable(def.remoteTable, error)) return
-    lastMsg = error.message || lastMsg
+    lastMsg = error.message ?? lastMsg
     if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
   }
   dispatchSyncFailure({ table: def.remoteTable, operation: 'delete', message: lastMsg })
@@ -1377,16 +1470,31 @@ function installHooks() {
     // Dexie 4: hooks creating/updating não aguardam Promise; retornar Promise quebrava o sync e a UI “salvava” só no IndexedDB.
     table.hook('creating', function (_primaryKey: unknown, obj: unknown) {
       if (syncingMuted) return
-      void upsertRemoteWithRetry(def, obj)
+      void upsertRemoteWithRetry(def, obj).catch((err) => {
+        console.warn('[Supabase] Unhandled creating hook sync error (captured).', {
+          table: def.remoteTable,
+          err,
+        })
+      })
     })
     table.hook('updating', function (mods: Record<string, unknown>, _primaryKey: unknown, obj: Record<string, unknown>) {
       if (syncingMuted) return
       const merged = { ...obj, ...mods }
-      void upsertRemoteWithRetry(def, merged)
+      void upsertRemoteWithRetry(def, merged).catch((err) => {
+        console.warn('[Supabase] Unhandled updating hook sync error (captured).', {
+          table: def.remoteTable,
+          err,
+        })
+      })
     })
     table.hook('deleting', function (primaryKey: unknown) {
       if (syncingMuted) return
-      void deleteRemoteWithRetry(def, String(primaryKey))
+      void deleteRemoteWithRetry(def, String(primaryKey)).catch((err) => {
+        console.warn('[Supabase] Unhandled deleting hook sync error (captured).', {
+          table: def.remoteTable,
+          err,
+        })
+      })
     })
   }
 }
@@ -1415,8 +1523,10 @@ async function hydrateUsersFromProfiles() {
     }
     return
   }
-  await db.users.clear()
-  await db.users.bulkPut(users)
+  await db.transaction('rw', db.users, async () => {
+    await db.users.clear()
+    await db.users.bulkPut(users)
+  })
 }
 
 export async function refreshSupabaseDexieCache(): Promise<void> {
@@ -1442,8 +1552,11 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
           )
           continue
         }
-        await table.clear()
-        if (mapped.length > 0) await table.bulkPut(mapped)
+        const store = db[def.localTable] as Table
+        await db.transaction('rw', store, async () => {
+          await table.clear()
+          if (mapped.length > 0) await table.bulkPut(mapped)
+        })
         if (mapped.length > 0 && isIncrementalRemoteTable(def.remoteTable)) {
           let maxIso: string | null = null
           for (const r of rows) {
@@ -1478,10 +1591,14 @@ export async function initializeSupabaseDexieBridge(): Promise<void> {
   if (!pendingProjectGraphListenerInstalled && typeof window !== 'undefined') {
     pendingProjectGraphListenerInstalled = true
     window.addEventListener('online', () => {
-      void flushPendingProjectGraphSyncQueue()
+      void flushPendingProjectGraphSyncQueue().catch((err) => {
+        console.warn('[Supabase] Falha ao drenar fila pendente (online).', err)
+      })
     })
     window.addEventListener('focus', () => {
-      void flushPendingProjectGraphSyncQueue()
+      void flushPendingProjectGraphSyncQueue().catch((err) => {
+        console.warn('[Supabase] Falha ao drenar fila pendente (focus).', err)
+      })
     })
   }
 }
