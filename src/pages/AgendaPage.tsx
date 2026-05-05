@@ -17,6 +17,8 @@ import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { compareTaskCode } from '../lib/taskCode'
 import type { DbEvent, DbProject, DbTask } from '../db/types'
 import { createEventValidated, updateEventValidated } from '../services/events'
+import { getRunningSessionForUser, startTimer, stopTimer } from '../services/timeSessions'
+import { setTaskStatus } from '../services/tasks'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -46,6 +48,7 @@ import {
 } from '../lib/calendarGrid'
 
 type ViewMode = 'week' | 'day'
+type CloseTaskDecision = 'keep' | 'in_progress' | 'done'
 
 function agendaModalSnapshotArg(p: {
   editingEventId: string | null
@@ -103,6 +106,8 @@ export function AgendaPage() {
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
   const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const timeSessionsQuery = useLiveQuery(() => db.timeSessions.toArray(), [])
+  const timeSessions = useMemo(() => timeSessionsQuery ?? [], [timeSessionsQuery])
 
   const [weekMonday, setWeekMonday] = useState(() => mondayOfWeekContaining(new Date()))
   const [activeDay, setActiveDay] = useState(() => zonedNow())
@@ -127,6 +132,13 @@ export function AgendaPage() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null)
   const [agendaModalBaseline, setAgendaModalBaseline] = useState<string | null>(null)
   const [agendaEventSaving, setAgendaEventSaving] = useState(false)
+  const [closingEventId, setClosingEventId] = useState<string | null>(null)
+  const [closeTaskDecision, setCloseTaskDecision] = useState<CloseTaskDecision>('keep')
+  const [closeOutcomeSummary, setCloseOutcomeSummary] = useState('')
+  const [closeNextStep, setCloseNextStep] = useState('')
+  const [closeLoggedHours, setCloseLoggedHours] = useState('')
+  const [closeSaving, setCloseSaving] = useState(false)
+  const [timerTick, setTimerTick] = useState(0)
 
   function prefillModalFromTask(task: DbTask, projectRow?: DbProject | null) {
     if (!canEditAgenda) return
@@ -333,6 +345,185 @@ export function AgendaPage() {
   }, [tasks, events, agendaProjectFilterId, unscheduledSearchNorm, projectNameById])
 
   const nowTopPct = layoutInGrid(new Date().toISOString(), new Date(Date.now() + 60_000).toISOString()).topPct
+  const userId = user?.id ?? null
+
+  const executionEventsToday = useMemo(
+    () =>
+      filteredEvents
+        .filter((ev) => dayKeyFromIso(ev.startTime) === todayKey)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [filteredEvents, todayKey],
+  )
+
+  const activeSessionByTaskId = useMemo(() => {
+    const out = new Map<string, string>()
+    if (!userId) return out
+    for (const s of timeSessions) {
+      if (s.userId === userId && s.endedAt == null) out.set(s.taskId, s.id)
+    }
+    return out
+  }, [timeSessions, userId])
+
+  useEffect(() => {
+    if (activeSessionByTaskId.size === 0) return
+    const id = window.setInterval(() => setTimerTick((v) => v + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [activeSessionByTaskId.size])
+
+  const eventById = useMemo(() => new Map(events.map((ev) => [ev.id, ev])), [events])
+  const closingEvent = closingEventId ? eventById.get(closingEventId) ?? null : null
+
+  function formatSecondsClock(totalSeconds: number): string {
+    const s = Math.max(0, Math.floor(totalSeconds))
+    const hh = String(Math.floor(s / 3600)).padStart(2, '0')
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
+    const ss = String(s % 60).padStart(2, '0')
+    return `${hh}:${mm}:${ss}`
+  }
+
+  function hoursSuggestionForEvent(ev: DbEvent): number {
+    if (!ev.taskId || !userId) return 0
+    const sessions = timeSessions.filter((s) => s.userId === userId && s.taskId === ev.taskId)
+    const targetDay = dayKeyFromIso(ev.startTime)
+    const nowMs = Date.now() + timerTick * 0
+    const seconds = sessions
+      .filter((s) => dayKeyFromIso(s.startedAt) === targetDay)
+      .reduce((acc, s) => {
+        if (s.endedAt == null) {
+          const startMs = new Date(s.startedAt).getTime()
+          if (!Number.isFinite(startMs)) return acc
+          return acc + Math.max(0, Math.floor((nowMs - startMs) / 1000))
+        }
+        return acc + (s.durationSeconds ?? 0)
+      }, 0)
+    return Math.round((seconds / 3600) * 100) / 100
+  }
+
+  async function persistExecutionEvent(
+    ev: DbEvent,
+    updates: Partial<Pick<DbEvent, 'status' | 'executionState' | 'outcomeSummary' | 'nextStep' | 'closedAt' | 'loggedHours'>>,
+  ) {
+    await updateEventValidated(ev.id, {
+      title: ev.title,
+      description: ev.description,
+      startTime: ev.startTime,
+      endTime: ev.endTime,
+      status: updates.status ?? ev.status,
+      projectId: ev.projectId,
+      taskId: ev.taskId,
+      analystId: ev.analystId,
+      meetingLink: ev.meetingLink,
+      executionState: updates.executionState ?? ev.executionState ?? 'scheduled',
+      outcomeSummary: updates.outcomeSummary ?? ev.outcomeSummary ?? null,
+      nextStep: updates.nextStep ?? ev.nextStep ?? null,
+      closedAt: updates.closedAt ?? ev.closedAt ?? null,
+      loggedHours: updates.loggedHours ?? ev.loggedHours ?? null,
+    })
+  }
+
+  async function handleStartExecution(ev: DbEvent) {
+    if (!userId) return
+    if (!ev.taskId) {
+      toastWarn('Vincule uma tarefa ao evento para usar o timer.')
+      return
+    }
+    try {
+      await startTimer(ev.taskId, userId)
+      await persistExecutionEvent(ev, { executionState: 'in_progress' })
+      toast('Execução iniciada.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível iniciar o timer.')
+    }
+  }
+
+  async function handlePauseExecution(ev: DbEvent) {
+    if (!userId || !ev.taskId) return
+    try {
+      const running = await getRunningSessionForUser(userId)
+      if (!running || running.taskId !== ev.taskId) {
+        toastWarn('Nenhum timer ativo para pausar neste item.')
+        return
+      }
+      await stopTimer(running.id, userId)
+      await persistExecutionEvent(ev, { executionState: 'paused' })
+      toast('Execução pausada.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível pausar o timer.')
+    }
+  }
+
+  async function handleResumeExecution(ev: DbEvent) {
+    if (!userId || !ev.taskId) return
+    try {
+      await startTimer(ev.taskId, userId)
+      await persistExecutionEvent(ev, { executionState: 'in_progress' })
+      toast('Execução retomada.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível retomar o timer.')
+    }
+  }
+
+  function openCloseWizard(ev: DbEvent) {
+    setClosingEventId(ev.id)
+    setCloseTaskDecision(ev.taskId ? 'keep' : 'in_progress')
+    setCloseOutcomeSummary(ev.outcomeSummary ?? '')
+    setCloseNextStep(ev.nextStep ?? '')
+    setCloseLoggedHours(String(hoursSuggestionForEvent(ev) || ''))
+  }
+
+  async function handleConfirmCloseWizard() {
+    if (!closingEvent || !userId) return
+    if (!closeOutcomeSummary.trim() || !closeNextStep.trim()) {
+      toastWarn('Preencha resultado e próximo passo para concluir.')
+      return
+    }
+    const parsedHours = Number(closeLoggedHours.replace(',', '.'))
+    if (!Number.isFinite(parsedHours) || parsedHours < 0) {
+      toastWarn('Horas inválidas. Informe um número maior ou igual a zero.')
+      return
+    }
+    setCloseSaving(true)
+    try {
+      if (closingEvent.taskId) {
+        if (closeTaskDecision === 'done') await setTaskStatus(closingEvent.taskId, 'concluida', userId)
+        if (closeTaskDecision === 'in_progress') await setTaskStatus(closingEvent.taskId, 'em_andamento', userId)
+      }
+      const running = await getRunningSessionForUser(userId)
+      if (running && closingEvent.taskId && running.taskId === closingEvent.taskId) {
+        await stopTimer(running.id, userId)
+      }
+      await persistExecutionEvent(closingEvent, {
+        status: 'realizado',
+        executionState: 'completed',
+        outcomeSummary: closeOutcomeSummary.trim(),
+        nextStep: closeNextStep.trim(),
+        closedAt: new Date().toISOString(),
+        loggedHours: parsedHours,
+      })
+      setClosingEventId(null)
+      toast('Execução concluída e registrada.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Não foi possível concluir a execução.')
+    } finally {
+      setCloseSaving(false)
+    }
+  }
+
+  const primaryExecutionCta = useMemo(() => {
+    const runningEvent = executionEventsToday.find((ev) => ev.taskId && activeSessionByTaskId.has(ev.taskId))
+    if (runningEvent) {
+      return { label: 'Pausar execução', kind: 'pause' as const, eventId: runningEvent.id }
+    }
+    const pausedEvent = executionEventsToday.find((ev) => ev.executionState === 'paused' && ev.taskId)
+    if (pausedEvent) {
+      return { label: 'Retomar execução', kind: 'resume' as const, eventId: pausedEvent.id }
+    }
+    const startCandidate = executionEventsToday.find((ev) => ev.status !== 'cancelado' && ev.executionState !== 'completed')
+    if (startCandidate) {
+      return { label: 'Iniciar execução', kind: 'start' as const, eventId: startCandidate.id }
+    }
+    return null
+  }, [executionEventsToday, activeSessionByTaskId])
 
   const goToday = useCallback(() => {
     const now = new Date()
@@ -674,6 +865,110 @@ export function AgendaPage() {
               </button>
             </div>
           </header>
+
+          <section className="agenda-exec panel" aria-label="Execução inteligente de hoje">
+            <div className="agenda-exec__head">
+              <div>
+                <h2 className="agenda-exec__title">Execução de hoje</h2>
+                <p className="agenda-exec__hint muted">
+                  Entre na reunião, execute com timer e conclua com resultado, próximo passo e horas.
+                </p>
+              </div>
+              {primaryExecutionCta ? (
+                <button
+                  type="button"
+                  className="btn btn--primary agenda-exec__primary"
+                  onClick={() => {
+                    const target = eventById.get(primaryExecutionCta.eventId)
+                    if (!target) return
+                    if (primaryExecutionCta.kind === 'pause') {
+                      void handlePauseExecution(target)
+                      return
+                    }
+                    if (primaryExecutionCta.kind === 'resume') {
+                      void handleResumeExecution(target)
+                      return
+                    }
+                    void handleStartExecution(target)
+                  }}
+                >
+                  {primaryExecutionCta.label}
+                </button>
+              ) : null}
+            </div>
+            <div className="agenda-exec__list">
+              {executionEventsToday.length === 0 ? (
+                <p className="muted">Sem itens para execução hoje.</p>
+              ) : null}
+              {executionEventsToday.map((ev) => {
+                const task = ev.taskId ? taskById.get(ev.taskId) : null
+                const runningSessionId = ev.taskId ? activeSessionByTaskId.get(ev.taskId) : undefined
+                const state = runningSessionId
+                  ? 'running'
+                  : ev.executionState === 'paused'
+                    ? 'paused'
+                    : ev.executionState === 'completed' || ev.status === 'realizado'
+                      ? 'done'
+                      : 'scheduled'
+                const suggestedHours = hoursSuggestionForEvent(ev)
+                const suggestedSeconds = Math.round(suggestedHours * 3600)
+                return (
+                  <article key={ev.id} className={`agenda-exec-item is-${state}`}>
+                    <div className="agenda-exec-item__main">
+                      <p className="agenda-exec-item__time">
+                        {formatInTimeZone(ev.startTime, CAL_TZ, 'HH:mm')} - {formatInTimeZone(ev.endTime, CAL_TZ, 'HH:mm')}
+                      </p>
+                      <h3 className="agenda-exec-item__title">{ev.title}</h3>
+                      <p className="agenda-exec-item__meta">
+                        {task ? `${task.code} · ${task.title}` : 'Sem tarefa vinculada'}
+                      </p>
+                    </div>
+                    <div className="agenda-exec-item__side">
+                      <span className={`agenda-exec-chip is-${state}`}>
+                        {state === 'running'
+                          ? 'Em execução'
+                          : state === 'paused'
+                            ? 'Pausado'
+                            : state === 'done'
+                              ? 'Concluído'
+                              : 'Agendado'}
+                      </span>
+                      <span className="agenda-exec-item__timer" aria-live="polite">
+                        {formatSecondsClock(suggestedSeconds)}
+                      </span>
+                    </div>
+                    <div className="agenda-exec-item__actions">
+                      {ev.meetingLink ? (
+                        <a className="btn btn--ghost" href={ev.meetingLink} target="_blank" rel="noopener noreferrer">
+                          Entrar na reunião
+                        </a>
+                      ) : null}
+                      {task ? (
+                        state === 'running' ? (
+                          <button type="button" className="btn btn--ghost" onClick={() => void handlePauseExecution(ev)}>
+                            Pausar
+                          </button>
+                        ) : state === 'paused' ? (
+                          <button type="button" className="btn btn--ghost" onClick={() => void handleResumeExecution(ev)}>
+                            Retomar
+                          </button>
+                        ) : state !== 'done' ? (
+                          <button type="button" className="btn btn--ghost" onClick={() => void handleStartExecution(ev)}>
+                            Iniciar timer
+                          </button>
+                        ) : null
+                      ) : null}
+                      {state !== 'done' ? (
+                        <button type="button" className="btn btn--primary" onClick={() => openCloseWizard(ev)}>
+                          Fechar execução
+                        </button>
+                      ) : null}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
 
           <section className="cal-shell cal-shell--gc">
             <div className="cal-scroll">
@@ -1046,6 +1341,70 @@ export function AgendaPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      ) : null}
+      {closingEvent ? (
+        <div className="modal-backdrop" role="presentation" onClick={closeSaving ? undefined : () => setClosingEventId(null)}>
+          <div
+            className="modal modal--agenda-close"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agenda-close-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="agenda-close-title" className="modal__title">
+              Fechamento da execução
+            </h2>
+            <p className="muted">
+              Concluir reunião com registro claro do resultado, próximos passos e horas confirmadas.
+            </p>
+            <div className="stack">
+              <label className="field">
+                <span>Resultado da reunião</span>
+                <textarea
+                  rows={2}
+                  value={closeOutcomeSummary}
+                  onChange={(e) => setCloseOutcomeSummary(e.target.value)}
+                  placeholder="Resumo objetivo do que foi decidido."
+                />
+              </label>
+              <label className="field">
+                <span>Próximo passo</span>
+                <textarea
+                  rows={2}
+                  value={closeNextStep}
+                  onChange={(e) => setCloseNextStep(e.target.value)}
+                  placeholder="Ação + responsável + prazo."
+                />
+              </label>
+              {closingEvent.taskId ? (
+                <label className="field">
+                  <span>Atualização da tarefa vinculada</span>
+                  <select value={closeTaskDecision} onChange={(e) => setCloseTaskDecision(e.target.value as CloseTaskDecision)}>
+                    <option value="keep">Manter status da tarefa</option>
+                    <option value="in_progress">Marcar como em andamento</option>
+                    <option value="done">Concluir tarefa</option>
+                  </select>
+                </label>
+              ) : null}
+              <label className="field">
+                <span>Horas registradas</span>
+                <input
+                  value={closeLoggedHours}
+                  onChange={(e) => setCloseLoggedHours(e.target.value)}
+                  placeholder="Ex.: 1.50"
+                />
+              </label>
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="btn btn--ghost" disabled={closeSaving} onClick={() => setClosingEventId(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn--primary" disabled={closeSaving} onClick={() => void handleConfirmCloseWizard()}>
+                {closeSaving ? 'Concluindo...' : 'Concluir reunião'}
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

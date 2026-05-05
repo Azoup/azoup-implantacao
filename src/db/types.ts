@@ -304,6 +304,8 @@ export interface DbEvent {
   id: string
   title: string
   description: string
+  /** Tags estruturadas para classificação analítica (ex.: "virada_concluida"). */
+  tags?: string[] | null
   startTime: string
   endTime: string
   status: EventStatus
@@ -312,6 +314,16 @@ export interface DbEvent {
   analystId: string | null
   meetingLink: string | null
   recordingLink: string | null
+  /** Estado operacional da execução para UX da agenda. */
+  executionState?: 'scheduled' | 'in_progress' | 'paused' | 'completed' | null
+  /** Resultado curto capturado no fechamento da reunião. */
+  outcomeSummary?: string | null
+  /** Próximo passo acordado no fechamento da reunião. */
+  nextStep?: string | null
+  /** Momento de fechamento operacional do item da agenda. */
+  closedAt?: string | null
+  /** Horas registradas manualmente no fluxo de fechamento. */
+  loggedHours?: number | null
   createdAt: string
 }
 

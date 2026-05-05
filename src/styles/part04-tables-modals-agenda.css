@@ -908,6 +908,124 @@
   flex-direction: column;
   gap: 1rem;
 }
+
+.agenda-exec {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg-elevated));
+}
+.agenda-exec__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem 0.8rem;
+  align-items: flex-start;
+  margin-bottom: 0.65rem;
+}
+.agenda-exec__title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+.agenda-exec__hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+}
+.agenda-exec__primary {
+  border-radius: 999px;
+}
+.agenda-exec__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.agenda-exec-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 0.68rem 0.72rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem 0.7rem;
+}
+.agenda-exec-item.is-running {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.agenda-exec-item.is-paused {
+  border-color: color-mix(in srgb, #e28a00 50%, var(--border));
+}
+.agenda-exec-item.is-done {
+  border-color: color-mix(in srgb, var(--success) 60%, var(--border));
+}
+.agenda-exec-item__time {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.agenda-exec-item__title {
+  margin: 0.1rem 0 0;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.agenda-exec-item__meta {
+  margin: 0.1rem 0 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+.agenda-exec-item__side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-end;
+}
+.agenda-exec-chip {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+.agenda-exec-chip.is-running {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.agenda-exec-chip.is-paused {
+  background: color-mix(in srgb, #e28a00 18%, transparent);
+  color: #b66900;
+}
+.agenda-exec-chip.is-done {
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+.agenda-exec-item__timer {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.agenda-exec-item__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.modal--agenda-close {
+  width: min(520px, 100%);
+}
+@media (max-width: 720px) {
+  .agenda-exec-item {
+    grid-template-columns: 1fr;
+  }
+  .agenda-exec-item__side {
+    align-items: flex-start;
+  }
+}
 .agenda-gc-bar {
   display: flex;
   flex-wrap: wrap;

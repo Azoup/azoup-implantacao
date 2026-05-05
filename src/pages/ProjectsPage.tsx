@@ -30,7 +30,12 @@ import {
   writeProjectSortConfig,
   type ProjectSortConfig,
 } from '../lib/projectSort'
-import { planPillClass, planSummaryLabel } from '../constants/customPlan'
+import {
+  PLAN_FILTER_OPTIONS,
+  normalizePlanTypeKey,
+  planPillClass,
+  planSummaryLabel,
+} from '../constants/customPlan'
 import {
   flushPendingProjectGraphSyncByProject,
   getProjectCloudSyncMeta,
@@ -57,6 +62,7 @@ export function ProjectsPage() {
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [projectNameSearch, setProjectNameSearch] = useState('')
   const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
+  const [selectedPlanTypes, setSelectedPlanTypes] = useState<string[]>([])
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [syncRefreshing, setSyncRefreshing] = useState<Record<string, boolean>>({})
@@ -75,10 +81,14 @@ export function ProjectsPage() {
       selectedAnalystIds.length === 0
         ? sorted
         : sorted.filter((p) => p.analystId && selectedAnalystIds.includes(p.analystId))
+    const planFiltered =
+      selectedPlanTypes.length === 0
+        ? analystFiltered
+        : analystFiltered.filter((p) => selectedPlanTypes.includes(normalizePlanTypeKey(p.planType)))
     const q = projectNameSearch.trim().toLowerCase()
-    if (!q) return analystFiltered
-    return analystFiltered.filter((p) => p.projectName.toLowerCase().includes(q))
-  }, [projects, projectSort, projectNameSearch, selectedAnalystIds])
+    if (!q) return planFiltered
+    return planFiltered.filter((p) => p.projectName.toLowerCase().includes(q))
+  }, [projects, projectSort, projectNameSearch, selectedAnalystIds, selectedPlanTypes])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -158,6 +168,7 @@ export function ProjectsPage() {
           <button
             type="button"
             className={'project-sortbar__toggle' + (projectSort.key === 'startDate' ? ' is-active' : '')}
+            aria-pressed={projectSort.key === 'startDate'}
             aria-label="Ordenar por data de início"
             title={
               projectSort.key === 'startDate' && projectSort.direction === 'asc'
@@ -182,6 +193,7 @@ export function ProjectsPage() {
           <button
             type="button"
             className={'project-sortbar__toggle' + (projectSort.key === 'name' ? ' is-active' : '')}
+            aria-pressed={projectSort.key === 'name'}
             aria-label="Ordenar por nome"
             title={projectSort.key === 'name' && projectSort.direction === 'asc' ? 'Nome A-Z' : 'Nome Z-A'}
             onClick={() => {
@@ -211,6 +223,7 @@ export function ProjectsPage() {
                 type="button"
                 className={'projects-page__analyst-chip' + (selected ? ' is-selected' : '')}
                 style={{ ['--analyst-color' as string]: a.color }}
+                aria-pressed={selected}
                 onClick={() =>
                   setSelectedAnalystIds((prev) =>
                     prev.includes(a.id) ? prev.filter((id) => id !== a.id) : [...prev, a.id],
@@ -232,10 +245,40 @@ export function ProjectsPage() {
             </button>
           ) : null}
         </div>
+        <div className="projects-page__plan-filter" role="group" aria-label="Filtrar por plano">
+          {PLAN_FILTER_OPTIONS.map((plan) => {
+            const selected = selectedPlanTypes.includes(plan.key)
+            return (
+              <button
+                key={plan.key}
+                type="button"
+                className={'projects-page__plan-chip ' + planPillClass(plan.key) + (selected ? ' is-selected' : '')}
+                aria-pressed={selected}
+                onClick={() =>
+                  setSelectedPlanTypes((prev) =>
+                    prev.includes(plan.key) ? prev.filter((key) => key !== plan.key) : [...prev, plan.key],
+                  )
+                }
+                title={selected ? `Remover filtro: ${plan.label}` : `Filtrar por: ${plan.label}`}
+              >
+                {plan.label}
+              </button>
+            )
+          })}
+          {selectedPlanTypes.length > 0 ? (
+            <button
+              type="button"
+              className="projects-page__plan-clear"
+              onClick={() => setSelectedPlanTypes([])}
+            >
+              Limpar planos
+            </button>
+          ) : null}
+        </div>
         <label className="projects-page__search" aria-label="Buscar projeto por nome">
           <Search size={15} strokeWidth={2} />
           <input
-            className="input input--sm projects-page__search-input"
+            className="input projects-page__search-input"
             type="text"
             placeholder="Buscar por nome do projeto..."
             value={projectNameSearch}

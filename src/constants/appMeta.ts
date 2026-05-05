@@ -1,2 +1,2 @@
 /** Versão exibida na UI (sidebar, login, título do documento via index.html). */
-export const APP_VERSION_DISPLAY = 'v2.9.0'
+export const APP_VERSION_DISPLAY = 'v2.10.11'

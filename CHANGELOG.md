@@ -1,5 +1,174 @@
 # Changelog
 
+## v2.10.11 (2026-05-05)
+
+- Dashboard: removido o rótulo textual de janela no topo (ex.: `Janela ...`) para deixar o cabeçalho mais limpo e direto.
+- Harmonização visual do bloco de controles (`Resumo/Consulta` + `Hoje/Essa semana/Esse mês/Total`) com alinhamento e espaçamento consistentes em uma única linha de leitura.
+- Ajustes responsivos no topo para manter alinhamento entre tabs, filtros e cards em desktop/mobile sem mudar comportamento funcional.
+
+## v2.10.10 (2026-05-05)
+
+- Dashboard (Resumo): removido o texto contextual `Janela: ...` para reduzir redundância e limpar o topo do conteúdo.
+- Dashboard (topo): tabs `Resumo/Consulta` e chips `Hoje/Essa semana/Esse mês/Total` foram harmonizados no mesmo padrão de controle (altura, borda, estados e foco), reforçando consistência visual.
+- Refino incremental de hierarquia/ritmo dos cards de KPI e cards de consulta com ajustes de raio, sombra e densidade para melhorar escaneabilidade sem alterar comportamento.
+
+## v2.10.9 (2026-05-05)
+
+- Dashboard (topo): tabs principais e filtro temporal agora ficam em dois níveis claros (`Navegação` e `Janela KPI`), melhorando leitura sequencial e reduzindo sensação de desalinhamento.
+- Refino de espaçamento/alinhamento no header do Dashboard para manter eixo visual consistente entre título, tabs e controle de janela KPI em desktop e mobile.
+- Ajuste estritamente visual (CSS + microcopy), sem alteração de comportamento funcional do Dashboard.
+
+## v2.10.8 (2026-05-05)
+
+- Dashboard (cards KPI): removidos metadados visuais repetitivos nos cards para voltar ao padrão limpo (ícone + valor + label), eliminando o ruído apontado no resumo.
+- Contexto temporal do filtro agora aparece em um único ponto discreto na seção (`Janela: ...`), em vez de repetir texto dentro de todos os cards.
+- Limpeza de CSS legado relacionado ao meta dos cards para manter consistência e reduzir complexidade visual.
+
+## v2.10.7 (2026-05-05)
+
+- Dashboard (KPI cards): removido o texto secundário sob os labels para reduzir ruído visual e manter leitura mais direta dos indicadores.
+- Labels dos KPIs de "novos" foram simplificados (sem "no periodo" fixo), preservando o contexto de janela atual no `aria-label` para acessibilidade e drilldown.
+
+## v2.10.6 (2026-05-05)
+
+- Dashboard (`Projetos em andamento`): comportamento invertido para iniciar com **todos os projetos visíveis** e rolagem ativa por padrão.
+- Ação principal do toggle passa a ser **Mostrar menos**, mantendo opção de voltar ao modo resumido com 5 itens.
+- Ajuste de contador contextual para refletir estado expandido (`Mostrando todos`) e modo reduzido (`Mostrando X de Y`), incluindo rolagem também no mobile expandido.
+
+## v2.10.5 (2026-05-05)
+
+- Dashboard (Resumo): cards KPI de `Projetos`, `Tarefas` e `Viradas` receberam reforço visual de borda/sombra e contêiner de seção com mais presença para melhorar hierarquia e consistência com os demais painéis.
+- Títulos de grupo agora exibem ícones semânticos e estilo de cápsula, enquanto os cards ganharam hover/ativo mais evidentes e labels com contraste refinado para leitura rápida.
+- Ajustes focados em UI (CSS + markup mínimo), preservando comportamento, regras de negócio, acessibilidade e responsividade existentes.
+
+## v2.10.4 (2026-05-05)
+
+- Dashboard (`Projetos em andamento`): lista agora inicia com **5 projetos visíveis** e ação de **Ver todos/Mostrar menos** para controlar densidade sem perder acesso ao restante.
+- Inclusão de contador contextual (`Mostrando X de Y`) e toggle acessível (`aria-expanded`/`aria-controls`) para feedback claro da expansão.
+- No desktop, modo expandido passa a usar rolagem interna suave quando necessário; no mobile, a lista expandida segue a rolagem natural da página.
+
+## v2.10.3 (2026-05-05)
+
+- Dashboard (topo): refinado o ritmo vertical entre header, tabs e barra de janela KPI para leitura mais compacta e contínua.
+- Tabs e chips com densidade reduzida (altura, padding, gap e tipografia), mantendo o mesmo estilo visual do produto.
+- Barra de chips alinhada ao início da coluna de conteúdo para reforçar hierarquia e consistência de eixo visual.
+
+## v2.10.2 (2026-05-05)
+
+- Dashboard (topo): compactação de espaçamento no header da página (título + data) e redução de respiro vertical entre blocos iniciais.
+- Alinhamento do topo refinado com tabs principais (`Resumo`/`Consulta`) e barra/chips de janela KPI (`Hoje`, `Essa semana`, `Esse mês`, `Total`) iniciando no mesmo eixo visual.
+- Ajustes estritamente visuais e responsivos no CSS, sem alteração de regras de negócio.
+
+## v2.10.1 (2026-05-05)
+
+- Dashboard (Resumo): bloco **Projetos em andamento** voltou para leitura compacta, removendo ruído visual (sem linha de marco no card compacto e sem contagem de tarefas na linha principal).
+- Hierarquia visual refinada para o layout legado da lista (cards mais enxutos, espaçamentos menores e progressão mais direta), aproximando o comportamento visual do modelo anterior.
+- Cabeçalho do painel simplificado para foco no conteúdo da lista.
+
+## v2.10.0 (2026-04-30)
+
+- Agenda de hoje evoluída para fluxo operacional com CTA dinâmico por contexto (`Entrar`, `Iniciar`, `Pausar`) e exibição de contexto de projeto/tarefa no próprio card.
+- Novo fechamento guiado da reunião direto no Dashboard com captura de resultado, próximo passo, atualização opcional de status da tarefa e lançamento manual de horas no mesmo fluxo.
+- Contrato de `events` expandido com campos operacionais (`executionState`, `outcomeSummary`, `nextStep`, `closedAt`, `loggedHours`) para rastreabilidade incremental de execução.
+- Refinos visuais na Agenda de hoje para melhorar hierarquia, densidade e leitura de estado (chips de contexto/timer e modal de conclusão).
+
+## v2.9.16 (2026-04-30)
+
+- Dashboard KPI de tarefas atualizado de **Tarefas em andamento** para **Tarefas agendadas**, com ajuste funcional para contar tarefas pendentes no recorte do KPI.
+- Correção do KPI **Projetos em andamento** para refletir todos os projetos abertos no escopo dos filtros (não finalizados e não cancelados), sem restringir por janela temporal de criação.
+- Mantida reconciliação entre card e drilldown com os novos critérios de leitura operacional.
+
+## v2.9.15 (2026-04-30)
+
+- Dashboard evoluido para **12 KPIs** em tres blocos (Projetos, Tarefas e Viradas), incluindo estados de *novos no periodo*, *em andamento/agendadas*, *concluidos* e *cancelados* com drilldown dedicado por card.
+- Fonte unica de contagem/listagem no breakdown: os cards e a Consulta usam os mesmos conjuntos por KPI, eliminando divergencias entre numero e lista.
+- Regra expandida de **tarefas canceladas**: considera tarefa com status cancelado e tambem tarefa impactada por evento cancelado vinculado, com deduplicacao por 	ask.id para evitar contagem dupla.
+- Refino visual da grade KPI para 12 cards com agrupamento por dominio e estado visual padronizado (info/warning/success/danger), mantendo foco em escaneabilidade.
+
+## v2.9.14 (2026-04-30)
+
+- Revisao da regra de viradas no Dashboard: KPI e drilldown agora contam apenas eventos classificados como virada real (tags de cutover/virada ou texto de virada no evento/tarefa vinculada), evitando incluir agendas comuns por engano.
+- Alinhamento entre Resumo e Consulta para viradas agendadas/realizadas/canceladas usando o mesmo classificador de virada, reduzindo divergencia entre numero e lista.
+
+## v2.9.13 (2026-04-29)
+
+- **KPIs clicáveis no Resumo:** cada um dos 9 cards abre a **Consulta** na sub-aba certa (Projetos, Tarefas ou Viradas) com a **listagem exata** dos itens que compõem o número, usando o mesmo recorte da janela KPI (Hoje / Semana / Mês / Total) e o escopo dos filtros da consulta.
+- Banner de contexto com contagem, janela temporal e botão **Fechar detalhe**; cards do resumo ganham estado ativo e affordance de clique.
+- Nova sub-aba **Tarefas** na consulta para exibir drilldown de tarefas; viradas agendadas listam data, horário, projeto (direto ou via tarefa) e status do evento.
+
+## v2.9.12 (2026-04-29)
+
+- Resumo do Dashboard: **Projetos em andamento** com toolbar (atalho à agenda, alternância cartão compacto/detailed, ordenação por data ou A–Z) e modo **compacto** alinhado ao painel antigo (linha única de horas/fase/tarefas + marcos e barra).
+- **Agenda de hoje** com abas *Todos* / *Com link*, todos os status do dia (incl. encerrados), selo de situação e ações *Sem link*, *Editar*, *Concluir* e *Agenda* (link da reunião ou modelo Google Calendar).
+- KPIs: ícones compostos (timer / check / X) sobre pasta, lista e chave; ajuste de espaçamento e alinhamento da grade 3×3 e do bloco de resumo.
+- ESLint: cleanup do efeito em `AuthContext` (incremento de sequência na desmontagem) para satisfazer `react-hooks/exhaustive-deps`.
+
+## v2.9.11 (2026-04-29)
+
+- Remoção temporária dos blocos e da subaba de alertas no Dashboard para abrir espaço para a reformulação futura da experiência.
+- Restauração do foco da tela de resumo em `Projetos em andamento` e `Agenda de hoje`, removendo os painéis intermediários de ações imediatas/viradas do resumo.
+- Ajuste dos cards de KPI para um visual com cores mais vivas, aproximando a leitura do estilo anterior sem perder a nova organização.
+
+## v2.9.10 (2026-04-29)
+
+- Reestilização do filtro de janela do Dashboard no mesmo padrão visual da toolbar de `Projetos`, com container dedicado, borda suave e acabamento arredondado.
+- Melhoria dos chips `Hoje`, `Essa semana`, `Esse mês` e `Total` com estados de hover/ativo/foco mais claros e consistentes com o design system.
+- Ajuste responsivo do bloco de filtros para manter legibilidade e usabilidade no mobile sem quebrar layout.
+
+## v2.9.9 (2026-04-29)
+
+- Refinamento visual dos KPIs do Dashboard com estética mais clean: cards com contraste equilibrado, menos brilho e hierarquia tipográfica ajustada para leitura rápida.
+- Padronização dos ícones por domínio solicitado: projetos com pastinha, tarefas com composição lista + agenda e viradas com key/check, mantendo semântica por status.
+- Ajuste dos chips de janela (`Hoje`, `Essa semana`, `Esse mês`, `Total`) para estilo neutro e consistente com o tema do produto, removendo o destaque vermelho fixo.
+
+## v2.9.8 (2026-04-28)
+
+- Refatoração do bloco "Projetos em andamento" para derivar dados dos cards via `useMemo` no `DashboardPage`, reduzindo recomputações por card e preservando responsividade da listagem.
+- Restauração e reforço dos detalhes operacionais por projeto com composição de utilitários existentes (`PlanLabelRow`, `AnalystAvatar`, `projectProgressPercent`, `formatDurationHmFromHours`) para manter consistência visual e semântica.
+- Manutenção explícita dos elementos críticos no resumo (nome com link, horas feito/previsto, fases/labels último+atual quando houver, badge do plano, avatar do responsável, barra de progresso e percentual).
+
+## v2.9.7 (2026-04-28)
+
+- Reforço visual dos cards de "Projetos em andamento" no Dashboard Command Center com hierarquia em blocos operacionais (responsável, tempo gasto/previsto, fase atual e último marco) sem perda de densidade.
+- Preservação explícita dos dados críticos do resumo legado: nome do projeto, etiquetas de fase (último/atual), plano, avatar do responsável quando houver, barra de progresso e percentual.
+- Refino de legibilidade e consistência com o design system (contraste, tipografia utilitária e agrupamento semântico) mantendo comportamento responsivo em desktop e mobile.
+
+## v2.9.6 (2026-04-28)
+
+- Reorganização da seção "Projetos em andamento" no Dashboard para leitura operacional em até 2 minutos: cabeçalho com identificação, linha de responsável, resumo rápido (horas, fase atual, último marco), progresso e fechamento de contexto.
+- Microcopy orientada a varredura rápida com labels explícitos ("Responsável", "Fase atual", "Tarefas concluídas"), reduzindo ambiguidade sem sacrificar densidade de dados.
+- Ajustes de CSS para hierarquia visual e escaneabilidade (grid semântico de metadados, truncamento seguro do último marco, separação por blocos e responsividade com coluna única no mobile).
+
+## v2.9.5 (2026-04-28)
+
+- Padronização visual dos cards de "Projetos em andamento" no Dashboard (Resumo e Consulta), com preservação explícita de nome, horas gasto/previsto, etiquetas de fase (último/atual), plano, responsável, barra e percentual.
+- Melhoria de hierarquia e consistência com o design system existente ao reutilizar `PlanLabelRow`, `AnalystAvatar`, `planPill` e progress bar em ambos os contextos do Command Center.
+- Ajuste de legibilidade operacional sem quebrar responsividade, unificando a densidade dos cards e removendo variações visuais que perdiam informação.
+
+## v2.9.4 (2026-04-28)
+
+- Redesign completo do Dashboard para o formato Command Center com abas principais (`Resumo` e `Consulta`) e sub-abas operacionais para projetos, riscos/bloqueios e viradas.
+- Nova experiência visual de alto contraste com cards executivos mais coloridos e hierarquia reforçada para leitura rápida dos indicadores críticos.
+- Inclusão de busca avançada opcional na aba de consulta (período, analista, status, plano e cliente) com drilldown direto para os projetos.
+- Restauração dos detalhes no bloco "Projetos em andamento" do resumo com horas feito/previsto, etiquetas de fase (último/atual), badge de plano, avatar do responsável e barra de progresso com percentual.
+
+## v2.9.3 (2026-04-28)
+
+- Correção de robustez visual no dashboard: `DashboardPage` agora importa `part03-dashboard-kanban.css` diretamente para evitar dependência frágil da cadeia global de `@import`.
+- Ajustes de fallback no CSS do dashboard para preservar herança de cor nos links internos e cobertura visual do estado neutro dos cards KPI.
+
+## v2.9.2 (2026-04-28)
+
+- Correção crítica das métricas do dashboard: viradas de sistema agora contam somente eventos com tag estruturada de virada concluída, evitando falso positivo por texto livre.
+- Ajuste de integridade no vínculo de viradas por fallback `taskId -> projectId`, garantindo que eventos realizados sem `projectId` explícito não desapareçam dos números.
+- Correção de período customizado para parse local seguro (sem deslocamento por timezone) e normalização de intervalos invertidos.
+
+## v2.9.1 (2026-04-28)
+
+- Refinamento visual incremental do dashboard de implantações com melhor hierarquia entre resumo, gestão do período e blocos operacionais.
+- Novo recorte temporal com melhor affordance (chips + intervalo personalizado) e cartões gerenciais para inícios, viradas e riscos acionáveis.
+- Ajustes de legibilidade e responsividade dos blocos de apoio para preservar consistência visual do VynTask sem alterar comportamento funcional.
+
 ## v2.9.0 (2026-04-28)
 
 - Release de consolidação com melhorias amplas na autenticação, páginas de agenda/dashboard/projetos, sincronização local/nuvem e serviços de negócio.
@@ -115,3 +284,5 @@
 ## v2.2.3 (2026-04-16)
 
 Release ampla após `v2.1.12`: documentação do projeto com edição (autor) e exclusão (autor/admin) com justificativa e trilha em logs de auditoria; paleta de fases/labels/kanban revisada para cores distintas e legíveis no tema escuro; demais melhorias acumuladas no período.
+
+

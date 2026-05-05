@@ -15,6 +15,11 @@ type EventInput = {
   taskId: string | null
   analystId: string | null
   meetingLink: string | null
+  executionState?: 'scheduled' | 'in_progress' | 'paused' | 'completed' | null
+  outcomeSummary?: string | null
+  nextStep?: string | null
+  closedAt?: string | null
+  loggedHours?: number | null
 }
 
 export type EventWriteResult = {
@@ -65,7 +70,21 @@ async function validateEventLinks(data: EventInput): Promise<EventInput> {
     }
   }
 
-  return { ...data, projectId, taskId, meetingLink: cleanLink }
+  const outcomeSummary = data.outcomeSummary?.trim() ? data.outcomeSummary.trim() : null
+  const nextStep = data.nextStep?.trim() ? data.nextStep.trim() : null
+  const closedAt = data.closedAt ?? null
+  const loggedHours = Number.isFinite(data.loggedHours) ? Math.max(0, Number(data.loggedHours)) : null
+  return {
+    ...data,
+    projectId,
+    taskId,
+    meetingLink: cleanLink,
+    outcomeSummary,
+    nextStep,
+    closedAt,
+    loggedHours,
+    executionState: data.executionState ?? null,
+  }
 }
 
 export async function createEventValidated(input: EventInput): Promise<EventWriteResult> {
@@ -104,6 +123,11 @@ export async function updateEventValidated(eventId: string, input: EventInput): 
     taskId: valid.taskId,
     analystId: valid.analystId,
     meetingLink: valid.meetingLink,
+    executionState: valid.executionState ?? null,
+    outcomeSummary: valid.outcomeSummary ?? null,
+    nextStep: valid.nextStep ?? null,
+    closedAt: valid.closedAt ?? null,
+    loggedHours: valid.loggedHours ?? null,
   })
   if (!isSupabaseConfigured()) return { id: eventId, cloudSync: 'local_only' }
   const updated = await db.events.get(eventId)

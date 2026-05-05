@@ -196,7 +196,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       cancelled = true
-      authEventSeqRef.current++
+      const seqRef = authEventSeqRef
+      seqRef.current += 1
       subscription?.unsubscribe()
     }
   }, [useSb, loadDexieUser])
