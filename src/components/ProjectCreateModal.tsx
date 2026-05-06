@@ -711,8 +711,13 @@ export function ProjectCreateModal({
                   </select>
                 </label>
                 <label className="field">
-                  <span>Data de início</span>
+                  <span>Data de início do projeto</span>
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                  <span className="field__hint muted">
+                    Início operacional (ex.: primeiro contato ou e-mail do cliente). O padrão é hoje só por conveniência —
+                    não é a data em que o cadastro foi feito no VynTask. Ajuste aqui na criação ou depois em{' '}
+                    <strong>Projeto → Editar</strong>.
+                  </span>
                 </label>
                 <label className="field">
                   <span>Previsão de término</span>

@@ -27,6 +27,7 @@ export const ImplantationJourneyPageLazy = lazy(() =>
   import('../pages/ImplantationJourneyPage').then((m) => ({ default: m.ImplantationJourneyPage })),
 )
 export const LogsPageLazy = lazy(() => import('../pages/LogsPage').then((m) => ({ default: m.LogsPage })))
+export const ManualsPageLazy = lazy(() => import('../pages/ManualsPage').then((m) => ({ default: m.ManualsPage })))
 export const PortalHomePageLazy = lazy(() =>
   import('../pages/portal/PortalHomePage').then((m) => ({ default: m.PortalHomePage })),
 )

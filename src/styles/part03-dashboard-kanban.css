@@ -487,17 +487,11 @@
   gap: 0.72rem;
 }
 .dashboard-cc__hero-group {
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border: 1px solid var(--dashboard-cc-group-border);
   border-radius: 14px;
   padding: 0.76rem;
-  background: linear-gradient(
-    165deg,
-    color-mix(in srgb, var(--surface) 93%, var(--bg-elevated)) 0%,
-    color-mix(in srgb, var(--surface-2) 32%, var(--bg-elevated)) 100%
-  );
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent),
-    0 6px 14px rgba(0, 0, 0, 0.1);
+  background: var(--dashboard-cc-group-bg);
+  box-shadow: var(--dashboard-cc-group-shadow);
 }
 .dashboard-cc__hero-group-title {
   margin: 0 0 0.58rem;
@@ -2131,6 +2125,9 @@
   border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 86%, var(--bg));
 }
+.projects-page__pending-btn {
+  margin-left: auto;
+}
 .projects-page__analyst-filter {
   display: inline-flex;
   align-items: center;
@@ -2514,6 +2511,28 @@
   border-color: color-mix(in srgb, var(--danger) 28%, var(--border));
 }
 
+.proj-card__badge--freshness.is-neutro {
+  background: color-mix(in srgb, var(--surface-2) 78%, var(--surface));
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.proj-card__badge--freshness.is-em_dia {
+  background: color-mix(in srgb, var(--success) 14%, var(--surface));
+  color: color-mix(in srgb, var(--success) 86%, var(--text));
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+}
+.proj-card__badge--freshness.is-atencao {
+  background: color-mix(in srgb, var(--warning) 15%, var(--surface));
+  color: color-mix(in srgb, var(--warning) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 32%, var(--border));
+}
+.proj-card__badge--freshness.is-atrasado,
+.proj-card__badge--freshness.is-critico {
+  background: color-mix(in srgb, var(--danger) 13%, var(--surface));
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+}
+
 .proj-card__sync-dot {
   width: 10px;
   height: 10px;
@@ -2634,6 +2653,11 @@
   justify-content: flex-end;
   text-align: right;
   min-width: 0;
+}
+
+.proj-card__meta-item--checkin {
+  flex: 1;
+  min-width: 8.25rem;
 }
 
 .proj-card__phase-caption {
@@ -2793,6 +2817,22 @@
   --dashboard-cc-control-radius: 12px;
   --dashboard-cc-card-radius: 12px;
   --dashboard-cc-control-border: color-mix(in srgb, var(--border) 80%, transparent);
+  --dashboard-cc-hero-card-bg: linear-gradient(150deg, #171920, #111319);
+  --dashboard-cc-hero-card-border: color-mix(in srgb, var(--border) 72%, transparent);
+  --dashboard-cc-hero-card-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+  --dashboard-cc-hero-value-color: var(--text);
+  --dashboard-cc-hero-label-color: color-mix(in srgb, var(--text-muted) 72%, #fff 28%);
+  --dashboard-cc-hero-icon-border: color-mix(in srgb, #fff 14%, transparent);
+  --dashboard-cc-hero-icon-color: color-mix(in srgb, var(--text) 88%, #fff 12%);
+  --dashboard-cc-group-bg: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--surface) 93%, var(--bg-elevated)) 0%,
+    color-mix(in srgb, var(--surface-2) 32%, var(--bg-elevated)) 100%
+  );
+  --dashboard-cc-group-border: color-mix(in srgb, var(--border) 78%, transparent);
+  --dashboard-cc-group-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 7%, transparent),
+    0 6px 14px rgba(0, 0, 0, 0.1);
 }
 .dashboard-cc__tab,
 .dashboard-cc__subtab,
@@ -2906,15 +2946,15 @@
   align-items: stretch;
 }
 .dashboard-cc__hero-card {
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid var(--dashboard-cc-hero-card-border);
   border-radius: 12px;
   min-height: 112px;
   padding: 0.88rem 0.9rem;
   display: flex;
   align-items: center;
   gap: 0.72rem;
-  background: linear-gradient(150deg, #171920, #111319);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+  background: var(--dashboard-cc-hero-card-bg);
+  box-shadow: var(--dashboard-cc-hero-card-shadow);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -2934,12 +2974,13 @@
   line-height: 1.05;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  color: var(--dashboard-cc-hero-value-color);
 }
 .dashboard-cc__hero-copy span {
   margin-top: 0.14rem;
   display: block;
   font-size: 0.82rem;
-  color: color-mix(in srgb, var(--text-muted) 72%, #fff 28%);
+  color: var(--dashboard-cc-hero-label-color);
   letter-spacing: 0;
   text-transform: none;
   font-weight: 650;
@@ -2952,9 +2993,9 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
-  color: color-mix(in srgb, var(--text) 88%, #fff 12%);
+  color: var(--dashboard-cc-hero-icon-color);
   position: relative;
-  border: 1px solid color-mix(in srgb, #fff 14%, transparent);
+  border: 1px solid var(--dashboard-cc-hero-icon-border);
 }
 .dashboard-cc__hero-icon--stacked {
   overflow: visible;
@@ -3022,6 +3063,119 @@
 }
 .dashboard-cc__hero-card.is-neutral {
   border-color: color-mix(in srgb, var(--border) 85%, transparent);
+}
+
+:root[data-theme='light'] .dashboard-panel {
+  border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 98%, var(--bg-elevated)) 0%,
+    color-mix(in srgb, var(--surface) 90%, var(--surface-2)) 100%
+  );
+  box-shadow: 0 8px 22px rgba(24, 24, 27, 0.06);
+}
+
+:root[data-theme='light'] .dashboard-cc {
+  --dashboard-cc-hero-card-bg: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--surface) 94%, var(--bg-elevated)) 0%,
+    color-mix(in srgb, var(--surface-2) 52%, var(--surface)) 100%
+  );
+  --dashboard-cc-hero-card-border: color-mix(in srgb, var(--border) 96%, transparent);
+  --dashboard-cc-hero-card-shadow: 0 6px 16px rgba(24, 24, 27, 0.08);
+  --dashboard-cc-hero-value-color: color-mix(in srgb, var(--text) 96%, #000 4%);
+  --dashboard-cc-hero-label-color: color-mix(in srgb, var(--text-muted) 86%, var(--text));
+  --dashboard-cc-hero-icon-border: color-mix(in srgb, var(--border) 88%, transparent);
+  --dashboard-cc-hero-icon-color: color-mix(in srgb, var(--text) 80%, var(--accent) 20%);
+  --dashboard-cc-group-bg: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--surface) 98%, var(--bg-elevated)) 0%,
+    color-mix(in srgb, var(--surface-2) 46%, var(--surface)) 100%
+  );
+  --dashboard-cc-group-border: color-mix(in srgb, var(--border) 94%, transparent);
+  --dashboard-cc-group-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 65%, transparent),
+    0 4px 14px rgba(24, 24, 27, 0.06);
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-group-title {
+  color: color-mix(in srgb, var(--text-muted) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card:hover {
+  box-shadow:
+    0 10px 20px rgba(24, 24, 27, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card.is-drilldown-active {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 10px 22px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+:root[data-theme='light'] .dashboard-cc__card {
+  border-color: color-mix(in srgb, var(--border) 94%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface) 98%, var(--bg-elevated)) 0%,
+    color-mix(in srgb, var(--surface) 90%, var(--surface-2)) 100%
+  );
+  box-shadow: 0 6px 14px rgba(24, 24, 27, 0.06);
+}
+
+:root[data-theme='light'] .dashboard-cc__kpi-detail-row,
+:root[data-theme='light'] .dashboard-proj-card,
+:root[data-theme='light'] .dashboard-event {
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg-elevated));
+}
+
+:root[data-theme='light'] .dashboard-proj-card__snapshot-item {
+  border-color: color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-2));
+}
+
+:root[data-theme='light'] .dashboard-proj-card__snapshot-item strong {
+  color: color-mix(in srgb, var(--text) 90%, var(--text-muted));
+}
+
+:root[data-theme='light'] .dashboard-proj-card__legacy-line {
+  color: color-mix(in srgb, var(--text) 92%, var(--text-muted));
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card.is-info {
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--info) 22%, var(--surface)) 0%,
+    color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 100%
+  );
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card.is-warning {
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--warning) 24%, var(--surface)) 0%,
+    color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 100%
+  );
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card.is-success {
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--success) 24%, var(--surface)) 0%,
+    color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 100%
+  );
+}
+
+:root[data-theme='light'] .dashboard-cc__hero-card.is-danger {
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--danger) 22%, var(--surface)) 0%,
+    color-mix(in srgb, var(--surface-2) 84%, var(--surface)) 100%
+  );
 }
 
 button.dashboard-cc__hero-card {

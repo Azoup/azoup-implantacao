@@ -40,20 +40,27 @@ async function hasEventForTaskOnDate(taskId: string, date: string): Promise<bool
   return events.some((e) => (e.startTime ?? '').slice(0, 10) === date)
 }
 
-async function createRescheduledCopy(task: DbTask, newDate: string, newTime: string): Promise<void> {
+async function createRescheduledCopy(task: DbTask, newDate: string, newTime: string): Promise<string> {
   const hhmm = /^\d{2}:\d{2}$/.test(newTime) ? newTime : '12:00'
   const siblings = await db.tasks.where('phaseId').equals(task.phaseId).toArray()
   const nextSort = siblings.reduce((m, x) => Math.max(m, x.sortOrder), 0) + 1
+  const newTaskId = uuid()
   await db.tasks.add({
     ...task,
-    id: uuid(),
+    id: newTaskId,
     status: 'pendente',
     actualHours: 0,
     dueDate: toIsoAt(newDate, hhmm),
     createdAt: new Date().toISOString(),
     sortOrder: nextSort,
     title: `${task.title} (reagendada)`,
+    completedAt: null,
+    cancelledAt: null,
+    cancellationReason: null,
+    rescheduledFromTaskId: task.id,
+    rescheduledToTaskId: null,
   })
+  return newTaskId
 }
 
 async function createRetroEventSafely(
@@ -195,7 +202,11 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
     if (!input.newDate) throw new Error('Informe a data de reagendamento.')
     const rescheduleTime =
       input.newTime && /^\d{2}:\d{2}$/.test(input.newTime) ? input.newTime : '12:00'
-    await createRescheduledCopy(task, input.newDate, rescheduleTime)
+    const newTaskId = await createRescheduledCopy(task, input.newDate, rescheduleTime)
+    await db.tasks.update(task.id, {
+      cancellationReason: 'client_no_show',
+      rescheduledToTaskId: newTaskId,
+    })
     await setTaskStatus(task.id, 'cancelado', input.actorUserId)
   }
 

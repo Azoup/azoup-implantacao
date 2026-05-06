@@ -32,6 +32,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  ShieldAlert,
   Sparkles,
   Tag,
   Trash2,
@@ -116,6 +117,11 @@ import {
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
+import {
+  deriveProjectFreshnessBySla,
+  projectFreshnessLabel,
+} from '../services/projectFreshness'
+import { registerProjectManualCheckin } from '../services/project'
 import type {
   DbComment,
   DbDocAttachment,
@@ -332,6 +338,15 @@ export function ProjectDetailPage() {
     }
     return m
   }, [taskCommentsOnly])
+  const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
+  const noShowCancelledCount = useMemo(
+    () => tasks.filter((task) => task.status === 'cancelado' && task.cancellationReason === 'client_no_show').length,
+    [tasks],
+  )
+  const followUpRescheduleCount = useMemo(
+    () => tasks.filter((task) => Boolean(task.rescheduledFromTaskId)).length,
+    [tasks],
+  )
 
   const labelsTabSections = useMemo(() => {
     if (!planBlueprint || !projectId) return []
@@ -434,6 +449,7 @@ export function ProjectDetailPage() {
 
   const proj: DbProject = project
   const projectCloudSyncMeta = getProjectCloudSyncMeta(proj.id)
+  const freshnessStatus = deriveProjectFreshnessBySla(proj).status
   const syncStatusLabel =
     projectCloudSyncMeta.state === 'synced'
       ? 'Nuvem sincronizada'
@@ -447,6 +463,19 @@ export function ProjectDetailPage() {
   const customBillableSumEst = isCustomPlan
     ? billableEstimatedSum(tasks.filter((t) => t.projectId === proj.id))
     : 0
+
+  async function onManualProjectCheckin() {
+    if (!canEditProjects) return
+    const ok = await requestConfirm({
+      title: 'Confirmar check-in manual',
+      message: `Registrar check-in manual de "${proj.projectName}" agora?`,
+      confirmLabel: 'Registrar',
+      cancelLabel: 'Cancelar',
+    })
+    if (!ok) return
+    await registerProjectManualCheckin(proj.id, me.id)
+    toast('Check-in manual registrado.')
+  }
 
   function mapTaskToPlanModal(t: DbTask): DbPlanTask {
     return {
@@ -839,6 +868,9 @@ export function ProjectDetailPage() {
             <span className={'pd-sync-pill is-' + projectCloudSyncMeta.state} title={syncStatusTitle}>
               {syncStatusLabel}
             </span>
+            <span className={'pd-sync-pill pd-sync-pill--freshness is-' + freshnessStatus}>
+              Frescor: {projectFreshnessLabel(freshnessStatus)}
+            </span>
             <span
               className={planPillClass(proj.planType)}
               title={`Contrato: ${formatDurationHmFromHours(proj.hoursContracted)}`}
@@ -902,6 +934,15 @@ export function ProjectDetailPage() {
           <button
             type="button"
             className="btn btn--ghost pd-action-btn"
+            onClick={() => void onManualProjectCheckin()}
+            disabled={!canEditProjects}
+          >
+            <ShieldAlert {...ic} aria-hidden />
+            Check-in
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost pd-action-btn"
             onClick={() => setEditOpen(true)}
             disabled={!canEditProjects}
           >
@@ -949,6 +990,12 @@ export function ProjectDetailPage() {
           <span className="pd-kpi__label">Saldo de horas</span>
           <span className="pd-kpi__value">{formatDurationHmFromHours(saldo)}</span>
         </div>
+        <div className={'pd-kpi pd-kpi--freshness is-' + freshnessStatus}>
+          <span className="pd-kpi__label">Último check-in manual</span>
+          <span className="pd-kpi__value">
+            {proj.lastManualCheckinAt ? formatDatePt(proj.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : 'Não registrado'}
+          </span>
+        </div>
         {isCustomPlan ? (
           <div className="pd-kpi">
             <span className="pd-kpi__label">Soma das previsões</span>
@@ -968,6 +1015,10 @@ export function ProjectDetailPage() {
           <span className="pd-kpi__phase">{activePhaseShort}</span>
         </div>
       </section>
+      <div className="pd-op-summary" aria-label="Sinais operacionais de agenda">
+        <span className="pd-op-summary__chip is-no-show">No-show: {noShowCancelledCount}</span>
+        <span className="pd-op-summary__chip is-rescheduled">Reagendadas: {followUpRescheduleCount}</span>
+      </div>
 
       <div className="pd-tabs" role="tablist" aria-label="Seções do projeto">
         <button
@@ -1199,6 +1250,8 @@ export function ProjectDetailPage() {
                           : null
                       const liveTimerHere = !informational && runningTimerSession?.taskId === t.id
                       const codeColors = planLabelColorsFromCode(t.code, phase.colorHex)
+                      const relatedSource = t.rescheduledFromTaskId ? taskById.get(t.rescheduledFromTaskId) : null
+                      const relatedTarget = t.rescheduledToTaskId ? taskById.get(t.rescheduledToTaskId) : null
                       return (
                         <article
                           key={t.id}
@@ -1218,6 +1271,25 @@ export function ProjectDetailPage() {
                             <div className="pd-task__lead">
                               <div className="pd-task__code-row">
                                 <span className="pd-task__code">{t.code}</span>
+                                {t.cancellationReason === 'client_no_show' ? (
+                                  <span className="pd-task__flow-badge is-no-show">No-show</span>
+                                ) : null}
+                                {t.rescheduledToTaskId ? (
+                                  <span
+                                    className="pd-task__flow-badge is-rebooked"
+                                    title={relatedTarget ? `Nova tentativa: ${relatedTarget.code}` : 'Nova tentativa criada'}
+                                  >
+                                    Reagendada
+                                  </span>
+                                ) : null}
+                                {t.rescheduledFromTaskId ? (
+                                  <span
+                                    className="pd-task__flow-badge is-follow-up"
+                                    title={relatedSource ? `Origem: ${relatedSource.code}` : 'Tarefa criada por reagendamento'}
+                                  >
+                                    Retomada
+                                  </span>
+                                ) : null}
                                 {informational ? (
                                   <span className="pd-task__info-badge">Informativa</span>
                                 ) : null}

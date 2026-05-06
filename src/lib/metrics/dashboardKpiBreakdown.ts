@@ -22,17 +22,29 @@ export type DashboardKpiBreakdown = {
 export function buildDashboardKpiBreakdown(params: {
   scopedProjects: DbProject[]
   kpiScopedProjects: DbProject[]
-  kpiScopedTasks: DbTask[]
+  /** Tarefas dos projetos que passam pelos filtros da consulta (recorte completo). */
+  scopedTasks: DbTask[]
   scopedEvents: DbEvent[]
   phases: DbPhase[]
   tasks: DbTask[]
   isInKpiRange: (iso: string | null | undefined) => boolean
+  /** `false` quando o KPI está em “Resumo” (total): não aplica janela temporal às conclusões. */
+  kpiHasTimeWindow: boolean
 }): DashboardKpiBreakdown {
-  const { scopedProjects, kpiScopedProjects, kpiScopedTasks, scopedEvents, phases, tasks, isInKpiRange } = params
+  const {
+    scopedProjects,
+    kpiScopedProjects,
+    scopedTasks,
+    scopedEvents,
+    phases,
+    tasks,
+    isInKpiRange,
+    kpiHasTimeWindow,
+  } = params
 
   const colOf = (p: DbProject) => deriveKanbanColumnFromPlanState(p, phases, tasks)
   const taskById = new Map(tasks.map((task) => [task.id, task]))
-  const kpiScopedTaskById = new Map(kpiScopedTasks.map((task) => [task.id, task]))
+  const kpiScopedTaskById = new Map(scopedTasks.map((task) => [task.id, task]))
   const projectsNew: DbProject[] = []
   const projectsOngoing: DbProject[] = []
   const projectsDone: DbProject[] = []
@@ -66,10 +78,15 @@ export function buildDashboardKpiBreakdown(params: {
     }
   }
 
-  for (const task of kpiScopedTasks) {
-    if (isInKpiRange(task.createdAt)) tasksNew.push(task)
-    if (task.status === 'pendente') tasksOngoing.push(task)
-    if (task.status === 'concluida') tasksDone.push(task)
+  for (const task of scopedTasks) {
+    if (isInKpiRange(task.createdAt)) {
+      tasksNew.push(task)
+    }
+    if (task.status === 'pendente' || task.status === 'em_andamento') tasksOngoing.push(task)
+    if (task.status === 'concluida') {
+      const inDoneWindow = !kpiHasTimeWindow || isInKpiRange(task.completedAt ?? null)
+      if (inDoneWindow) tasksDone.push(task)
+    }
     if (task.status === 'cancelado') cancelledTaskIds.add(task.id)
   }
 
@@ -84,7 +101,11 @@ export function buildDashboardKpiBreakdown(params: {
     if (ev.status === 'cancelado' && isInKpiRange(ev.endTime ?? ev.startTime)) cutoversCancelled.push(ev)
   }
 
-  const tasksCancelled = kpiScopedTasks.filter((t) => cancelledTaskIds.has(t.id))
+  const tasksCancelled = scopedTasks.filter((task) => {
+    if (!cancelledTaskIds.has(task.id)) return false
+    if (!kpiHasTimeWindow) return true
+    return isInKpiRange(task.cancelledAt ?? null)
+  })
 
   return {
     projectsNew,

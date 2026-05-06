@@ -15,6 +15,11 @@ Na pasta `sql/`, na ordem numérica até `008`:
 7. `007_seed_plan_phases_tasks.sql` — idempotente (`ON CONFLICT … DO UPDATE`)
 8. `008_analysts_profile_link.sql` — coluna `analysts.profile_id` e função `can_edit_project`
 
+Após o pipeline base, em bancos já em uso, aplique também conforme necessidade:
+
+- `009_tasks_is_ad_hoc.sql` — depois: `VITE_SYNC_TASK_IS_AD_HOC=1` no app.
+- `016_projects_manual_checkin.sql` — depois: `VITE_SYNC_PROJECT_MANUAL_CHECKIN=1` no app (senão check-in fica só no IndexedDB).
+
 ## Opcional / pontual / manutenção
 
 - `sql/optional/` — catálogo extra (Upsell), diagnósticos somente leitura.

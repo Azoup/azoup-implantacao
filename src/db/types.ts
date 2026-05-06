@@ -18,6 +18,7 @@ export type PermissionScope =
   | 'planModels.edit'
   | 'analysts.view'
   | 'analysts.edit'
+  | 'manuals.view'
   | 'portal.view'
   | 'portal.agenda.view'
   | 'portal.forms.fill'
@@ -40,6 +41,7 @@ export type PhaseStatus = 'bloqueada' | 'ativa' | 'concluida'
 
 export type TaskStatus = 'pendente' | 'em_andamento' | 'concluida' | 'cancelado'
 export type TaskPriority = 'baixa' | 'media' | 'alta'
+export type TaskCancellationReason = 'client_no_show' | 'client_cancelled' | 'internal_blocker' | 'other'
 
 export type EventStatus = 'agendado' | 'realizado' | 'cancelado'
 
@@ -228,6 +230,10 @@ export interface DbProject {
   planSnapshot: DbProjectPlanSnapshot
   /** Último `updated_at` do Postgres (migração opcional D_domain…); merge incremental / Realtime. */
   remoteUpdatedAt?: string | null
+  /** Último check-in manual registrado para o projeto. */
+  lastManualCheckinAt: string | null
+  /** Usuário que registrou o último check-in manual. */
+  lastManualCheckinBy: string | null
 }
 
 /** Catálogo: modelo de plano. `mode` omitido = catálogo (compatível com dados antigos). */
@@ -296,6 +302,16 @@ export interface DbTask {
   createdAt: string
   code: string
   sortOrder: number
+  /** Momento em que a tarefa passou a `concluida` (local; usado nos KPIs “Hoje/semana/mês”). */
+  completedAt?: string | null
+  /** Momento em que a tarefa passou a `cancelado`. */
+  cancelledAt?: string | null
+  /** Motivo de cancelamento (quando aplicável), usado para separar no-show de cancelamento definitivo. */
+  cancellationReason?: TaskCancellationReason | null
+  /** Id da tarefa original quando esta tarefa nasceu de reagendamento. */
+  rescheduledFromTaskId?: string | null
+  /** Id da nova tarefa criada a partir desta tarefa cancelada/reagendada. */
+  rescheduledToTaskId?: string | null
   /** Último `updated_at` do Postgres (migração opcional D_domain…). */
   remoteUpdatedAt?: string | null
 }

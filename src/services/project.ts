@@ -4,6 +4,7 @@ import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
   enqueuePendingProjectGraphSync,
+  updateProjectPartialInSupabase,
   upsertProjectGraphFromDexie,
   withDexieSupabaseSyncMuted,
 } from '../sync/supabaseDexieBridge'
@@ -118,6 +119,8 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
       phaseCount: 0,
       taskCount: 0,
     },
+    lastManualCheckinAt: null,
+    lastManualCheckinBy: null,
   }
 
   const build = async () => {
@@ -205,6 +208,8 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
       phaseCount: plan.phaseCount,
       taskCount: planTaskCount,
     },
+    lastManualCheckinAt: null,
+    lastManualCheckinBy: null,
   }
 
   const buildGraphInDexie = async () => {
@@ -269,4 +274,23 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
 
   await syncLabelsForProject(projectId)
   return projectId
+}
+
+export async function registerProjectManualCheckin(
+  projectId: string,
+  actorUserId: string,
+  atIso: string = new Date().toISOString(),
+): Promise<void> {
+  const patch: Partial<DbProject> = {
+    lastManualCheckinAt: atIso,
+    lastManualCheckinBy: actorUserId,
+  }
+  if (isSupabaseConfigured()) {
+    await withDexieSupabaseSyncMuted(async () => {
+      await updateProjectPartialInSupabase(projectId, patch)
+      await db.projects.update(projectId, patch)
+    })
+    return
+  }
+  await db.projects.update(projectId, patch)
 }

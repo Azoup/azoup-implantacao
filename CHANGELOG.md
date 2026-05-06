@@ -1,5 +1,133 @@
 # Changelog
 
+## v3.0.5 (2026-05-06)
+
+- Sidebar (colapsada): botão de tema simples (sol/lua) reposicionado para a base final do rodapé (abaixo do CTA), reduzindo ruído no topo e mantendo leitura rápida do estado.
+- Ajuste fino de espaçamento do ícone de tema no colapsado para um fechamento visual mais limpo.
+
+## v3.0.4 (2026-05-06)
+
+- Sidebar: no estado colapsado, o toggle de tema agora usa botão de ícone simples (sol/lua) reposicionado no fim da barra lateral, enquanto o switch visual completo permanece no estado expandido.
+
+## v3.0.3 (2026-05-06)
+
+- Login: removido o logo secundário sobreposto no bloco de marca para manter somente a marca principal e preservar alinhamento/margens do cabeçalho do card.
+
+## v3.0.2 (2026-05-06)
+
+- Sidebar: toggle de tema redesenhado com visual mais criativo e premium (trilho orbital, thumb com microbrilho e estados dark/light com identidade própria) mantendo legibilidade em tamanho compacto.
+- Tema: feedback de interação refinado no botão (hover/focus/active) com contraste melhor e microanimações discretas alinhadas ao branding Azoup.
+
+## v3.0.1 (2026-05-06)
+
+- Refino visual do branding no sidebar para um lockup mais premium: ajustes de alinhamento, margens e proporções entre orb Azoup, badge VynTask, tipografia e controles.
+- Consistência expandido/colapsado reforçada no header lateral, com melhor respiração no divisor e equilíbrio entre bloco de marca e toggle de tema.
+
+## v3.0.0 (2026-05-06)
+
+- Marco major da nova fase do produto com identidade **VynTask by Azoup**, consolidando rebranding visual, assinatura institucional e preparação para migração de repositório no GitHub.
+- Estrutura de versão reiniciada para ciclo de mudanças amplas planejadas (produto, marca e operação), mantendo compatibilidade operacional do app atual.
+
+## v2.10.30 (2026-05-06)
+
+- Rebranding visual (epic): cabeçalho agora usa o símbolo **bolinha laranja Azoup** como marca principal do lockup, com selo secundário do ícone VynTask para manter a assinatura do produto.
+- Sidebar e login receberam composição de marca reforçada (`VynTask by AZOUP`) com hierarquia mais forte para Azoup, mantendo `VynTask` como nome principal.
+- Refino visual de proporção/hierarquia: lockup ampliado, integração melhor entre orb Azoup e badge VynTask, endorsement mais limpo e hover mais sóbrio para sensação premium.
+- Metadados/versionamento atualizados para refletir o novo lockup.
+
+## v2.10.29 (2026-05-06)
+
+- Branding: co-brand oficial aplicado para **VynTask by Azoup**, preservando `VynTask` como marca principal e adicionando assinatura visual `by Azoup` em áreas-chave (sidebar e login).
+- Identidade visual: lockup textual com separador (`VynTask • by Azoup`) e inclusão do logotipo laranja da Azoup no card de autenticação para reforço institucional sem poluir a leitura operacional.
+- Metadados: título base da aplicação atualizado para `VynTask by Azoup`.
+
+## v2.10.28 (2026-05-06)
+
+- Atendimento de no-show: ao registrar ausência com reagendamento, a tarefa original agora salva `cancellationReason=client_no_show` e vínculo explícito com a nova tarefa (`rescheduledToTaskId` / `rescheduledFromTaskId`) para rastreabilidade operacional.
+- Dashboard (tarefas): KPI de canceladas mantém o comportamento operacional e segue contabilizando o cancelamento por no-show mesmo quando houver reagendamento, com leitura visual reforçada no detalhe do projeto.
+- Tarefas (lista): novos badges visuais **No-show** e **Reagendada** para identificação rápida; sync opcional com Supabase via `VITE_SYNC_TASK_NO_SHOW_FIELDS` + script `supabase/sql/018_tasks_no_show_fields.sql`.
+
+## v2.10.27 (2026-05-06)
+
+- Dashboard (KPIs de tarefas): correção de contagem para refletir operação real — **concluídas** seguem `completedAt` por janela, **canceladas** passam a usar `cancelledAt` no recorte temporal e **agendadas** passam a considerar tarefas ativas (`pendente` + `em_andamento`) no escopo.
+- Sync Supabase de tarefas: payload agora envia `completed_at` e `cancelled_at`, evitando perda de timestamp após refresh/sincronização e mantendo consistência do KPI “Hoje”.
+- Supabase SQL: novo script `supabase/sql/017_tasks_status_timestamps.sql` adiciona colunas/índices em `tasks` para suportar as métricas temporais com integridade.
+
+## v2.10.26 (2026-05-05)
+
+- Cadastro/edição de projeto: texto de ajuda em **Data de início do projeto** esclarece que o valor é o início operacional (ex.: primeiro contato), não a data de criação do registro no app; indica correção posterior em **Projeto → Editar**.
+
+## v2.10.25 (2026-05-05)
+
+- **Dashboard (KPIs Hoje / semana / mês):** “Tarefas concluídas” passa a usar a **data de conclusão** (`completedAt`), não a data de criação da tarefa — tarefas informativas (e demais) concluídas no período entram no contador. Persistência local em Dexie + preenchimento retroativo a partir de **logs de auditoria** quando existir “para concluida”. Ajustes em `setTaskStatus`, movimentos de kanban em lote e ordenação do detalhe “concluídas” por data de conclusão.
+
+## v2.10.24 (2026-05-05)
+
+- Manuais: imagens do manual WooCommerce com **ampliar ao clicar** (lightbox em portal, fundo escuro, legenda, fechar por botão X, clique fora ou **Escape**); selo **Ampliar** com ícone de lupa no hover.
+
+## v2.10.23 (2026-05-05)
+
+- Supabase: novo script `supabase/sql/016_projects_manual_checkin.sql` (`last_manual_checkin_at`, `last_manual_checkin_by` em `projects`) + documentação em `README_RUN_ORDER`, `supabase/README.md`, `.env.example` e `VITE_SYNC_PROJECT_MANUAL_CHECKIN` em `vite-env.d.ts`.
+
+## v2.10.22 (2026-05-05)
+
+- **Manuais**: busca por título, descrição e `keywords` no catálogo; toolbar com contador de resultados e limpar busca.
+- Manual WooCommerce: **sumário** (atalhos âncora), pré-requisitos/fluxo em **cartões**, três **fases numeradas** com subpassos em lista estilizada; painéis finais em duas colunas no desktop; tipografia do leitor mais confortável (`1.0625rem` / `1.68`).
+- Utilitário `manualMatchesQuery` + testes em `manualsSearch.test.ts`.
+
+## v2.10.21 (2026-05-05)
+
+- Imagens do manual WooCommerce: fonte em `docs/manuais/prints/` (`woocommerce1.png`, `woocommerce2.png`) com cópia para `public/manuals/woocommerce/`; `copiar-prints.ps1` ganha `-FromDocs` para sincronizar. Texto do manual atualizado com esse fluxo.
+
+## v2.10.20 (2026-05-05)
+
+- Manual **WooCommerce** reclassificado como **`audience: internal`** (somente equipe Azoup); texto reforça que não é material para cliente final.
+- Portal: removido `manuals.view` dos escopos padrão de usuários **cliente** (mantém-se apenas se concedido explicitamente no perfil).
+- Página **Manuais**: cabeçalho com faixa e ícone, **segmented control** para abas, índice com selo “Interno”, leitor com faixa de meta + badge **Uso interno** / **Cliente**, corpo com largura máxima para leitura; abas **Interno/Clientes** só aparecem quando existir manual nas duas categorias.
+
+## v2.10.19 (2026-05-05)
+
+- Manual WooCommerce: texto alinhado aos **prints reais** (caminho 1–5 no WordPress, abas ZPFGerencial, checkboxes e F2 Gravar), nota sobre **recorte** de banners e **mascaramento** de chaves, `ManualFigure` com fallback se PNG ausente, script `public/manuals/woocommerce/copiar-prints.ps1` para substituir imagens localmente.
+
+## v2.10.18 (2026-05-05)
+
+- Manual **WooCommerce + Azoup** reestruturado: fluxo em 3 etapas, texto enxuto, duas figuras de referência (`public/manuals/woocommerce/`) com legendas, blocos de segurança e troubleshooting; estilos de figura e disclaimer no leitor de manuais.
+
+## v2.10.17 (2026-05-05)
+
+- **Manuais** visível e rota `/manuais` acessível para o time interno que já tem **Projetos** (`projects.view`), além de quem tem `manuals.view` — evita menu vazio quando o perfil no Supabase tem lista explícita de permissões sem o novo escopo.
+
+## v2.10.16 (2026-05-05)
+
+- Nova área **Manuais** (`/manuais`) no menu lateral, com abas **Interno — Azoup** e **Clientes**; usuários portal recebem o escopo `manuals.view` por padrão para acessar materiais voltados ao cliente.
+- Primeiro manual publicado: **Configuração da integração e-commerce (WooCommerce)** — geração de chaves REST API no WordPress e cadastro no ERP Azoup (URL `wc/v2`, Consumer Key/Secret, parâmetros e sincronização).
+
+## v2.10.15 (2026-05-05)
+
+- Check-in manual de projetos consolidado com fonte única em `DbProject` (`lastManualCheckinAt`/`lastManualCheckinBy`), removendo dependência de `localStorage` para evitar divergência entre telas e dispositivos.
+- Regras de frescor alinhadas ao plano operacional (`Neutro`, `Em dia`, `Atenção`, `Atrasado`, `Crítico`) com thresholds 80/100/200 do SLA e uso unificado em `Projetos`, `Detalhe do projeto` e cards de projetos no `Dashboard`.
+- Entrega de plano único consolidado em `docs/plano-entrega-vyntask-integrado.md` para execução integrada de produto/arquitetura/UX/frontend/backend/QA.
+
+## v2.10.14 (2026-05-05)
+
+- MVP de check-in manual de projetos com ação de 1 clique (com confirmação) na lista de projetos e no detalhe do projeto, mantendo baixo risco com persistência local.
+- Inclusão de "último check-in manual" e status de frescor (`Neutro`, `Em dia`, `Atenção`, `Atrasado`, `Crítico`) em áreas principais: cards da lista, KPIs do detalhe e cards de projetos em andamento no Dashboard.
+- Novo aviso de pendências via modal simples na lista de projetos, com foco em projetos sem check-in recente (neutro/atrasado/crítico) para priorização rápida.
+
+## v2.10.13 (2026-05-05)
+
+- Criado plano unico e executavel de entrega integrada em `docs/plano-entrega-vyntask-integrado.md`, consolidando backlog priorizado, sequencia de execucao, criterios de aceite e rollout.
+- Estruturacao orientada a operacao real de implantacao, com gates por fase, estrategia de rollback e responsabilidades cross-funcionais (Produto, Arquitetura, UX, Frontend, Backend e QA).
+- Camada de dados de projeto ampliada com `lastManualCheckinAt` e `lastManualCheckinBy`, incluindo migração Dexie (`v16`) com backfill seguro para `null`.
+- Novo serviço reutilizável de frescor por SLA (`src/services/projectFreshness.ts`) com padrão semanal e classificação 80/100/200 (`saudavel`, `atencao`, `vencido`, `critico`).
+- Novo serviço de check-in manual (`registerProjectManualCheckin`) integrado ao fluxo local-first e com sync Supabase protegido por feature flag `VITE_SYNC_PROJECT_MANUAL_CHECKIN` para não quebrar ambientes sem colunas remotas.
+
+## v2.10.12 (2026-05-05)
+
+- Dashboard (light mode): reforço de contraste e hierarquia visual nos cards de KPI, painéis e blocos de consulta, com fundo/borda/sombra mais legíveis sem alterar estrutura funcional.
+- Dashboard (light mode): melhoria da separação visual entre seções e cards de resumo/projetos/agenda, incluindo ajustes de tipografia secundária para leitura mais clara.
+- Preservação explícita do dark mode por meio de overrides direcionados a `:root[data-theme='light']` e uso prioritário de tokens (`--surface`, `--text`, `--border`, `--accent`, etc.).
+
 ## v2.10.11 (2026-05-05)
 
 - Dashboard: removido o rótulo textual de janela no topo (ex.: `Janela ...`) para deixar o cabeçalho mais limpo e direto.

@@ -285,6 +285,29 @@
 .page--tarefas .task-toolbar {
   margin-bottom: 1rem;
 }
+.task-op-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.45rem;
+  padding: 0.1rem 0.38rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.task-op-badge.is-no-show {
+  color: color-mix(in srgb, var(--warning) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+.task-op-badge.is-rescheduled {
+  color: color-mix(in srgb, var(--info) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
+  background: color-mix(in srgb, var(--info) 12%, var(--surface));
+}
 
 .task-prazo-hint,
 .task-fase-hint {
@@ -615,6 +638,27 @@
   border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
   background: color-mix(in srgb, var(--danger) 10%, var(--surface));
 }
+.pd-sync-pill--freshness.is-neutro {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-2) 72%, var(--surface));
+}
+.pd-sync-pill--freshness.is-em_dia {
+  color: color-mix(in srgb, var(--success) 84%, var(--text));
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+.pd-sync-pill--freshness.is-atencao {
+  color: color-mix(in srgb, var(--warning) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+.pd-sync-pill--freshness.is-atrasado,
+.pd-sync-pill--freshness.is-critico {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
+  background: color-mix(in srgb, var(--danger) 11%, var(--surface));
+}
 .pd-sync-dot.is-synced {
   background: var(--success);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--success) 42%, var(--border));
@@ -798,6 +842,45 @@
   font-weight: 700;
   line-height: 1.35;
   color: var(--text);
+}
+
+.pd-op-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: -0.7rem 0 1rem;
+}
+.pd-op-summary__chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.pd-op-summary__chip.is-no-show {
+  color: color-mix(in srgb, var(--warning) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
+}
+.pd-op-summary__chip.is-rescheduled {
+  color: color-mix(in srgb, var(--info) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--info) 35%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+.pd-kpi--freshness.is-neutro {
+  border-color: var(--border);
+}
+.pd-kpi--freshness.is-em_dia {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+}
+.pd-kpi--freshness.is-atencao {
+  border-color: color-mix(in srgb, var(--warning) 34%, var(--border));
+}
+.pd-kpi--freshness.is-atrasado,
+.pd-kpi--freshness.is-critico {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border));
 }
 
 .pd-tabs {
@@ -1797,6 +1880,33 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+}
+.pd-task__flow-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.38rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.pd-task__flow-badge.is-no-show {
+  color: color-mix(in srgb, var(--warning) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 36%, var(--border));
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+.pd-task__flow-badge.is-rebooked {
+  color: color-mix(in srgb, var(--danger) 90%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 34%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.pd-task__flow-badge.is-follow-up {
+  color: color-mix(in srgb, var(--info) 92%, var(--text));
+  border-color: color-mix(in srgb, var(--info) 36%, var(--border));
+  background: color-mix(in srgb, var(--info) 10%, var(--surface));
 }
 
 .pd-task__code {

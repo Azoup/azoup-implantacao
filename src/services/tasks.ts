@@ -1,5 +1,6 @@
 import { db } from '../db/database'
 import type { TaskStatus } from '../db/types'
+import { taskStatusDexiePatch } from '../lib/taskStatusDexie'
 import { syncLabelsForProject } from './labels'
 import { syncProjectKanbanFromPlanState } from './kanbanPhaseSync'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
@@ -22,7 +23,9 @@ export async function setTaskStatus(taskId: string, next: TaskStatus, actorUserI
   const project = await db.projects.get(task.projectId)
   if (!project) return
 
-  await db.tasks.update(taskId, { status: next })
+  const nowIso = new Date().toISOString()
+  const patch = prevStatus === next ? { status: next } : taskStatusDexiePatch(prevStatus, next, nowIso)
+  await db.tasks.update(taskId, patch)
   if (actorUserId && prevStatus !== next) {
     const actor = await getUserForAudit(actorUserId)
     await writeAuditLog({

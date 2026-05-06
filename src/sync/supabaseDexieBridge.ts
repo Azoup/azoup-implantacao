@@ -310,6 +310,11 @@ function toPgDateOnly(isoOrYmd: string | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
 }
 
+function shouldSyncProjectManualCheckinToSupabase(): boolean {
+  const v = import.meta.env.VITE_SYNC_PROJECT_MANUAL_CHECKIN
+  return v === '1' || v === 'true'
+}
+
 /** Um pouco acima do abort do `fetch` global (`supabaseClient`) para o erro vir como Abort/rede, não só “race”. */
 const PROJECT_WRITE_TIMEOUT_MS = 58_000
 const PROJECT_SYNC_RETRY_DELAY_MS = 500
@@ -572,6 +577,10 @@ function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<str
   if (Object.prototype.hasOwnProperty.call(patch, 'planSnapshot')) {
     o.plan_snapshot = patch.planSnapshot
   }
+  if (shouldSyncProjectManualCheckinToSupabase()) {
+    set('lastManualCheckinAt', 'last_manual_checkin_at', patch.lastManualCheckinAt)
+    set('lastManualCheckinBy', 'last_manual_checkin_by', patch.lastManualCheckinBy)
+  }
   return o
 }
 
@@ -633,6 +642,12 @@ export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
     modules_description: v.modulesDescription,
     plan_snapshot_captured_at: v.planSnapshotCapturedAt,
     plan_snapshot: v.planSnapshot,
+    ...(shouldSyncProjectManualCheckinToSupabase()
+      ? {
+          last_manual_checkin_at: v.lastManualCheckinAt,
+          last_manual_checkin_by: v.lastManualCheckinBy,
+        }
+      : {}),
   }
 }
 
@@ -649,6 +664,11 @@ export function dbPhaseToSupabaseRow(v: DbPhase): Record<string, unknown> {
 
 function shouldSyncTaskIsAdHocToSupabase(): boolean {
   const v = import.meta.env.VITE_SYNC_TASK_IS_AD_HOC
+  return v === '1' || v === 'true'
+}
+
+function shouldSyncTaskNoShowFieldsToSupabase(): boolean {
+  const v = import.meta.env.VITE_SYNC_TASK_NO_SHOW_FIELDS
   return v === '1' || v === 'true'
 }
 
@@ -669,6 +689,13 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
     created_at: v.createdAt,
     code: v.code,
     sort_order: v.sortOrder,
+    completed_at: v.completedAt ?? null,
+    cancelled_at: v.cancelledAt ?? null,
+  }
+  if (shouldSyncTaskNoShowFieldsToSupabase()) {
+    row.cancel_reason = v.cancellationReason ?? null
+    row.rescheduled_from_task_id = v.rescheduledFromTaskId ?? null
+    row.rescheduled_to_task_id = v.rescheduledToTaskId ?? null
   }
   /**
    * Coluna `is_ad_hoc` só existe após `009_tasks_is_ad_hoc.sql`. Enviar sem a coluna quebra o upsert (PGRST).
@@ -1012,6 +1039,8 @@ const defs: BridgeDef<unknown>[] = [
           taskCount: 0,
         } as DbProject['planSnapshot']),
       remoteUpdatedAt: toStringOrNull(r.updated_at),
+      lastManualCheckinAt: toStringOrNull((r as { last_manual_checkin_at?: unknown }).last_manual_checkin_at),
+      lastManualCheckinBy: toStringOrNull((r as { last_manual_checkin_by?: unknown }).last_manual_checkin_by),
     }),
     toRemote: (x) => dbProjectToSupabaseRow(x as DbProject),
   },
@@ -1067,6 +1096,13 @@ const defs: BridgeDef<unknown>[] = [
       createdAt: String(r.created_at ?? new Date().toISOString()),
       code: String(r.code ?? ''),
       sortOrder: toNumber(r.sort_order),
+      completedAt: toStringOrNull((r as { completed_at?: unknown }).completed_at),
+      cancelledAt: toStringOrNull((r as { cancelled_at?: unknown }).cancelled_at),
+      cancellationReason: toStringOrNull((r as { cancel_reason?: unknown }).cancel_reason) as DbTask['cancellationReason'],
+      rescheduledFromTaskId: toStringOrNull(
+        (r as { rescheduled_from_task_id?: unknown }).rescheduled_from_task_id,
+      ),
+      rescheduledToTaskId: toStringOrNull((r as { rescheduled_to_task_id?: unknown }).rescheduled_to_task_id),
       remoteUpdatedAt: toStringOrNull(r.updated_at),
     }),
     toRemote: (x) => dbTaskToSupabaseRow(x as DbTask),

@@ -12,6 +12,7 @@ import {
   planOrderIndexToKanbanColumn,
   targetPhaseArrayIndex,
 } from '../lib/planPhaseKanban'
+import { taskStatusDexiePatch } from '../lib/taskStatusDexie'
 import { normalizeProjectPlacement } from './projectGovernance'
 import { syncLabelsForProject } from './labels'
 
@@ -128,13 +129,15 @@ export async function applyManualKanbanColumnMove(
   }
 
   if (to === 'finalizados') {
+    const nowIso = new Date().toISOString()
     await db.transaction('rw', db.projects, db.phases, db.tasks, async () => {
       for (const ph of phases) {
         await db.phases.update(ph.id, { status: 'concluida' })
       }
       for (const t of tasks) {
         if (t.status === 'cancelado') continue
-        await db.tasks.update(t.id, { status: 'concluida' })
+        if (t.status === 'concluida') continue
+        await db.tasks.update(t.id, taskStatusDexiePatch(t.status, 'concluida', nowIso))
       }
       const cur = await db.projects.get(projectId)
       if (!cur) return
@@ -160,9 +163,11 @@ export async function applyManualKanbanColumnMove(
         const st: PhaseStatus = i === 0 ? 'ativa' : 'bloqueada'
         await db.phases.update(sorted[i].id, { status: st })
       }
+      const nowIso = new Date().toISOString()
       for (const t of tasks) {
         if (t.status === 'cancelado') continue
-        await db.tasks.update(t.id, { status: 'pendente' })
+        if (t.status === 'pendente') continue
+        await db.tasks.update(t.id, taskStatusDexiePatch(t.status, 'pendente', nowIso))
       }
     } else {
       const K = targetPhaseArrayIndex(sorted, targetPlanOrder!)
@@ -174,10 +179,14 @@ export async function applyManualKanbanColumnMove(
         else st = 'bloqueada'
         await db.phases.update(ph.id, { status: st })
         const pts = tasks.filter((x) => x.phaseId === ph.id)
+        const nowIso = new Date().toISOString()
         for (const t of pts) {
           if (t.status === 'cancelado') continue
-          if (i < K) await db.tasks.update(t.id, { status: 'concluida' })
-          else await db.tasks.update(t.id, { status: 'pendente' })
+          if (i < K) {
+            if (t.status !== 'concluida') await db.tasks.update(t.id, taskStatusDexiePatch(t.status, 'concluida', nowIso))
+          } else if (t.status !== 'pendente') {
+            await db.tasks.update(t.id, taskStatusDexiePatch(t.status, 'pendente', nowIso))
+          }
         }
       }
     }

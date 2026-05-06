@@ -68,6 +68,7 @@ import {
 import { compareTaskCode } from '../lib/taskCode'
 import { DashboardKpiDrilldownBanner } from '../components/dashboard/DashboardKpiDrilldownBanner'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
+import { deriveProjectFreshnessBySla, projectFreshnessLabel } from '../services/projectFreshness'
 
 type DashboardProjectSort = { key: 'name' | 'startDate'; direction: 'asc' | 'desc' }
 type AgendaTaskOutcome = 'keep' | 'pendente' | 'em_andamento' | 'concluida'
@@ -95,6 +96,9 @@ type OngoingProjectCardData = {
   doneTaskCount: number
   totalTaskCount: number
   startDateLabel: string
+  freshnessLabel: string
+  freshnessStatus: ReturnType<typeof deriveProjectFreshnessBySla>['status']
+  lastCheckinLabel: string
 }
 
 function toDateInputFromIso(iso: string): string {
@@ -265,23 +269,21 @@ export function DashboardPage() {
     [metrics.scopedProjects, isInKpiRange],
   )
 
-  const kpiScopedTasks = useMemo(
-    () => scopedTasks.filter((task) => isInKpiRange(task.createdAt)),
-    [scopedTasks, isInKpiRange],
-  )
+  const kpiHasTimeWindow = kpiRange !== null
 
   const kpiBreakdown = useMemo(
     () =>
       buildDashboardKpiBreakdown({
         scopedProjects: metrics.scopedProjects,
         kpiScopedProjects,
-        kpiScopedTasks,
+        scopedTasks,
         scopedEvents,
         phases,
         tasks,
         isInKpiRange,
+        kpiHasTimeWindow,
       }),
-    [metrics.scopedProjects, kpiScopedProjects, kpiScopedTasks, scopedEvents, phases, tasks, isInKpiRange],
+    [metrics.scopedProjects, kpiScopedProjects, scopedTasks, scopedEvents, phases, tasks, isInKpiRange, kpiHasTimeWindow],
   )
   const kpiCards = useMemo(
     () => ({
@@ -331,6 +333,13 @@ export function DashboardPage() {
     if (kpiDrilldown.startsWith('tasks')) {
       if (kpiDrilldown === 'tasks_new') {
         return [...(raw as DbTask[])].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      }
+      if (kpiDrilldown === 'tasks_done') {
+        return [...(raw as DbTask[])].sort(
+          (a, b) =>
+            new Date(b.completedAt ?? b.createdAt).getTime() - new Date(a.completedAt ?? a.createdAt).getTime() ||
+            compareTaskCode(a.code, b.code),
+        )
       }
       return [...(raw as DbTask[])].sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
     }
@@ -482,6 +491,7 @@ export function DashboardPage() {
           const phase = Number.isFinite(major) && major >= 0 ? projectPhases[major] : null
           return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
         }
+        const freshnessStatus = deriveProjectFreshnessBySla(project).status
 
         return {
           id: project.id,
@@ -505,6 +515,9 @@ export function DashboardPage() {
           doneTaskCount,
           totalTaskCount: projectTasks.length,
           startDateLabel: formatDatePt(project.startDate ?? project.createdAt),
+          freshnessLabel: projectFreshnessLabel(freshnessStatus),
+          freshnessStatus,
+          lastCheckinLabel: project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM HH:mm') : '—',
         }
       })
   }, [analysts, events, metrics.scopedProjects, phases, tasks])
@@ -788,6 +801,15 @@ export function DashboardPage() {
             <span className="dashboard-proj-card__phase">Início do projeto: {project.startDateLabel}</span>
           </div>
         ) : null}
+        <div className="dashboard-proj-card__meta">
+          <span className={'proj-card__badge proj-card__badge--freshness is-' + project.freshnessStatus}>
+            {project.freshnessLabel}
+          </span>
+          <span className="dashboard-proj-card__dot" aria-hidden>
+            ·
+          </span>
+          <span className="dashboard-proj-card__phase">Check-in: {project.lastCheckinLabel}</span>
+        </div>
       </article>
     )
   }

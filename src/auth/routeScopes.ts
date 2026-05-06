@@ -14,6 +14,7 @@ export const ROUTE_SCOPE_MAP: Record<string, PermissionScope> = {
   '/configuracoes': 'settings.view',
   '/modelos-planos': 'planModels.view',
   '/analistas': 'analysts.view',
+  '/manuais': 'manuals.view',
   '/portal': 'portal.view',
   '/portal/projetos/:projectId': 'portal.view',
   '/portal/agenda': 'portal.agenda.view',

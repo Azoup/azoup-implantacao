@@ -24,6 +24,12 @@ type TarefaTab = 'lista' | 'prazo' | 'fase'
 
 const tabIcon = { size: 18, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
 
+function taskOperationalBadge(task: { cancellationReason?: string | null; rescheduledFromTaskId?: string | null }) {
+  if (task.cancellationReason === 'client_no_show') return { label: 'No-show', className: 'is-no-show' }
+  if (task.rescheduledFromTaskId) return { label: 'Reagendada', className: 'is-rescheduled' }
+  return null
+}
+
 export function TarefasPage() {
   const { user } = useAuth()
   const canEditTasks = hasScope(user, 'tasks.edit')
@@ -175,6 +181,7 @@ export function TarefasPage() {
             <tbody>
               {filteredTasks.map((t) => {
                 const proj = projects.find((p) => p.id === t.projectId)
+                const opBadge = taskOperationalBadge(t)
                 return (
                   <tr key={t.id}>
                     <td>
@@ -182,6 +189,11 @@ export function TarefasPage() {
                         <strong>
                           {t.code} {t.title}
                         </strong>
+                        {opBadge ? (
+                          <span className={`task-op-badge ${opBadge.className}`} title={`Sinal operacional: ${opBadge.label}`}>
+                            {opBadge.label}
+                          </span>
+                        ) : null}
                         {t.description ? <div className="muted cell-sub">{t.description}</div> : null}
                       </div>
                     </td>

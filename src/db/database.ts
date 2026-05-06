@@ -424,6 +424,111 @@ export class VyntaskDB extends Dexie {
           if (row.isAdHoc === undefined) row.isAdHoc = false
         })
       })
+    this.version(16)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo',
+        events: 'id, startTime, analystId, projectId, taskId',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.lastManualCheckinAt === undefined) row.lastManualCheckinAt = null
+          if (row.lastManualCheckinBy === undefined) row.lastManualCheckinBy = null
+        })
+      })
+    this.version(17)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo',
+        events: 'id, startTime, analystId, projectId, taskId',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('tasks').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.completedAt === undefined) row.completedAt = null
+          if (row.cancelledAt === undefined) row.cancelledAt = null
+        })
+        const logs = (await tx.table('auditLogs').toArray()) as {
+          entity?: string
+          entityId?: string | null
+          details?: string
+          createdAt?: string
+        }[]
+        const completionByTask = new Map<string, string>()
+        const cancelByTask = new Map<string, string>()
+        for (const log of logs) {
+          if (log.entity !== 'tarefa' || !log.entityId || !log.details || !log.createdAt) continue
+          if (log.details.includes(' para concluida')) {
+            const prev = completionByTask.get(log.entityId)
+            if (!prev || log.createdAt > prev) completionByTask.set(log.entityId, log.createdAt)
+          }
+          if (log.details.includes(' para cancelado')) {
+            const prev = cancelByTask.get(log.entityId)
+            if (!prev || log.createdAt > prev) cancelByTask.set(log.entityId, log.createdAt)
+          }
+        }
+        await tx.table('tasks').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.status === 'concluida' && !row.completedAt) {
+            const fromAudit = completionByTask.get(String(row.id ?? ''))
+            if (fromAudit) row.completedAt = fromAudit
+          }
+          if (row.status === 'cancelado' && !row.cancelledAt) {
+            const fromAudit = cancelByTask.get(String(row.id ?? ''))
+            if (fromAudit) row.cancelledAt = fromAudit
+          }
+        })
+      })
+    this.version(18)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason',
+        events: 'id, startTime, analystId, projectId, taskId',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('tasks').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.cancellationReason === undefined) row.cancellationReason = null
+          if (row.rescheduledFromTaskId === undefined) row.rescheduledFromTaskId = null
+          if (row.rescheduledToTaskId === undefined) row.rescheduledToTaskId = null
+        })
+      })
   }
 }
 

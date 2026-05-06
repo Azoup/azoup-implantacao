@@ -204,8 +204,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
+  width: 62px;
+  height: 62px;
   border-radius: 14px;
   background: linear-gradient(
     165deg,
@@ -217,6 +217,23 @@
     0 1px 0 color-mix(in srgb, #fff 18%, transparent) inset,
     0 8px 20px color-mix(in srgb, var(--accent) 14%, transparent);
   transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+  position: relative;
+  overflow: visible;
+}
+.auth__brand-orb {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 36%, transparent));
+}
+.auth__brand-v-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent) 12%);
+  display: grid;
+  place-items: center;
 }
 .auth__brand:hover .auth__brand-mark {
   transform: scale(1.06) rotate(-2deg);
@@ -233,8 +250,30 @@
 .auth__title-accent {
   color: var(--accent);
 }
+.auth__title-endorse-prefix {
+  margin-left: 0.33rem;
+  margin-right: 0.24rem;
+  font-family: var(--font-sans);
+  font-size: 0.58em;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+  color: color-mix(in srgb, var(--text-muted) 82%, transparent);
+}
+.auth__title-endorse {
+  font-family: var(--font-sans);
+  font-size: 0.62em;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
+}
 .auth__brand:hover .auth__title {
   letter-spacing: 0.02em;
+}
+.auth__endorse-logo {
+  margin-top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.92;
 }
 .auth__subtitle {
   margin: 0.35rem 0 0;

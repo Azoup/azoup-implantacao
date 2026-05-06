@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
-import { ArrowDownAZ, CalendarDays, ChevronDown, ChevronUp, Clock, Pencil, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowDownAZ,
+  CalendarDays,
+  CheckCheck,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { db } from '../db/database'
 import {
@@ -41,11 +55,14 @@ import {
   getProjectCloudSyncMeta,
   getPendingProjectGraphSyncIds,
 } from '../sync/supabaseDexieBridge'
+import { registerProjectManualCheckin } from '../services/project'
+import { deriveProjectFreshnessBySla, projectFreshnessLabel } from '../services/projectFreshness'
+import { formatDatePt } from '../lib/dates'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
 export function ProjectsPage() {
-  const { toast, toastError } = useUiFeedback()
+  const { toast, toastError, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const location = useLocation()
   const openedRef = useRef(false)
@@ -67,6 +84,8 @@ export function ProjectsPage() {
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [syncRefreshing, setSyncRefreshing] = useState<Record<string, boolean>>({})
   const [_syncTick, setSyncTick] = useState(0)
+  const [_checkinTick, setCheckinTick] = useState(0)
+  const [pendingModalOpen, setPendingModalOpen] = useState(false)
 
   useRegisterUnsavedChanges({
     enabled: open,
@@ -107,6 +126,26 @@ export function ProjectsPage() {
   }, [])
 
   const pendingIds = new Set(getPendingProjectGraphSyncIds())
+  const pendingFreshnessProjects = useMemo(() => {
+    return visibleProjects.filter((project) => {
+      const status = deriveProjectFreshnessBySla(project).status
+      return status === 'atrasado' || status === 'critico' || status === 'neutro'
+    })
+  }, [visibleProjects])
+
+  async function onManualCheckin(projectId: string, projectName: string) {
+    if (!canEditProjects || !user) return
+    const ok = await requestConfirm({
+      title: 'Confirmar check-in manual',
+      message: `Registrar check-in manual para "${projectName}" agora?`,
+      confirmLabel: 'Registrar',
+      cancelLabel: 'Cancelar',
+    })
+    if (!ok) return
+    await registerProjectManualCheckin(projectId, user.id)
+    setCheckinTick((n) => n + 1)
+    toast('Check-in manual registrado.')
+  }
 
   async function onDelete(id: string) {
     if (!user) return
@@ -295,6 +334,15 @@ export function ProjectsPage() {
             </button>
           ) : null}
         </label>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm projects-page__pending-btn"
+          onClick={() => setPendingModalOpen(true)}
+          title="Ver pendências por status de frescor"
+        >
+          <AlertTriangle size={14} strokeWidth={2} />
+          Pendências ({pendingFreshnessProjects.length})
+        </button>
       </div>
 
       {visibleProjects.length === 0 ? (
@@ -355,6 +403,7 @@ export function ProjectsPage() {
                 ? 'Salvo localmente; sincronizando com a nuvem'
                 : 'Falha na sincronização; nova tentativa na fila'
           const syncStatusTitle = syncMeta.lastErrorCode ?? syncStatusLabel
+          const freshness = deriveProjectFreshnessBySla(p).status
 
           const resolveCodeColor = (code: string): string | null => {
             const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
@@ -406,6 +455,9 @@ export function ProjectsPage() {
                     aria-label={`Status de sincronização: ${syncStatusLabel}`}
                     title={syncStatusTitle}
                   />
+                  <span className={'proj-card__badge proj-card__badge--freshness is-' + freshness}>
+                    {projectFreshnessLabel(freshness)}
+                  </span>
                 </div>
               </div>
 
@@ -439,6 +491,10 @@ export function ProjectsPage() {
                   <span>
                     {formatDurationHFromHours(p.hoursUsed)} / {formatDurationHFromHours(p.hoursContracted)}
                   </span>
+                </div>
+                <div className="proj-card__meta-item proj-card__meta-item--checkin">
+                  <CheckCheck {...metaIcon} aria-hidden />
+                  <span>Check-in: {p.lastManualCheckinAt ? formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}</span>
                 </div>
                 <div
                   className="proj-card__meta-item proj-card__meta-item--phase"
@@ -506,6 +562,15 @@ export function ProjectsPage() {
                     <button
                       type="button"
                       className="btn btn--ghost btn--icon proj-card__icon-action"
+                      aria-label="Registrar check-in manual"
+                      title="Check-in manual"
+                      onClick={() => void onManualCheckin(p.id, p.projectName)}
+                    >
+                      <CheckCheck size={15} strokeWidth={2.15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost btn--icon proj-card__icon-action"
                       aria-label="Editar projeto"
                       title="Editar projeto"
                       onClick={() => {
@@ -556,6 +621,37 @@ export function ProjectsPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDeleteTarget}
       />
+      {pendingModalOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setPendingModalOpen(false)}>
+          <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Pendências de check-in</h2>
+            <p className="muted">Projetos em neutro, atrasado ou crítico precisam de acompanhamento manual.</p>
+            <div className="dashboard-side-stack">
+              {pendingFreshnessProjects.length === 0 ? (
+                <p className="muted">Nenhuma pendência no momento.</p>
+              ) : (
+                pendingFreshnessProjects.map((project) => {
+                  const status = deriveProjectFreshnessBySla(project).status
+                  return (
+                    <div key={project.id} className="dashboard-cc__row">
+                      <strong>{project.projectName}</strong>
+                      <span>{projectFreshnessLabel(status)}</span>
+                      <small>
+                        Último check-in: {project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : '—'}
+                      </small>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            <div className="modal__actions">
+              <button type="button" className="btn btn--ghost" onClick={() => setPendingModalOpen(false)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

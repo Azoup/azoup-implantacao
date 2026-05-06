@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
+  BookOpen,
   Briefcase,
   CalendarDays,
   ChevronLeft,
@@ -22,18 +23,28 @@ import {
   UsersRound,
 } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
-import { hasScope } from '../auth/permissions'
+import { canAccessManuais, hasScope } from '../auth/permissions'
+import type { DbUser } from '../db/types'
 import { useTheme } from '../theme/ThemeContext'
+import { AzoupOrbMark } from '../components/AzoupOrbMark'
 import { VyntaskLogo } from '../components/VyntaskLogo'
-import { APP_VERSION_DISPLAY } from '../constants/appMeta'
+import { APP_BRAND_ENDORSEMENT, APP_VERSION_DISPLAY } from '../constants/appMeta'
 
-type NavItem = { to: string; label: string; icon: LucideIcon; scope: Parameters<typeof hasScope>[1] }
+type NavItem = {
+  to: string
+  label: string
+  icon: LucideIcon
+  scope: Parameters<typeof hasScope>[1]
+  /** Quando definido, substitui `hasScope(user, scope)` para decidir se o item aparece. */
+  visibleIf?: (user: DbUser) => boolean
+}
 
 const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: Gauge, scope: 'dashboard.view' },
   { to: '/visao-geral', label: 'Visão geral', icon: Kanban, scope: 'overview.view' },
   { to: '/projetos', label: 'Projetos', icon: Briefcase, scope: 'projects.view' },
   { to: '/implantacao', label: 'Implantação', icon: Map, scope: 'projects.view' },
+  { to: '/manuais', label: 'Manuais', icon: BookOpen, scope: 'manuals.view', visibleIf: canAccessManuais },
   { to: '/tarefas', label: 'Tarefas', icon: ListChecks, scope: 'tasks.view' },
   { to: '/agenda', label: 'Agenda', icon: CalendarDays, scope: 'agenda.view' },
   { to: '/relatorios', label: 'Relatórios', icon: PieChart, scope: 'reports.view' },
@@ -63,41 +74,67 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
   const { user, logout } = useAuth()
   const { theme, toggle } = useTheme()
   const navigate = useNavigate()
-  /** Ícone = modo ativo (lua no escuro, sol no claro); o clique alterna o tema. */
-  const ThemeIcon = theme === 'dark' ? Moon : Sun
   const ip = collapsed ? iconPropsCollapsed : iconProps
-  const visibleMainNav = mainNav.filter((x) => hasScope(user, x.scope))
+  const visibleMainNav = mainNav.filter((x) => (user ? (x.visibleIf ? x.visibleIf(user) : hasScope(user, x.scope)) : false))
   const visibleBottomNav = bottomNav.filter((x) => hasScope(user, x.scope))
   const canCreateProjects = hasScope(user, 'projects.edit')
+  const themeToggleLabel = theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'
 
   return (
     <aside className={'sidebar' + (collapsed ? ' sidebar--collapsed' : '')}>
       <div className="sidebar__header">
-        <div className="sidebar__brand sidebar__brand--interactive">
+        <div
+          className={
+            'sidebar__brand sidebar__brand--interactive ' +
+            (collapsed ? 'sidebar__brand--collapsed' : 'sidebar__brand--expanded')
+          }
+        >
           <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-            <VyntaskLogo variant="inverse" size={32} />
+            <AzoupOrbMark size={30} className="sidebar__logo-azoup" />
+            <span className="sidebar__logo-vyntask-badge">
+              <VyntaskLogo variant="inverse" size={14} />
+            </span>
           </span>
           <div className="sidebar__brand-text">
             <div className="sidebar__title">
               <span className="sidebar__title-accent">Vyn</span>Task
+              <span className="sidebar__title-endorse-prefix">by</span>
+              <span className="sidebar__title-endorse">{APP_BRAND_ENDORSEMENT.replace(/^by\s+/i, '')}</span>
             </div>
             <div className="sidebar__version" spellCheck={false}>
               {APP_VERSION_DISPLAY}
             </div>
           </div>
         </div>
-        <button
-          type="button"
-          className="sidebar__theme-toggle"
-          onClick={() => {
-            toggle()
-            onNavigate?.()
-          }}
-          title={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
-          aria-label={theme === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro'}
-        >
-          <ThemeIcon size={18} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
-        </button>
+        {!collapsed ? (
+          <button
+            type="button"
+            className={'sidebar__theme-toggle' + (theme === 'dark' ? ' is-dark' : ' is-light')}
+            onClick={() => {
+              toggle()
+              onNavigate?.()
+            }}
+            title={themeToggleLabel}
+            aria-label={themeToggleLabel}
+            aria-pressed={theme === 'dark'}
+          >
+            <span className="sidebar__theme-track" aria-hidden>
+              <span className="sidebar__theme-thumb">
+                {theme === 'dark' ? (
+                  <Moon size={14} strokeWidth={2.3} absoluteStrokeWidth aria-hidden />
+                ) : (
+                  <Sun size={14} strokeWidth={2.3} absoluteStrokeWidth aria-hidden />
+                )}
+              </span>
+              <span className="sidebar__theme-icon sidebar__theme-icon--sun" aria-hidden>
+                <Sun size={13} strokeWidth={2.1} absoluteStrokeWidth />
+              </span>
+              <span className="sidebar__theme-icon sidebar__theme-icon--moon" aria-hidden>
+                <Moon size={13} strokeWidth={2.1} absoluteStrokeWidth />
+              </span>
+            </span>
+          </button>
+        ) : null}
       </div>
 
       <div className="sidebar__divider" aria-hidden />
@@ -188,6 +225,28 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
                 <Plus size={22} strokeWidth={2.25} absoluteStrokeWidth />
               ) : (
                 '+ Novo projeto'
+              )}
+            </button>
+          ) : null}
+
+          {collapsed ? (
+            <button
+              type="button"
+              className={
+                'sidebar__theme-toggle sidebar__theme-toggle--icon-only' + (theme === 'dark' ? ' is-dark' : ' is-light')
+              }
+              onClick={() => {
+                toggle()
+                onNavigate?.()
+              }}
+              title={themeToggleLabel}
+              aria-label={themeToggleLabel}
+              aria-pressed={theme === 'dark'}
+            >
+              {theme === 'dark' ? (
+                <Moon size={18} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
+              ) : (
+                <Sun size={18} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
               )}
             </button>
           ) : null}

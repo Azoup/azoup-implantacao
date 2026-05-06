@@ -6,6 +6,10 @@ interface ImportMetaEnv {
   readonly VITE_DATA_MODE?: 'local' | 'cloud'
   /** Após rodar `supabase/sql/009_tasks_is_ad_hoc.sql`, use `1` para persistir `is_ad_hoc` no Postgres. */
   readonly VITE_SYNC_TASK_IS_AD_HOC?: string
+  /** Após rodar `supabase/sql/018_tasks_no_show_fields.sql`, use `1` para persistir campos de no-show/reagendamento. */
+  readonly VITE_SYNC_TASK_NO_SHOW_FIELDS?: string
+  /** Após rodar `supabase/sql/016_projects_manual_checkin.sql`, use `1` para enviar check-in manual ao Postgres. */
+  readonly VITE_SYNC_PROJECT_MANUAL_CHECKIN?: string
 }
 
 interface ImportMeta {

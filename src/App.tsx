@@ -1,7 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
-import { hasScope } from './auth/permissions'
+import { canAccessManuais, hasScope } from './auth/permissions'
 import { ROUTE_SCOPE_MAP } from './auth/routeScopes'
 import { AppShell } from './layout/AppShell'
 import { LoginPage } from './pages/LoginPage'
@@ -15,6 +15,7 @@ import {
   ForgotPasswordPageLazy,
   ImplantationJourneyPageLazy,
   LogsPageLazy,
+  ManualsPageLazy,
   OverviewPageLazy,
   PlanModelsPageLazy,
   PlanPresentationsPageLazy,
@@ -49,6 +50,13 @@ function RequireScope({ scope, children }: { scope: PermissionScope; children: R
   const { user } = useAuth()
   if (!user) return null
   if (!hasScope(user, scope)) return <AccessDeniedPage />
+  return <Suspense fallback={<RoutePageFallback />}>{children}</Suspense>
+}
+
+function RequireManuais({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  if (!user) return null
+  if (!canAccessManuais(user)) return <AccessDeniedPage />
   return <Suspense fallback={<RoutePageFallback />}>{children}</Suspense>
 }
 
@@ -143,6 +151,7 @@ export const appRouter = createBrowserRouter(
             </RequireScope>
           }
         />
+        <Route path="/manuais" element={<RequireManuais><ManualsPageLazy /></RequireManuais>} />
         <Route
           path="/tarefas"
           element={
