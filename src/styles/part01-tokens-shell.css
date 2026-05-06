@@ -1,4 +1,4 @@
-﻿/* Fallback mínimo: Neo (antes da hidratação do data-palette pelo ThemeProvider). */
+/* Fallback mínimo: Neo (antes da hidratação do data-palette pelo ThemeProvider). */
 :root[data-theme='light'] {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-display: 'Plus Jakarta Sans', var(--font-sans);
@@ -288,11 +288,13 @@ body {
   min-height: 56px;
 }
 .sidebar--collapsed .sidebar__header {
-  flex-direction: row;
+  /* Coluna: logo acima, tema abaixo — evita corte com o badge no modo estreito */
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.36rem;
-  min-height: 52px;
+  justify-content: flex-start;
+  gap: 0.42rem;
+  min-height: auto;
+  padding-bottom: 0.35rem;
 }
 
 .sidebar__theme-toggle {
@@ -342,9 +344,14 @@ body {
   outline-offset: 2px;
 }
 .sidebar--collapsed .sidebar__theme-toggle {
-  margin-top: 0.02rem;
   width: var(--sidebar-control-size);
   height: var(--sidebar-control-size);
+}
+.sidebar--collapsed .sidebar__theme-toggle--header {
+  margin-left: 0;
+  margin-right: 0;
+  margin-top: 0.08rem;
+  align-self: center;
 }
 
 .sidebar__brand {

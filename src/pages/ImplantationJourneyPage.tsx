@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Database,
   Download,
+  FileDown,
   FileSpreadsheet,
   FileText,
   Flag,
@@ -54,8 +55,6 @@ const ICON_MAP: Record<ImplantationJourneyIconKey, LucideIcon> = {
   flag: Flag,
   headset: Headphones,
 }
-
-const iconProps = { size: 26, strokeWidth: 1.75, absoluteStrokeWidth: true } as const
 
 type UrlPart = { kind: 'url'; href: string }
 type TextPart = { kind: 'text'; s: string }
@@ -140,33 +139,50 @@ export function ImplantationJourneyPage() {
 
   return (
     <div className="page impl-page">
-      <header className="page__header page__header--split">
+      <header className="page__header page__header--split impl-page__page-head">
         <div>
-          <h1 className="page__title">Jornada de implantação</h1>
-          <p className="page__subtitle">
-            Fluxo Azoup no VynTask — referência única do método (antes no Trello). Use imprimir para salvar em PDF.
+          <h1 className="page__title">Jornada do cliente</h1>
+          <p className="page__subtitle impl-page__subtitle">
+            Fluxo único: do projeto ao suporte. Exporte com imprimir (PDF no navegador), arquivo pronto ou página HTML.
           </p>
         </div>
-        <div className="impl-page__toolbar">
-          <button type="button" className="btn btn--primary" onClick={() => window.print()}>
-            <Printer size={18} strokeWidth={2} aria-hidden style={{ marginRight: 8 }} />
-            Exportar PDF
+        <div className="impl-page__actions" role="toolbar" aria-label="Exportar jornada">
+          <button
+            type="button"
+            className="impl-page__action"
+            onClick={() => window.print()}
+            title="Imprimir — no diálogo do navegador, escolha Salvar como PDF"
+          >
+            <Printer size={18} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+            <span className="impl-page__action-text">Imprimir</span>
           </button>
-          <a className="btn btn--ghost" href={staticPdfHref} download>
-            Baixar PDF
+          <a
+            className="impl-page__action"
+            href={staticPdfHref}
+            download
+            title="Baixar PDF"
+          >
+            <FileDown size={18} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+            <span className="impl-page__action-text">PDF</span>
           </a>
-          <a className="btn btn--ghost" href={staticHtmlHref} target="_blank" rel="noopener noreferrer">
-            Abrir HTML
+          <a
+            className="impl-page__action"
+            href={staticHtmlHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir HTML em nova aba"
+          >
+            <FileText size={18} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+            <span className="impl-page__action-text">HTML</span>
           </a>
-          <span className="impl-page__toolbar-spacer" aria-hidden />
         </div>
       </header>
 
-      <div className="impl-page__hero">
+      <div className="impl-page__hero impl-page__hero--minimal">
         <div className="impl-page__hero-mesh" aria-hidden />
         <div className="impl-page__hero-inner">
           <div className="impl-page__logo-wrap">
-            <AzoupLogoMark size={72} />
+            <AzoupLogoMark size={56} />
           </div>
           <div className="impl-page__hero-titles">
             <p className="impl-page__hero-kicker">
@@ -174,31 +190,26 @@ export function ImplantationJourneyPage() {
                 Azoup tecnologia
               </a>
             </p>
-            <h2 className="impl-page__hero-title">Jornada do cliente</h2>
-            <p className="impl-page__hero-sub">
-              Processo de implantação — da entrada do projeto à passagem ao suporte técnico. Logotipo oficial Azoup; fundo
-              só com gradientes e trama (sem fotos ou banners de vídeo).
-            </p>
+            <h2 className="impl-page__hero-title">Do projeto ao suporte</h2>
+            <p className="impl-page__hero-sub">Um fluxo linear para acompanhar cada etapa com o cliente.</p>
           </div>
         </div>
       </div>
 
-      <div className="impl-page__accent-band" aria-hidden>
-        <span className="impl-page__accent-band-line" />
-      </div>
+      <div className="impl-page__accent-line" aria-hidden />
 
-      <div className="impl-page__intro-grid">
+      <div className="impl-page__intro-grid impl-page__intro-grid--minimal">
         <div className="impl-page__intro-card">
           <strong>Objetivo</strong>
           <p>{IMPLANTATION_JOURNEY_INTRO.objective}</p>
         </div>
         <div className="impl-page__intro-card">
-          <strong>Centro de controle</strong>
+          <strong>Referência</strong>
           <p>
             <IntroRich text={IMPLANTATION_JOURNEY_INTRO.control ?? ''} />
           </p>
         </div>
-        <div className={'impl-page__intro-card impl-page__intro-card--tools'} style={{ gridColumn: '1 / -1' }}>
+        <div className="impl-page__intro-card impl-page__intro-card--tools">
           <strong>{IMPLANTATION_JOURNEY_INTRO.toolsTitle}</strong>
           <ul className="impl-page__tools-list">
             {IMPLANTATION_TOOL_LINES.map((line) => (
@@ -229,11 +240,11 @@ export function ImplantationJourneyPage() {
                   <div className="impl-page__rail" aria-hidden />
                 </div>
                 <div className="impl-page__pill">
-                  <p className="impl-page__pill-title">{step.title}</p>
+                  <p className="impl-page__pill-title">
+                    <span className="impl-page__pill-title-text">{step.title}</span>
+                    <Icon className="impl-page__pill-title-ico" size={18} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                  </p>
                   <RichParagraph text={step.body ?? ''} />
-                </div>
-                <div className="impl-page__ico" aria-hidden>
-                  <Icon {...iconProps} />
                 </div>
               </li>
             </Fragment>
@@ -242,11 +253,7 @@ export function ImplantationJourneyPage() {
       </ol>
 
       <p className="impl-page__footer-note">
-        Azoup tecnologia · Processo de implantação · VynTask. Logotipo oficial + fundo em gradientes (sem fotos de pessoal). &quot;Exportar PDF&quot; usa a impressão do navegador — Salvar como PDF / Microsoft Print to PDF. Site:{' '}
-        <a href={azoupSite} target="_blank" rel="noopener noreferrer">
-          azoup.com.br
-        </a>
-        .
+        VynTask · Azoup · <a href={azoupSite} target="_blank" rel="noopener noreferrer">azoup.com.br</a>
       </p>
     </div>
   )

@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.1.4 (2026-05-06)
+
+- Menu: item **Implantação** renomeado para **Jornada do cliente** (rota `/implantacao` inalterada); ícone `Route`.
+- Página da jornada: layout mais enxuto (hero compacto, faixa de destaque fina, cards intro em grelha 2 colunas, etapas só com trilho + cartão); ícones pequenos no título de cada passo; ações **Imprimir**, **PDF** e **HTML** com rótulo + ícone.
+
+## v3.1.3 (2026-05-06)
+
+- Sidebar recolhida: botão de tema (claro/escuro) passa a ficar abaixo do logo, evitando sobreposição com o badge.
+
+## v3.1.2 (2026-05-06)
+
+- Remoção da integração TeliScript no VynTask (ferramenta permanece como app Python separado).
+
+## v3.1.1 (2026-05-06)
+
+- TeliScript: UI alinhada ao fluxo do app desktop (perfil Firebird, analisar/sugerir/ver grupos, prévia de grades, prévia SQL, log, importação direta) com visual VynTask (cards, accent, tipografia).
+- TeliScript API: endpoints `analyze`, `suggest-colors`, `suggest-groups`, `groups-report`, `grades-preview`, `test-connection`, `execute-sql`; `generate` aceita `grade_overrides_json` e relatório com linhas ignoradas quando aplicável; dependência `firebird-driver` em `requirements-api.txt`.
+
+## v3.1.0 (2026-05-06)
+
+- TeliScript: nova rota `/teliscript` (escopo `projects.view`) para gerar `importacao_firebird.sql`, `reversao_firebird.sql` e relatório a partir de `.xlsx`/`.csv`, reutilizando o gerador Python existente.
+- TeliScript: API FastAPI em `TeliScript/api` com proxy de desenvolvimento em `/api/teliscript` (porta local padrão `8765`).
+
 ## v3.0.13 (2026-05-06)
 
 - Assistente IA: nova tela funcional em `/assistente` com consulta em linguagem natural, resposta executiva de projeto e tratamento de ambiguidades por similaridade de nome.
