@@ -1,5 +1,5 @@
 /** Versão exibida na UI (sidebar, login, título do documento via index.html). */
-export const APP_VERSION_DISPLAY = 'v3.0.5'
+export const APP_VERSION_DISPLAY = 'v3.0.13'
 /** Nome de marca principal no produto. */
 export const APP_BRAND_NAME_SHORT = 'VynTask'
 /** Assinatura institucional exibida junto da marca principal. */

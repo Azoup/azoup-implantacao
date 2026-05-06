@@ -36,9 +36,13 @@
   --cal-event-default: rgba(249, 115, 22, 0.16);
   --agenda-event-bg: #ffffff;
   --agenda-grid-line: rgba(24, 24, 27, 0.08);
-  --logo-primary: #f97316;
-  --logo-accent: #ea580c;
+  --logo-primary: #f38121;
+  --logo-accent: #e36209;
   --logo-neutral: #18181b;
+  --logo-frame-start: #1a1a1a;
+  --logo-frame-end: #111111;
+  --logo-frame-border: rgba(255, 255, 255, 0.2);
+  --logo-frame-glow: rgba(0, 0, 0, 0.34);
   --scroll-track: color-mix(in srgb, var(--surface-2) 88%, var(--bg));
   --scroll-thumb: color-mix(in srgb, var(--border) 55%, var(--text-muted) 45%);
   --scroll-thumb-hover: color-mix(in srgb, var(--accent) 28%, var(--scroll-thumb));
@@ -95,9 +99,13 @@
   --cal-event-default: rgba(255, 139, 23, 0.2);
   --agenda-event-bg: #1a1a1a;
   --agenda-grid-line: rgba(255, 255, 255, 0.08);
-  --logo-primary: #ff8b17;
-  --logo-accent: #ff9f3f;
+  --logo-primary: #f38121;
+  --logo-accent: #e36209;
   --logo-neutral: #f4f4f5;
+  --logo-frame-start: #1a1a1a;
+  --logo-frame-end: #111111;
+  --logo-frame-border: rgba(255, 255, 255, 0.2);
+  --logo-frame-glow: rgba(0, 0, 0, 0.42);
   --scroll-track: color-mix(in srgb, var(--bg) 92%, var(--surface));
   --scroll-thumb: color-mix(in srgb, var(--border) 50%, var(--text-muted) 50%);
   --scroll-thumb-hover: color-mix(in srgb, var(--accent) 38%, var(--scroll-thumb));
@@ -243,10 +251,10 @@ body {
 .sidebar {
   --sidebar-pad-x: 0.85rem;
   --sidebar-icon-col: 30px;
-  --sidebar-brand-pad: 0.5rem;
+  --sidebar-brand-pad: 0.46rem;
   --sidebar-brand-gap: 0.62rem;
-  --sidebar-logo-size: 44px;
-  --sidebar-badge-size: 18px;
+  --sidebar-logo-size: 42px;
+  --sidebar-badge-size: 20px;
   --sidebar-control-size: 34px;
   width: 262px;
   background: var(--sidebar);
@@ -264,9 +272,9 @@ body {
 .shell--sidebar-collapsed .sidebar {
   width: 78px;
   --sidebar-pad-x: 0.54rem;
-  --sidebar-brand-pad: 0.38rem;
-  --sidebar-logo-size: 42px;
-  --sidebar-badge-size: 16px;
+  --sidebar-brand-pad: 0.35rem;
+  --sidebar-logo-size: 46px;
+  --sidebar-badge-size: 18px;
   --sidebar-control-size: 36px;
 }
 
@@ -302,7 +310,6 @@ body {
   color: var(--sidebar-text);
   cursor: pointer;
   padding: 0;
-  overflow: hidden;
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--sidebar-text) 14%, transparent),
     0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
@@ -312,6 +319,10 @@ body {
     border-color 0.18s ease-out,
     box-shadow 0.2s ease-out,
     transform 0.14s ease-out;
+}
+.sidebar__theme-toggle--header {
+  margin-left: auto;
+  margin-right: 0.08rem;
 }
 .sidebar__theme-toggle:hover {
   background: color-mix(in srgb, var(--sidebar-text) 13%, var(--sidebar));
@@ -330,129 +341,10 @@ body {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.sidebar__theme-track {
-  position: relative;
-  width: 30px;
-  height: 17px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--sidebar-text) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--sidebar-text) 18%, transparent);
-  transition: background 0.18s ease-out, border-color 0.18s ease-out, box-shadow 0.2s ease-out;
-}
-.sidebar__theme-track::before {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: inherit;
-  opacity: 0.35;
-  background: radial-gradient(circle at 28% 50%, rgba(255, 255, 255, 0.6), transparent 42%);
-  transition: opacity 0.2s ease-out, transform 0.24s ease-out;
-}
-.sidebar__theme-toggle.is-light .sidebar__theme-track {
-  background: linear-gradient(90deg, #ffe6a7, #ffc866 70%, #ffb24f);
-  border-color: color-mix(in srgb, #ffd07a 62%, var(--sidebar-text) 18%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
-}
-.sidebar__theme-toggle.is-light .sidebar__theme-track::before {
-  opacity: 0.55;
-  transform: translateX(2px);
-}
-.sidebar__theme-toggle.is-dark .sidebar__theme-track {
-  background: linear-gradient(90deg, #111b2f, #1d2e4f 62%, #273f6d);
-  border-color: color-mix(in srgb, #42639d 52%, var(--sidebar-text) 16%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
-}
-.sidebar__theme-toggle.is-dark .sidebar__theme-track::before {
-  opacity: 0.26;
-  transform: translateX(-2px);
-}
-.sidebar__theme-thumb {
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 13px;
-  height: 13px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  color: color-mix(in srgb, #3f2f00 80%, var(--sidebar));
-  background: #fff3cc;
-  box-shadow:
-    0 1px 4px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  transform: translateX(0);
-  transition:
-    transform 0.22s cubic-bezier(0.34, 1.3, 0.64, 1),
-    background 0.18s ease-out,
-    color 0.18s ease-out,
-    box-shadow 0.2s ease-out;
-}
-.sidebar__theme-toggle.is-dark .sidebar__theme-thumb {
-  transform: translateX(13px);
-  color: #e8f0ff;
-  background: #355a95;
-  box-shadow:
-    0 1px 5px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 0 8px color-mix(in srgb, #6c92d5 38%, transparent);
-}
-.sidebar__theme-thumb svg {
-  width: 10px;
-  height: 10px;
-  display: block;
-}
-.sidebar__theme-icon {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  color: color-mix(in srgb, var(--sidebar-text) 64%, transparent);
-  transform: translateY(-50%);
-  opacity: 0.58;
-  transition: opacity 0.16s ease-out, color 0.16s ease-out;
-}
-.sidebar__theme-icon svg {
-  width: 10px;
-  height: 10px;
-  display: block;
-}
-.sidebar__theme-icon--sun {
-  left: 2px;
-}
-.sidebar__theme-icon--moon {
-  right: 2px;
-}
-.sidebar__theme-toggle.is-light .sidebar__theme-icon--sun {
-  opacity: 0.22;
-}
-.sidebar__theme-toggle.is-dark .sidebar__theme-icon--moon {
-  opacity: 0.24;
-}
-.sidebar__theme-toggle:hover .sidebar__theme-track {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--sidebar-text) 22%);
-}
-.sidebar__theme-toggle:hover .sidebar__theme-thumb {
-  box-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.58);
-}
 .sidebar--collapsed .sidebar__theme-toggle {
   margin-top: 0.02rem;
   width: var(--sidebar-control-size);
   height: var(--sidebar-control-size);
-}
-.sidebar__theme-toggle--icon-only {
-  margin: 0.45rem auto 0.1rem;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--sidebar) 68%, var(--sidebar-text) 12%);
-}
-.sidebar__theme-toggle--icon-only .sidebar__theme-track {
-  display: none;
-}
-.sidebar__theme-toggle--icon-only svg {
-  display: block;
 }
 
 .sidebar__brand {
@@ -480,7 +372,10 @@ body {
 }
 .sidebar--collapsed .sidebar__brand {
   justify-content: center;
-  padding-inline: var(--sidebar-brand-pad);
+  padding-inline: 0.2rem;
+  padding-block: 0.15rem;
+  border-color: transparent;
+  background: transparent;
   width: 100%;
   flex: 0 0 auto;
 }
@@ -506,7 +401,6 @@ body {
   width: var(--sidebar-logo-size);
   height: var(--sidebar-logo-size);
   border-radius: 12px;
-  /* Sempre coerente com o chrome escuro da sidebar — não usar --surface do app (no claro vira “caixa clara”). */
   background: color-mix(in srgb, var(--sidebar) 88%, var(--accent) 12%);
   border: 1px solid color-mix(in srgb, var(--sidebar-text) 12%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sidebar-text) 8%, transparent);
@@ -520,32 +414,44 @@ body {
     border-color 0.25s ease,
     background 0.25s ease;
 }
+.sidebar--collapsed .sidebar__logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  border-color: color-mix(in srgb, var(--sidebar-text) 12%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--sidebar-text) 8%, transparent);
+}
 .sidebar__logo-azoup {
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 34%, transparent));
 }
 .sidebar__logo-vyntask-badge {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
-  width: var(--sidebar-badge-size);
-  height: var(--sidebar-badge-size);
+  right: -3px;
+  bottom: -3px;
+  width: 20px;
+  height: 20px;
   border-radius: 7px;
-  border: 1px solid color-mix(in srgb, var(--sidebar-text) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sidebar-text) 16%, transparent);
   background: color-mix(in srgb, var(--sidebar) 90%, var(--accent) 10%);
   display: grid;
   place-items: center;
   overflow: hidden;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--sidebar-text) 12%, transparent) inset,
+    0 6px 14px color-mix(in srgb, #000 38%, transparent);
 }
-.sidebar__logo-icon {
-  color: #fff;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+.sidebar--collapsed .sidebar__logo-vyntask-badge {
+  width: 18px;
+  height: 18px;
+  right: -2px;
+  bottom: -2px;
 }
 .sidebar__title {
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.15;
-  font-size: 1.0625rem;
+  font-size: 1rem;
   color: var(--sidebar-text);
   transition: letter-spacing 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
@@ -553,8 +459,8 @@ body {
   color: var(--accent);
 }
 .sidebar__title-endorse-prefix {
-  margin-left: 0.35rem;
-  margin-right: 0.2rem;
+  margin-left: 0.3rem;
+  margin-right: 0.16rem;
   font-family: var(--font-sans);
   font-size: 0.58rem;
   font-weight: 600;
@@ -563,7 +469,7 @@ body {
 }
 .sidebar__title-endorse {
   font-family: var(--font-sans);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 800;
   letter-spacing: 0.02em;
   color: color-mix(in srgb, var(--accent) 82%, var(--sidebar-text));
@@ -572,9 +478,9 @@ body {
   letter-spacing: -0.02em;
 }
 .sidebar__brand--interactive:hover .sidebar__logo {
-  transform: scale(1.03);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--sidebar-text) 25%);
-  background: color-mix(in srgb, var(--sidebar) 78%, var(--accent) 22%);
+  transform: scale(1.01);
+  border-color: rgba(255, 255, 255, 0.26);
+  background: linear-gradient(160deg, #1b1b1b, #111);
 }
 .sidebar__version {
   font-size: 0.7rem;

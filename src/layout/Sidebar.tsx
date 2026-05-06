@@ -90,9 +90,9 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           }
         >
           <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-            <AzoupOrbMark size={30} className="sidebar__logo-azoup" />
+            <AzoupOrbMark size={collapsed ? 40 : 34} className="sidebar__logo-azoup" />
             <span className="sidebar__logo-vyntask-badge">
-              <VyntaskLogo variant="inverse" size={14} />
+              <VyntaskLogo variant="inverse" size={collapsed ? 12 : 13} />
             </span>
           </span>
           <div className="sidebar__brand-text">
@@ -106,35 +106,23 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             </div>
           </div>
         </div>
-        {!collapsed ? (
-          <button
-            type="button"
-            className={'sidebar__theme-toggle' + (theme === 'dark' ? ' is-dark' : ' is-light')}
-            onClick={() => {
-              toggle()
-              onNavigate?.()
-            }}
-            title={themeToggleLabel}
-            aria-label={themeToggleLabel}
-            aria-pressed={theme === 'dark'}
-          >
-            <span className="sidebar__theme-track" aria-hidden>
-              <span className="sidebar__theme-thumb">
-                {theme === 'dark' ? (
-                  <Moon size={14} strokeWidth={2.3} absoluteStrokeWidth aria-hidden />
-                ) : (
-                  <Sun size={14} strokeWidth={2.3} absoluteStrokeWidth aria-hidden />
-                )}
-              </span>
-              <span className="sidebar__theme-icon sidebar__theme-icon--sun" aria-hidden>
-                <Sun size={13} strokeWidth={2.1} absoluteStrokeWidth />
-              </span>
-              <span className="sidebar__theme-icon sidebar__theme-icon--moon" aria-hidden>
-                <Moon size={13} strokeWidth={2.1} absoluteStrokeWidth />
-              </span>
-            </span>
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className={'sidebar__theme-toggle sidebar__theme-toggle--header' + (theme === 'dark' ? ' is-dark' : ' is-light')}
+          onClick={() => {
+            toggle()
+            onNavigate?.()
+          }}
+          title={themeToggleLabel}
+          aria-label={themeToggleLabel}
+          aria-pressed={theme === 'dark'}
+        >
+          {theme === 'dark' ? (
+            <Moon size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
+          ) : (
+            <Sun size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
+          )}
+        </button>
       </div>
 
       <div className="sidebar__divider" aria-hidden />
@@ -229,27 +217,6 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             </button>
           ) : null}
 
-          {collapsed ? (
-            <button
-              type="button"
-              className={
-                'sidebar__theme-toggle sidebar__theme-toggle--icon-only' + (theme === 'dark' ? ' is-dark' : ' is-light')
-              }
-              onClick={() => {
-                toggle()
-                onNavigate?.()
-              }}
-              title={themeToggleLabel}
-              aria-label={themeToggleLabel}
-              aria-pressed={theme === 'dark'}
-            >
-              {theme === 'dark' ? (
-                <Moon size={18} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
-              ) : (
-                <Sun size={18} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
-              )}
-            </button>
-          ) : null}
         </div>
       </div>
     </aside>

@@ -180,7 +180,7 @@
   max-width: 420px;
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 85%, var(--accent) 15%);
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 1.85rem 1.9rem;
   box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
   backdrop-filter: saturate(1.05);
@@ -191,8 +191,8 @@
   gap: 0.8rem;
   margin-bottom: 1.25rem;
   padding: 0.35rem 0.3rem;
-  margin-left: -0.25rem;
-  margin-right: -0.25rem;
+  margin-left: 0;
+  margin-right: 0;
   border-radius: 14px;
   transition: background 0.2s ease;
 }
@@ -241,7 +241,7 @@
 .auth__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.55rem;
+  font-size: 1.42rem;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--text);
@@ -251,8 +251,8 @@
   color: var(--accent);
 }
 .auth__title-endorse-prefix {
-  margin-left: 0.33rem;
-  margin-right: 0.24rem;
+  margin-left: 0.28rem;
+  margin-right: 0.2rem;
   font-family: var(--font-sans);
   font-size: 0.58em;
   font-weight: 600;
@@ -261,13 +261,13 @@
 }
 .auth__title-endorse {
   font-family: var(--font-sans);
-  font-size: 0.62em;
+  font-size: 0.58em;
   font-weight: 800;
   letter-spacing: 0.03em;
   color: color-mix(in srgb, var(--accent) 80%, var(--text) 20%);
 }
 .auth__brand:hover .auth__title {
-  letter-spacing: 0.02em;
+  letter-spacing: -0.03em;
 }
 .auth__endorse-logo {
   margin-top: 0.35rem;
@@ -276,12 +276,12 @@
   opacity: 0.92;
 }
 .auth__subtitle {
-  margin: 0.35rem 0 0;
+  margin: 0.25rem 0 0;
   color: var(--text-muted);
   font-size: 0.9rem;
 }
 .auth__form {
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;

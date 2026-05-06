@@ -10,6 +10,8 @@ interface ImportMetaEnv {
   readonly VITE_SYNC_TASK_NO_SHOW_FIELDS?: string
   /** Após rodar `supabase/sql/016_projects_manual_checkin.sql`, use `1` para enviar check-in manual ao Postgres. */
   readonly VITE_SYNC_PROJECT_MANUAL_CHECKIN?: string
+  /** Ativa a etapa opcional de reescrita via LLM no assistente IA (`/functions/v1/ai-project-assistant`). */
+  readonly VITE_AI_ASSISTANT_ENABLE_LLM?: string
 }
 
 interface ImportMeta {

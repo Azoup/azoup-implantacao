@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AzoupOrbMark } from '../AzoupOrbMark'
+import { VyntaskLogo } from '../VyntaskLogo'
 import { APP_BRAND_ENDORSEMENT } from '../../constants/appMeta'
 
 type AuthCardShellProps = {
@@ -13,7 +14,10 @@ export function AuthCardShell({ subtitle, children }: AuthCardShellProps) {
       <div className="auth__card">
         <div className="auth__brand">
           <span className="auth__brand-mark vyntask-logo-wrap">
-            <AzoupOrbMark size={54} className="auth__brand-orb" />
+            <AzoupOrbMark size={44} className="auth__brand-orb" />
+            <span className="auth__brand-v-badge">
+              <VyntaskLogo variant="brand" size={14} />
+            </span>
           </span>
           <div>
             <h1 className="auth__title">

@@ -1,5 +1,47 @@
 # Changelog
 
+## v3.0.13 (2026-05-06)
+
+- Assistente IA: nova tela funcional em `/assistente` com consulta em linguagem natural, resposta executiva de projeto e tratamento de ambiguidades por similaridade de nome.
+- Assistente IA: serviço determinístico de snapshot com próximos passos, última conclusão, progresso, horas e alertas (atraso, orçamento, sem atualização), com confiança de match.
+- Assistente IA: integração opcional com backend LLM via feature flag (`VITE_AI_ASSISTANT_ENABLE_LLM`) e fallback automático para resumo determinístico.
+- Observabilidade: telemetria de uso da assistente registrada em auditoria (`auditLogs`) para sucesso, ambiguidade, não encontrado e erro.
+
+## v3.0.12 (2026-05-06)
+
+- Correção de regressão visual no login: badge do ícone antigo voltou a ancorar corretamente no bloco da marca (não fica mais “solto” no canto da tela).
+- Logo/bordas do lockup em sidebar/login ajustados para o padrão estável semelhante ao visual da versão v3.0.5.
+
+## v3.0.11 (2026-05-06)
+
+- Branding: retorno ao logotipo bolinha da Azoup no lockup principal, com badge VynTask sobreposto como no estilo de referência do sidebar.
+- Ajustes no sidebar/login para manter alinhamento visual da composição bolinha + badge em moldura quadrada arredondada.
+
+## v3.0.10 (2026-05-06)
+
+- Logo principal (sidebar/login): aplicado recorte com zoom no símbolo Azoup dentro da moldura quadrada arredondada, no mesmo padrão visual de avatar emoldurado.
+- Lockup mantido simples (sem badge extra), priorizando leitura do ícone principal e consistência com o estilo pedido.
+
+## v3.0.9 (2026-05-06)
+
+- Branding principal (sidebar/login): lockup alinhado ao estilo da Implantação com moldura escura limpa, borda clara e sombra única para leitura mais sólida do logo principal.
+- Proporção e espaçamento refinados no bloco de marca (sidebar e card de login), com ícone maior e composição mais próxima da referência visual.
+
+## v3.0.8 (2026-05-06)
+
+- Branding principal (sidebar/login): logo passou a usar moldura no mesmo estilo da página de Implantação, com recorte interno e presença visual mais forte no cabeçalho.
+- Lockup simplificado: removido badge secundário do logo principal para manter assinatura mais limpa e consistente com a referência visual.
+
+## v3.0.7 (2026-05-06)
+
+- Sidebar (colapsada): logo quadrado recebeu moldura mais forte e recorte interno para ficar maior, mais sólido e próximo do visual de referência.
+- Tema: removido definitivamente o estilo de interruptor; o botão voltou ao ícone simples sol/lua no cabeçalho, com troca de tema e ícone ao clique.
+
+## v3.0.6 (2026-05-06)
+
+- Branding (sidebar/login): lockup refinado para visual mais clean com ícone quadrado arredondado consistente entre estados expandido/colapsado e card de autenticação.
+- Ajustes incrementais de margens, bordas e alinhamento no header da marca para melhorar leitura e equilíbrio visual sem introduzir dependências.
+
 ## v3.0.5 (2026-05-06)
 
 - Sidebar (colapsada): botão de tema simples (sol/lua) reposicionado para a base final do rodapé (abaixo do CTA), reduzindo ruído no topo e mantendo leitura rápida do estado.
