@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.1.10 (2026-05-08)
+
+- Manuais: novas ações **Baixar PDF** e **Imprimir** no cabeçalho do leitor (toolbar em pílula com botão primário accent). O PDF é gerado pelo diálogo nativo do navegador ("Salvar como PDF"), funcionando offline e sem dependências extras.
+- Manuais (PDF): cabeçalho institucional ("letterhead") só visível em impressão — logo Azoup, marca **VynTask by Azoup vX.Y.Z**, trilha da categoria, título do manual, carimbo de uso (interno/cliente) e data de geração — e rodapé com nome do produto / título / `azoup.com.br`.
+- Manuais (PDF): folha de estilo `@media print` completa — esconde sidebar, índice, tabs, busca; força A4 retrato com margens; remove sombras; garante quebras `page-break-inside: avoid` em figuras, fases e cards de motivação; mantém highlights coloridos com `print-color-adjust: exact`.
+- Pré-carregamento: clique em "Baixar PDF" força carregamento eager de todas as imagens lazy do manual antes de abrir o diálogo (timeout de segurança de 2,5s) para evitar PDF com figuras em branco; também ajusta `document.title` durante o print, fazendo o PDF default ficar com o nome do manual.
+
+## v3.1.9 (2026-05-08)
+
+- Manual **Google Drive (FTP-AZOUP)**: nova seção destacada **"Por que sua Conta Google precisa ser a @azoup"** explicando os dois motivos com prints de evidência — exigência do Google ao tentar compartilhar com e-mail sem Conta Google e rastreabilidade na coluna "Modificado por" do Drive Compartilhado.
+- Estilos novos `.manual-section--rationale` e `.manual-rationale` (cards lado a lado com índice numerado), tornando o bloco motivacional reutilizável em outros manuais.
+- Conteúdo: prints `compartilhar-exige-conta-google.png` e `auditoria-modificador-drive.png` adicionados em `public/manuals/drive-ftp/`; sumário do manual atualizado para incluir o atalho.
+
+## v3.1.8 (2026-05-08)
+
+- Manuais: novo manual interno **Google Drive (FTP-AZOUP) no Windows Explorer** — passo a passo para criar Conta Google `@azoup.com.br` (link `signupwithoutgmail`), instalar o **Drive para Desktop** e acessar o Drive Compartilhado direto pelo Explorer (`G:\Drives compartilhados\FTP-AZOUP`), com aviso para falar com o admin liberar o acesso.
+- Manuais (UI): índice lateral agora agrupa os documentos em **categorias tipo pastinha** (`Internos > Configurações PC`, `Internos > Integrações`, `Operacional`, `Onboarding`), com cabeçalho de grupo, ícone de pasta e contagem; cabeçalho do leitor exibe a "trilha" da categoria.
+- Catálogo: `ManualDef` ganhou `category: ManualCategoryId`; ordenação e rótulos centralizados em `MANUAL_CATEGORIES` / `MANUAL_CATEGORY_ORDER`.
+- Conteúdo: prints estáticos do manual em `public/manuals/drive-ftp/`; estilos novos para link inline com ícone (`.manual-link`) e teclas (`<kbd>`).
+
 ## v3.1.7 (2026-05-07)
 
 - Datas de projeto (`start_date`/`due_date`) corrigidas para não sofrer deslocamento de fuso (`-1 dia`) ao editar, exibir ou ordenar após sincronização.

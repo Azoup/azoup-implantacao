@@ -1,13 +1,45 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react'
-import { BookOpen, Search, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react'
+import { BookOpen, FileDown, Printer, Search, X } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
-import { MANUALS, type ManualAudience, type ManualDef } from '../constants/manualsCatalog'
+import { AzoupLogoMark } from '../components/AzoupLogoMark'
+import { APP_BRAND_NAME_FULL, APP_VERSION_DISPLAY } from '../constants/appMeta'
+import {
+  MANUAL_CATEGORIES,
+  MANUAL_CATEGORY_ORDER,
+  MANUALS,
+  type ManualAudience,
+  type ManualCategoryId,
+  type ManualDef,
+} from '../constants/manualsCatalog'
 import { manualMatchesQuery } from '../lib/manualsSearch'
+import { GoogleDriveFtpManual } from './manuals/GoogleDriveFtpManual'
 import { WooCommerceIntegrationManual } from './manuals/WooCommerceIntegrationManual'
 import './ManualsPage.css'
 
 const MANUAL_COMPONENTS: Record<string, ComponentType> = {
   'woocommerce-azoup': WooCommerceIntegrationManual,
+  'google-drive-ftp-azoup': GoogleDriveFtpManual,
+}
+
+type GroupedManuals = {
+  category: ManualCategoryId
+  label: string
+  pathLabel: string
+  description: string
+  items: ManualDef[]
+}[]
+
+function groupManualsByCategory(list: ManualDef[]): GroupedManuals {
+  return MANUAL_CATEGORY_ORDER.map((categoryId) => {
+    const meta = MANUAL_CATEGORIES[categoryId]
+    return {
+      category: categoryId,
+      label: meta.label,
+      pathLabel: meta.pathLabel,
+      description: meta.description,
+      items: list.filter((m) => m.category === categoryId),
+    }
+  }).filter((g) => g.items.length > 0)
 }
 
 export function ManualsPage() {
@@ -40,6 +72,8 @@ export function ManualsPage() {
     [filtered, searchQuery],
   )
 
+  const groupedVisible = useMemo(() => groupManualsByCategory(visibleManuals), [visibleManuals])
+
   const [selectedId, setSelectedId] = useState<string | null>(() => MANUALS[0]?.id ?? null)
 
   useEffect(() => {
@@ -62,6 +96,57 @@ export function ManualsPage() {
 
   const searchTrim = searchQuery.trim()
   const showNoSearchResults = searchTrim.length > 0 && visibleManuals.length === 0 && filtered.length > 0
+
+  /**
+   * Imagens com `loading="lazy"` (ou dentro de elementos `display:none` como
+   * a letterhead do PDF) podem não estar carregadas no momento do print —
+   * força carregamento eager antes de `window.print()` com timeout de
+   * segurança para nunca travar o usuário esperando rede.
+   */
+  const handlePrint = useCallback(async () => {
+    if (typeof window === 'undefined') return
+    const previousTitle = typeof document !== 'undefined' ? document.title : ''
+    if (selected && typeof document !== 'undefined') {
+      const safeTitle = selected.title.replace(/[\\/:*?"<>|]+/g, ' ').trim()
+      document.title = `${safeTitle} — ${APP_BRAND_NAME_FULL}`
+    }
+    try {
+      const imgs = document.querySelectorAll<HTMLImageElement>('.manuals-reader img')
+      await Promise.all(
+        Array.from(imgs).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete && img.naturalWidth > 0) {
+                resolve()
+                return
+              }
+              img.loading = 'eager'
+              const done = () => resolve()
+              img.addEventListener('load', done, { once: true })
+              img.addEventListener('error', done, { once: true })
+              window.setTimeout(done, 2500)
+            }),
+        ),
+      )
+      window.print()
+    } finally {
+      if (typeof document !== 'undefined' && previousTitle) {
+        document.title = previousTitle
+      }
+    }
+  }, [selected])
+
+  const printedDate = useMemo(() => {
+    try {
+      return new Date().toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      })
+    } catch {
+      return ''
+    }
+  }, [])
 
   return (
     <div className="page page--wide manuals-page">
@@ -159,31 +244,48 @@ export function ManualsPage() {
             </p>
           ) : showNoSearchResults ? (
             <p className="manuals-empty">
-              Tente outro termo ou <button type="button" className="manuals-empty__link" onClick={() => setSearchQuery('')}>
+              Tente outro termo ou{' '}
+              <button type="button" className="manuals-empty__link" onClick={() => setSearchQuery('')}>
                 limpar a busca
               </button>
               .
             </p>
           ) : (
-            <ul className="manuals-index__list">
-              {visibleManuals.map((m: ManualDef) => (
-                <li key={m.id}>
-                  <button
-                    type="button"
-                    className={'manuals-index__btn' + (m.id === selectedId ? ' is-active' : '')}
-                    onClick={() => setSelectedId(m.id)}
-                  >
-                    {m.audience === 'internal' ? (
-                      <span className="manuals-index__pill" aria-hidden>
-                        Interno
-                      </span>
-                    ) : null}
-                    <span className="manuals-index__btn-title">{m.title}</span>
-                    <span className="manuals-index__btn-desc">{m.description}</span>
-                  </button>
-                </li>
+            <div className="manuals-index__groups">
+              {groupedVisible.map((group) => (
+                <section
+                  key={group.category}
+                  className="manuals-index__group"
+                  aria-label={group.pathLabel}
+                >
+                  <header className="manuals-index__group-head">
+                    <span className="manuals-index__group-folder" aria-hidden>
+                      {/* "pastinha" simbólica desenhada via CSS */}
+                    </span>
+                    <h3 className="manuals-index__group-title" title={group.description}>
+                      {group.label}
+                    </h3>
+                    <span className="manuals-index__group-count" aria-hidden>
+                      {group.items.length}
+                    </span>
+                  </header>
+                  <ul className="manuals-index__list">
+                    {group.items.map((m: ManualDef) => (
+                      <li key={m.id}>
+                        <button
+                          type="button"
+                          className={'manuals-index__btn' + (m.id === selectedId ? ' is-active' : '')}
+                          onClick={() => setSelectedId(m.id)}
+                        >
+                          <span className="manuals-index__btn-title">{m.title}</span>
+                          <span className="manuals-index__btn-desc">{m.description}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </nav>
 
@@ -192,20 +294,78 @@ export function ManualsPage() {
             <p className="manuals-empty">Selecione um manual na lista ao lado.</p>
           ) : (
             <>
+              {/* Cabeçalho institucional — visível apenas no PDF/impressão */}
+              <header className="manuals-reader__letterhead" aria-hidden>
+                <div className="manuals-reader__letterhead-brand">
+                  <AzoupLogoMark size={42} />
+                  <div className="manuals-reader__letterhead-titles">
+                    <p className="manuals-reader__letterhead-product">
+                      {APP_BRAND_NAME_FULL}{' '}
+                      <span className="manuals-reader__letterhead-version">{APP_VERSION_DISPLAY}</span>
+                    </p>
+                    <p className="manuals-reader__letterhead-section">
+                      Manuais · {MANUAL_CATEGORIES[selected.category].pathLabel}
+                    </p>
+                  </div>
+                </div>
+                <div className="manuals-reader__letterhead-meta">
+                  <p className="manuals-reader__letterhead-doc-title">{selected.title}</p>
+                  <p className="manuals-reader__letterhead-stamp">
+                    {selected.audience === 'internal' ? 'Uso interno · Equipe Azoup' : 'Material para clientes'}
+                    {printedDate ? <> · Gerado em {printedDate}</> : null}
+                  </p>
+                </div>
+              </header>
+
               <header className="manuals-reader__meta">
                 <div className="manuals-reader__meta-text">
+                  <p className="manuals-reader__crumbs" aria-label="Categoria do manual">
+                    {MANUAL_CATEGORIES[selected.category].pathLabel}
+                  </p>
                   <h2 className="manuals-reader__heading">{selected.title}</h2>
                   <p className="manuals-reader__intro">{selected.description}</p>
                 </div>
-                {selected.audience === 'internal' ? (
-                  <span className="manuals-audience-badge">Uso interno</span>
-                ) : (
-                  <span className="manuals-audience-badge manuals-audience-badge--clients">Cliente</span>
-                )}
+                <div className="manuals-reader__meta-aside">
+                  <div className="manuals-reader__actions" role="toolbar" aria-label="Ações do manual">
+                    <button
+                      type="button"
+                      className="manuals-reader__action manuals-reader__action--primary"
+                      onClick={handlePrint}
+                      title="Abre o diálogo de impressão. Em 'Destino', escolha 'Salvar como PDF'."
+                    >
+                      <FileDown size={16} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      <span>Baixar PDF</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="manuals-reader__action"
+                      onClick={handlePrint}
+                      title="Imprimir este manual"
+                      aria-label="Imprimir manual"
+                    >
+                      <Printer size={16} strokeWidth={2} absoluteStrokeWidth aria-hidden />
+                      <span className="manuals-reader__action-label-compact">Imprimir</span>
+                    </button>
+                  </div>
+                  {selected.audience === 'internal' ? (
+                    <span className="manuals-audience-badge">Uso interno</span>
+                  ) : (
+                    <span className="manuals-audience-badge manuals-audience-badge--clients">Cliente</span>
+                  )}
+                </div>
               </header>
               <div className="manuals-reader__body">
                 <Body />
               </div>
+
+              {/* Rodapé institucional — visível apenas no PDF/impressão */}
+              <footer className="manuals-reader__print-footer" aria-hidden>
+                <span>{APP_BRAND_NAME_FULL}</span>
+                <span>·</span>
+                <span>{selected.title}</span>
+                <span>·</span>
+                <span>azoup.com.br</span>
+              </footer>
             </>
           )}
         </article>

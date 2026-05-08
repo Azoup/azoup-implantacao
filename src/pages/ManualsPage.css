@@ -168,6 +168,81 @@
   gap: 8px;
 }
 
+/* Agrupamento por categoria ("pastinhas") */
+.manuals-index__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+}
+
+.manuals-index__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.manuals-index__group + .manuals-index__group {
+  padding-top: 0.85rem;
+  border-top: 1px dashed color-mix(in srgb, var(--border) 92%, transparent);
+}
+
+.manuals-index__group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.35rem;
+}
+
+.manuals-index__group-folder {
+  position: relative;
+  width: 18px;
+  height: 13px;
+  border-radius: 3px 4px 4px 4px;
+  background: var(--manuals-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  flex-shrink: 0;
+}
+
+.manuals-index__group-folder::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 1px;
+  width: 7px;
+  height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--accent) 30%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-bottom: none;
+}
+
+.manuals-index__group-title {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--accent) 60%, var(--text));
+  flex: 1;
+  min-width: 0;
+}
+
+.manuals-index__group-count {
+  flex-shrink: 0;
+  min-width: 1.45rem;
+  height: 1.1rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .manuals-index__pill {
   display: inline-block;
   margin-bottom: 6px;
@@ -252,6 +327,108 @@
 .manuals-reader__meta-text {
   flex: 1;
   min-width: min(100%, 12rem);
+}
+
+.manuals-reader__meta-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.manuals-reader__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.manuals-reader__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.42rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 650;
+  letter-spacing: 0.005em;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+
+.manuals-reader__action svg {
+  flex-shrink: 0;
+}
+
+.manuals-reader__action:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.manuals-reader__action:active {
+  transform: translateY(1px);
+}
+
+.manuals-reader__action:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.manuals-reader__action--primary {
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--accent-deep, var(--accent)));
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--text) 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
+}
+
+.manuals-reader__action--primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--accent-deep, var(--text)));
+  color: var(--accent-contrast, #fff);
+}
+
+.manuals-reader__action--primary:focus-visible {
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 18%, transparent);
+}
+
+.manuals-reader__action-label-compact {
+  display: inline;
+}
+
+@media (max-width: 520px) {
+  .manuals-reader__action-label-compact {
+    display: none;
+  }
+
+  .manuals-reader__action {
+    padding: 0.42rem 0.6rem;
+  }
+}
+
+.manuals-reader__crumbs {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--accent) 55%, var(--text-muted));
 }
 
 .manuals-reader__heading {
@@ -878,4 +1055,435 @@
 
 .manual-body .manual-note {
   font-size: 0.96em;
+}
+
+/* Seção "Por que isso importa" — lado-a-lado com prints de evidência */
+.manual-section--rationale {
+  margin-top: 1.6rem;
+  padding: 1.1rem 1.2rem 1.25rem;
+  border-radius: var(--radius-ui, 12px);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 6%, var(--surface)) 0%,
+    var(--surface) 100%
+  );
+  scroll-margin-top: 4.5rem;
+}
+
+.manual-section__rationale-head {
+  margin-bottom: 0.4rem;
+}
+
+.manual-section--rationale .manual-section__title {
+  margin-bottom: 0.45rem;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.manual-rationale {
+  display: grid;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+@media (min-width: 880px) {
+  .manual-rationale {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.manual-rationale__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.95rem 1rem 1rem;
+  border-radius: var(--radius-ui, 10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.manual-rationale__heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.manual-rationale__index {
+  flex-shrink: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.92rem;
+  background: var(--manuals-accent-soft);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+
+.manual-rationale__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.manual-rationale__item p {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--text);
+  font-size: 0.97em;
+}
+
+.manual-rationale__item .manual-figure {
+  margin: 0.4rem 0 0;
+}
+
+/* Link inline dentro do corpo do manual (ex.: para URLs externas) */
+.manual-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-underline-offset: 3px;
+  word-break: break-word;
+}
+
+.manual-link:hover {
+  text-decoration-color: var(--accent);
+}
+
+.manual-link svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* Tecla simulada (<kbd>) — usada em atalhos de teclado nos manuais */
+.manual-body kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin: 0 1px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.82em;
+  line-height: 1.4;
+  font-weight: 700;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--text) 14%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+:root[data-theme='dark'] .manual-body kbd {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Letterhead institucional — só visível em PDF/impressão */
+.manuals-reader__letterhead,
+.manuals-reader__print-footer {
+  display: none;
+}
+
+/* ============================================================
+   PRINT / "Baixar PDF" (window.print + Salvar como PDF)
+   Limpa a UI do app e renderiza só o manual com cabeçalho
+   institucional, em layout adequado para A4 retrato.
+   ============================================================ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 16mm 14mm 18mm;
+  }
+
+  :root,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* Esconde cromo do app */
+  .shell__mobile-menu-btn,
+  .shell__nav-backdrop,
+  .sidebar,
+  .topbar,
+  .manuals-page__intro,
+  .manuals-page__segmented,
+  .manuals-toolbar,
+  .manuals-index,
+  .manuals-reader__meta,
+  .manuals-empty,
+  .manual-figure__zoom-hint,
+  .manual-figure__zoom-trigger {
+    /* manter o trigger acessível, só visualmente neutro abaixo */
+  }
+
+  .shell__mobile-menu-btn,
+  .shell__nav-backdrop,
+  .sidebar,
+  .topbar,
+  .manuals-page__intro,
+  .manuals-page__segmented,
+  .manuals-toolbar,
+  .manuals-index,
+  .manuals-reader__meta,
+  .manual-figure__zoom-hint {
+    display: none !important;
+  }
+
+  .shell {
+    display: block !important;
+  }
+
+  .shell__main {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    background: #fff !important;
+  }
+
+  .page.manuals-page,
+  .manuals-page {
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .manuals-layout {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  .manuals-reader {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    overflow: visible !important;
+  }
+
+  .manuals-reader__body {
+    padding: 0 !important;
+    max-width: none !important;
+    font-size: 10.5pt;
+    line-height: 1.55;
+    color: #111;
+  }
+
+  /* Letterhead aparece apenas no print, no topo da primeira página */
+  .manuals-reader__letterhead {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0 0 12px;
+    margin-bottom: 14px;
+    border-bottom: 2px solid #e26b1e;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  .manuals-reader__letterhead-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .manuals-reader__letterhead-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .manuals-reader__letterhead-product {
+    margin: 0;
+    font-size: 11.5pt;
+    font-weight: 800;
+    color: #111;
+    letter-spacing: -0.01em;
+  }
+
+  .manuals-reader__letterhead-version {
+    font-weight: 600;
+    color: #6b6b6b;
+    font-size: 9.5pt;
+    margin-left: 4px;
+  }
+
+  .manuals-reader__letterhead-section {
+    margin: 0;
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #e26b1e;
+    font-weight: 700;
+  }
+
+  .manuals-reader__letterhead-meta {
+    text-align: right;
+    max-width: 60%;
+  }
+
+  .manuals-reader__letterhead-doc-title {
+    margin: 0;
+    font-size: 11pt;
+    font-weight: 750;
+    color: #111;
+    line-height: 1.25;
+  }
+
+  .manuals-reader__letterhead-stamp {
+    margin: 4px 0 0;
+    font-size: 8.5pt;
+    color: #555;
+  }
+
+  /* Rodapé institucional — uma vez no fim do documento */
+  .manuals-reader__print-footer {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 22px;
+    padding-top: 10px;
+    border-top: 1px solid #d4d4d4;
+    font-size: 8.5pt;
+    color: #6b6b6b;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Conteúdo do manual em PDF — tipografia mais densa, sem sombras */
+  .manual-body {
+    font-size: 10.5pt !important;
+    line-height: 1.55 !important;
+    color: #111 !important;
+  }
+
+  .manual-body__lead,
+  .manual-body__disclaimer {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .manual-body__disclaimer {
+    background: #fffbe6 !important;
+    border: 1px solid #f0c674 !important;
+    color: #5a4a00 !important;
+  }
+
+  .manual-toc {
+    display: none !important;
+  }
+
+  .manual-prelude {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 10px !important;
+  }
+
+  .manual-section,
+  .manual-section--card,
+  .manual-phase,
+  .manual-rationale__item {
+    background: #fff !important;
+    box-shadow: none !important;
+    border-color: #d8d8d8 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .manual-section--rationale {
+    background: #fff !important;
+    border-color: #e0e0e0 !important;
+  }
+
+  .manual-rationale {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .manual-phase__badge,
+  .manual-rationale__index,
+  .manuals-index__pill,
+  .manual-microsteps li::before {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manual-phase__title,
+  .manual-section__title,
+  .manual-rationale__title {
+    color: #111 !important;
+  }
+
+  .manual-note {
+    background: #fff5eb !important;
+    border-left-color: #e26b1e !important;
+    color: #422300 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .manual-code {
+    background: #f4f4f4 !important;
+    border: 1px solid #d4d4d4 !important;
+    color: #111 !important;
+  }
+
+  .manual-figure {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .manual-figure__frame {
+    border-color: #d4d4d4 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .manual-figure__zoom-trigger {
+    cursor: default !important;
+  }
+
+  .manual-figure__img {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  .manual-link,
+  .manual-body a {
+    color: #c64f00 !important;
+    text-decoration: underline;
+  }
+
+  .manual-link svg,
+  .manuals-reader__actions {
+    display: none !important;
+  }
+
+  /* Quebra de página entre fases longas, mas tente manter a fase inteira */
+  .manual-flow {
+    gap: 8px !important;
+  }
+
+  .manual-phase + .manual-phase {
+    page-break-before: auto;
+  }
+
+  /* Garante que o lightbox eventualmente aberto não atrapalhe o PDF */
+  .manual-lightbox {
+    display: none !important;
+  }
 }
