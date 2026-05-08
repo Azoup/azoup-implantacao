@@ -1,5 +1,5 @@
 import type { DbEvent, DbPhase, DbProject, DbTask } from '../db/types'
-import { formatDatePt, formatDateTimePt } from './dates'
+import { formatDatePt, formatDateTimePt, parseAppDate } from './dates'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
 
 export type DashboardAlertKind = 'overdue_due' | 'agenda_no_hours' | 'schedule_gap'
@@ -29,7 +29,7 @@ function isOverdueByDueDate(t: DbTask, now: Date): boolean {
   if (t.status === 'concluida' || t.status === 'cancelado') return false
   const end = new Date(now)
   end.setHours(23, 59, 59, 999)
-  return new Date(t.dueDate) < end
+  return parseAppDate(t.dueDate) < end
 }
 
 function openTask(t: DbTask): boolean {
@@ -54,7 +54,7 @@ export function buildDashboardAlerts(opts: {
     if (!isOverdueByDueDate(t, now)) continue
     const proj = projectById.get(t.projectId)
     if (!proj || !isOngoingProject(proj, phases, tasks)) continue
-    const dueMs = t.dueDate ? new Date(t.dueDate).getTime() : 0
+    const dueMs = t.dueDate ? parseAppDate(t.dueDate).getTime() : 0
     dueRows.push({
       id: `due-${t.id}`,
       kind: 'overdue_due',

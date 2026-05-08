@@ -23,7 +23,7 @@ import { hasScope } from '../auth/permissions'
 import { db } from '../db/database'
 import { emptyAnalysts, emptyEvents, emptyPhases, emptyProjects, emptyTasks } from '../lib/stableDexieEmpty'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
-import { formatDatePt, weekdayTitlePt } from '../lib/dates'
+import { formatDatePt, parseAppDate, weekdayTitlePt } from '../lib/dates'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
 import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { planPillClass, planSummaryLabel } from '../constants/customPlan'
@@ -125,6 +125,12 @@ function localDateTimeInputToIso(dateInput: string, timeInput: string): string |
   return dt.toISOString()
 }
 
+function toMonthInputValue(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
 function isSameCalendarDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
@@ -196,6 +202,8 @@ export function DashboardPage() {
   const [kpiDrilldown, setKpiDrilldown] = useState<DashboardKpiDrilldownKey | null>(null)
   const [periodPreset, setPeriodPreset] = useState<DashboardPeriodPreset>('month')
   const [kpiWindow, setKpiWindow] = useState<DashboardKpiWindow>('total')
+  const [kpiAnchorDate, setKpiAnchorDate] = useState(() => new Date())
+  const [summaryMonthYear, setSummaryMonthYear] = useState(() => toMonthInputValue(new Date()))
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
   const [filterAnalystId, setFilterAnalystId] = useState('all')
@@ -253,11 +261,27 @@ export function DashboardPage() {
   }, [events, scopedProjectIds, scopedTasks])
 
   const kpiRange = useMemo(() => {
-    if (kpiWindow === 'today') return { start: startOfDay(now), end: endOfDay(now) }
-    if (kpiWindow === 'week') return { start: startOfWeekMonday(now), end: endOfWeekSunday(now) }
-    if (kpiWindow === 'month') return { start: startOfMonth(now), end: endOfMonth(now) }
+    if (kpiWindow === 'today') return { start: startOfDay(kpiAnchorDate), end: endOfDay(kpiAnchorDate) }
+    if (kpiWindow === 'week') return { start: startOfWeekMonday(kpiAnchorDate), end: endOfWeekSunday(kpiAnchorDate) }
+    if (kpiWindow === 'month') return { start: startOfMonth(kpiAnchorDate), end: endOfMonth(kpiAnchorDate) }
     return null
-  }, [kpiWindow, now])
+  }, [kpiWindow, kpiAnchorDate])
+
+  const handleSummaryMonthYearChange = useCallback((value: string) => {
+    setSummaryMonthYear(value)
+    const match = value.match(/^(\d{4})-(\d{2})$/)
+    if (!match) return
+    const year = Number.parseInt(match[1], 10)
+    const month = Number.parseInt(match[2], 10)
+    if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return
+    const anchor = new Date(year, month - 1, 1, 12, 0, 0, 0)
+    setKpiAnchorDate(anchor)
+    setPeriodPreset('custom')
+    setCustomStartDate(`${year}-${String(month).padStart(2, '0')}-01`)
+    const monthEnd = endOfMonth(anchor)
+    const endDate = `${monthEnd.getFullYear()}-${String(monthEnd.getMonth() + 1).padStart(2, '0')}-${String(monthEnd.getDate()).padStart(2, '0')}`
+    setCustomEndDate(endDate)
+  }, [])
 
   const isInKpiRange = useCallback((iso: string | null | undefined): boolean => {
     if (!kpiRange) return true
@@ -495,7 +519,7 @@ export function DashboardPage() {
 
         return {
           id: project.id,
-          sortStartMs: new Date(project.startDate ?? project.createdAt).getTime(),
+          sortStartMs: parseAppDate(project.startDate ?? project.createdAt).getTime(),
           projectName: project.projectName,
           projectLink: `/projetos/${project.id}`,
           analystName: analyst?.name ?? 'Sem responsável',
@@ -823,7 +847,14 @@ export function DashboardPage() {
         </div>
         <div className="dashboard-cc__top-controls" aria-label="Navegação e janela de indicadores">
           <DashboardMainTabs activeTab={mainTab} onChange={setMainTab} />
-          {mainTab === 'summary' ? <DashboardFilterBar kpiWindow={kpiWindow} onKpiWindowChange={setKpiWindow} /> : null}
+          {mainTab === 'summary' ? (
+            <DashboardFilterBar
+              kpiWindow={kpiWindow}
+              onKpiWindowChange={setKpiWindow}
+              monthYear={summaryMonthYear}
+              onMonthYearChange={handleSummaryMonthYearChange}
+            />
+          ) : null}
         </div>
       </header>
 

@@ -1,5 +1,4 @@
 import { FormEvent, useEffect, useRef, useState } from 'react'
-import { format } from 'date-fns'
 import { Building2, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react'
 import type {
   DbAnalyst,
@@ -34,6 +33,7 @@ import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { AiFormatModal } from './AiFormatModal'
+import { toDateInputValue } from '../lib/dates'
 
 function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
   const fallback = isEdit ? 'Erro ao salvar projeto.' : 'Erro ao criar projeto.'
@@ -116,10 +116,7 @@ function queueProjectPatchSync(projectId: string, patch: Partial<DbProject>, opI
 }
 
 function isoToDateInput(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return format(d, 'yyyy-MM-dd')
+  return toDateInputValue(iso)
 }
 
 type PlanRow = Pick<DbPlanModel, 'id' | 'key' | 'name' | 'hoursContracted' | 'phaseCount'>
@@ -154,7 +151,7 @@ export function ProjectCreateModal({
   /** Teto de horas (plano avulso — política híbrida B). */
   const [customContractHours, setCustomContractHours] = useState(40)
   const [analystId, setAnalystId] = useState('')
-  const [startDate, setStartDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [startDate, setStartDate] = useState(() => toDateInputValue(new Date()))
   const [dueDate, setDueDate] = useState('')
 
   const [cnpjDigits, setCnpjDigits] = useState('')
@@ -229,7 +226,7 @@ export function ProjectCreateModal({
     setProjectName('')
     setPlanKey(p[0]?.key ?? 'master')
     setAnalystId('')
-    setStartDate(format(new Date(), 'yyyy-MM-dd'))
+    setStartDate(toDateInputValue(new Date()))
     setDueDate('')
     setCnpjDigits('')
     setRazaoSocial('')

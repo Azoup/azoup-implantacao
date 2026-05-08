@@ -32,6 +32,10 @@ function projectMatchesFilters(project: DbProject, filters: DashboardFilters): b
   return true
 }
 
+function projectMatchesPeriod(project: DbProject, range: DashboardPeriodRange): boolean {
+  return isIsoInRange(project.startDate ?? project.createdAt, range)
+}
+
 export function buildStartsCounters(projects: DbProject[], now: Date): DashboardStartsCounters {
   const todayRange = { start: startOfDay(now), end: endOfDay(now) }
   const weekRange = { start: startOfWeekMonday(now), end: endOfWeekSunday(now) }
@@ -99,7 +103,8 @@ export function buildDashboardMetrics(params: {
   analysts: DbAnalyst[]
 }): DashboardMetrics & { actionRows: DashboardActionRow[] } {
   const { now, filters, periodRange, projects, phases, tasks, events, analysts } = params
-  const scopedProjects = projects.filter((p) => projectMatchesFilters(p, filters))
+  const projectsByFacet = projects.filter((p) => projectMatchesFilters(p, filters))
+  const scopedProjects = projectsByFacet.filter((p) => projectMatchesPeriod(p, periodRange))
   const scopedIds = new Set(scopedProjects.map((p) => p.id))
   const scopedTasks = tasks.filter((t) => scopedIds.has(t.projectId))
   const taskById = new Map(scopedTasks.map((task) => [task.id, task]))
@@ -109,8 +114,8 @@ export function buildDashboardMetrics(params: {
     return !!projectId && scopedIds.has(projectId)
   })
 
-  const startedInSelectedPeriod = scopedProjects.filter((p) => isIsoInRange(p.startDate, periodRange)).length
-  const starts = buildStartsCounters(scopedProjects, now)
+  const startedInSelectedPeriod = scopedProjects.length
+  const starts = buildStartsCounters(projectsByFacet, now)
 
   const projectById = new Map(scopedProjects.map((p) => [p.id, p]))
   const cutoversInSelectedPeriod = buildCutoverRows(scopedEvents, projectById, taskProjectById, taskById, periodRange)

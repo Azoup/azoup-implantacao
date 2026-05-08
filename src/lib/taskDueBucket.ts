@@ -1,6 +1,6 @@
 import { addWeeks, endOfWeek } from 'date-fns'
 import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
-import { APP_TZ } from './dates'
+import { APP_TZ, parseAppDate } from './dates'
 
 export type DueBucket = 'vencidas' | 'hoje' | 'esta_semana' | 'proxima_semana' | 'futuro' | 'sem_prazo'
 
@@ -35,7 +35,7 @@ export function classifyDueBucket(dueDateIso: string | null | undefined, now = n
   if (!dueDateIso?.trim()) return 'sem_prazo'
 
   const todayStr = formatInTimeZone(now, APP_TZ, 'yyyy-MM-dd')
-  const dueStr = formatInTimeZone(new Date(dueDateIso), APP_TZ, 'yyyy-MM-dd')
+  const dueStr = formatInTimeZone(parseAppDate(dueDateIso), APP_TZ, 'yyyy-MM-dd')
 
   if (dueStr < todayStr) return 'vencidas'
   if (dueStr === todayStr) return 'hoje'

@@ -1425,6 +1425,34 @@ export function ProjectDetailPage() {
                               </details>
                             </div>
                           </div>
+                          {informational ? (
+                            <p className="pd-task__hours-line pd-task__hours-line--info">
+                              Informativa · não entra nas horas do contrato
+                            </p>
+                          ) : (
+                            <div
+                              className={
+                                'pd-task__hours-line' +
+                                (t.isAdHoc && t.estimatedHours <= 0 ? ' pd-task__hours-line--adhoc' : '')
+                              }
+                              title="Horas consumidas / horas previstas nesta tarefa"
+                            >
+                              <Clock className="pd-task__hours-line-ic" {...icSm} aria-hidden />
+                              <span className="pd-task__hours-line-values">
+                                <strong>{formatDurationHmFromHours(t.actualHours)}</strong>
+                                <span className="pd-task__hours-line-sep" aria-hidden>
+                                  /
+                                </span>
+                                <span className="pd-task__hours-line-cap">
+                                  {t.estimatedHours > 0
+                                    ? formatDurationHmFromHours(t.estimatedHours)
+                                    : t.isAdHoc
+                                      ? '—'
+                                      : formatDurationHmFromHours(0)}
+                                </span>
+                              </span>
+                            </div>
+                          )}
                           {doneTask ? (
                             <button
                               type="button"
@@ -1438,33 +1466,13 @@ export function ProjectDetailPage() {
                           ) : (
                             <>
                               {!informational ? (
-                                <div
-                                  className={
-                                    'pd-task__time-budget' +
-                                    (t.isAdHoc && t.estimatedHours <= 0 ? ' pd-task__time-budget--adhoc' : '')
-                                  }
-                                  title={
-                                    t.isAdHoc && t.estimatedHours <= 0
-                                      ? 'Tarefa avulsa: o tempo registrado entra nas horas utilizadas do projeto.'
-                                      : undefined
-                                  }
-                                >
-                                  <div className="pd-task__time-budget-top">
-                                    <span className="pd-task__time-budget-label">
-                                      <Clock {...icSm} aria-hidden />
-                                      Tempo
-                                    </span>
-                                    <span className="pd-task__time-budget-values">
-                                      <strong>{formatDurationHmFromHours(t.actualHours)}</strong>
-                                      {t.estimatedHours > 0 ? (
-                                        <> de {formatDurationHmFromHours(t.estimatedHours)}</>
-                                      ) : (
-                                        <> de {formatDurationHmFromHours(0)}</>
-                                      )}
-                                    </span>
-                                  </div>
+                                <>
                                   {t.isAdHoc && t.estimatedHours <= 0 && t.actualHours > 0 ? (
-                                    <div className="pd-task__adhoc-spent-meter" aria-hidden title="Tempo registrado (fora da previsão do plano)">
+                                    <div
+                                      className="pd-task__adhoc-spent-meter pd-task__adhoc-spent-meter--solo"
+                                      aria-hidden
+                                      title="Tempo registrado (fora da previsão do plano)"
+                                    >
                                       <div
                                         className="pd-task__adhoc-spent-meter-fill"
                                         style={{
@@ -1473,14 +1481,14 @@ export function ProjectDetailPage() {
                                       />
                                     </div>
                                   ) : hoursPct != null ? (
-                                    <div className="pd-task__time-budget-track" aria-hidden>
+                                    <div className="pd-task__time-budget-track pd-task__time-budget-track--solo" aria-hidden>
                                       <div
                                         className="pd-task__time-budget-fill"
                                         style={{ width: `${hoursPct}%` }}
                                       />
                                     </div>
                                   ) : null}
-                                </div>
+                                </>
                               ) : null}
                               {liveTimerHere ? (
                                 <div className="pd-task__live-timer" role="status" aria-live="polite">

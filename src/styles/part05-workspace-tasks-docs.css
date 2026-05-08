@@ -2017,45 +2017,68 @@
   background: color-mix(in srgb, var(--surface-2) 70%, var(--accent) 14%);
 }
 
-.pd-task__time-budget {
-  margin-top: 0.42rem;
-  padding: 0.38rem 0.48rem 0.42rem;
+.pd-task__hours-line + .pd-task__reopen--icon {
+  margin-top: 0.28rem;
+}
+
+/** Resumo fixo: consumidas / previstas (todos os cards, inclusive concluídos). */
+.pd-task__hours-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.32rem 0.45rem;
+  margin-top: 0.38rem;
+  padding: 0.3rem 0.45rem 0.32rem;
   border-radius: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-
-.pd-task__time-budget-top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5rem 0.85rem;
-}
-
-.pd-task__time-budget-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.32rem;
-  font-size: 0.68rem;
-  font-weight: 750;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  background: color-mix(in srgb, var(--surface-2) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  font-size: 0.74rem;
   line-height: 1.2;
-}
-
-.pd-task__time-budget-values {
-  font-size: 0.78rem;
-  line-height: 1.25;
   color: var(--text);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  justify-self: end;
 }
 
-.pd-task__time-budget-values strong {
+.pd-task__hours-line--adhoc {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: color-mix(in srgb, var(--surface-2) 86%, var(--accent) 7%);
+}
+
+.pd-task__hours-line-ic {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.pd-task__hours-line-values {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.18rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pd-task__hours-line-values strong {
   font-weight: 800;
   color: var(--accent);
+}
+
+.pd-task__hours-line-sep {
+  color: var(--text-muted);
+  font-weight: 600;
+  opacity: 0.5;
+  user-select: none;
+}
+
+.pd-task__hours-line-cap {
+  color: color-mix(in srgb, var(--text) 78%, var(--text-muted));
+  font-weight: 650;
+}
+
+.pd-task__hours-line--info {
+  margin: 0.38rem 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
 .pd-task__time-budget-track {
@@ -2066,16 +2089,16 @@
   overflow: hidden;
 }
 
+.pd-task__time-budget-track--solo {
+  margin-top: 0.3rem;
+  height: 4px;
+}
+
 .pd-task__time-budget-fill {
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent-deep), var(--accent));
   transition: width 0.35s ease;
-}
-
-.pd-task__time-budget--adhoc {
-  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
-  background: color-mix(in srgb, var(--surface-2) 84%, var(--accent) 9%);
 }
 
 .pd-task__adhoc-spent-meter {
@@ -2084,6 +2107,11 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--border) 55%, transparent);
   overflow: hidden;
+}
+
+.pd-task__adhoc-spent-meter--solo {
+  margin-top: 0.3rem;
+  height: 4px;
 }
 
 .pd-task__adhoc-spent-meter-fill {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, CalendarClock, CheckCircle2, Clock3, FolderKanban, Target } from 'lucide-react'
 import { fetchMyPortalProjects, type PortalProject } from '../../services/clientPortal'
-import { formatDatePt } from '../../lib/dates'
+import { formatDatePt, parseAppDate } from '../../lib/dates'
 import { useUiFeedback } from '../../ui/UiFeedbackContext'
 
 export function PortalHomePage() {
@@ -39,7 +39,7 @@ export function PortalHomePage() {
     const hoursPct = hoursContracted > 0 ? Math.min(100, Math.round((hoursUsed / hoursContracted) * 100)) : 0
     const nearDeadline = projects.filter((p) => {
       if (!p.dueDate || p.status === 'finalizado') return false
-      const due = new Date(p.dueDate).getTime()
+      const due = parseAppDate(p.dueDate).getTime()
       const now = Date.now()
       return due >= now && due - now <= 1000 * 60 * 60 * 24 * 14
     }).length

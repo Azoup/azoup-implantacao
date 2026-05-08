@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.1.7 (2026-05-07)
+
+- Datas de projeto (`start_date`/`due_date`) corrigidas para não sofrer deslocamento de fuso (`-1 dia`) ao editar, exibir ou ordenar após sincronização.
+- Frontend: novo parser centralizado para campos `date` (sem timezone) e ajuste dos pontos críticos (modal de projeto, dashboard, portal e regras de prazo).
+- Persistência/sync: mantido contrato SQL com colunas `date` e envio em `YYYY-MM-DD`, garantindo fidelidade entre formulário, Dexie e Supabase.
+
+## v3.1.6 (2026-05-07)
+
+- Dashboard (Consulta): correção da busca por período para aplicar o intervalo também na listagem de projetos filtrados, inclusive em período personalizado (início/fim).
+- Dashboard (Resumo): novo filtro visual de `Mês/Ano` no topo para recorte personalizado rápido, integrado aos KPIs e ao período de consulta.
+
+## v3.1.5 (2026-05-06)
+
+- Quadro **Fases & tarefas**: cada card mostra um resumo fixo **horas consumidas / horas previstas** (ícone + valores), inclusive em tarefas concluídas; tarefas informativas exibem texto explicativo; barra fina de progresso só quando aplicável.
+
 ## v3.1.4 (2026-05-06)
 
 - Menu: item **Implantação** renomeado para **Jornada do cliente** (rota `/implantacao` inalterada); ícone `Route`.

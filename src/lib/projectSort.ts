@@ -1,4 +1,5 @@
 import type { DbProject } from '../db/types'
+import { parseAppDate } from './dates'
 
 export type ProjectSortKey = 'startDate' | 'name'
 export type ProjectSortDirection = 'asc' | 'desc'
@@ -9,7 +10,7 @@ const STORAGE_KEY = 'vyntask:projectSortConfig'
 function startMs(p: Pick<DbProject, 'startDate'>, nullSentinel: 'min' | 'max'): number {
   const raw = p.startDate?.trim()
   if (!raw) return nullSentinel === 'min' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY
-  const t = new Date(raw).getTime()
+  const t = parseAppDate(raw).getTime()
   if (!Number.isFinite(t)) return nullSentinel === 'min' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY
   return t
 }

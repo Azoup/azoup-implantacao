@@ -3,6 +3,8 @@ import type { DashboardKpiWindow } from '../../types/dashboard'
 type Props = {
   kpiWindow: DashboardKpiWindow
   onKpiWindowChange: (window: DashboardKpiWindow) => void
+  monthYear: string
+  onMonthYearChange: (value: string) => void
 }
 
 const KPI_WINDOW_LABEL: Record<DashboardKpiWindow, string> = {
@@ -13,7 +15,7 @@ const KPI_WINDOW_LABEL: Record<DashboardKpiWindow, string> = {
 }
 
 export function DashboardFilterBar(props: Props) {
-  const { kpiWindow, onKpiWindowChange } = props
+  const { kpiWindow, onKpiWindowChange, monthYear, onMonthYearChange } = props
 
   return (
     <div className="dashboard-cc__filterbar" aria-label="Filtro temporal dos indicadores">
@@ -33,6 +35,10 @@ export function DashboardFilterBar(props: Props) {
             </button>
           ))}
         </div>
+        <label className="dashboard-cc__month-year" aria-label="Filtro personalizado por mês e ano">
+          <span>Mês/Ano</span>
+          <input type="month" value={monthYear} onChange={(event) => onMonthYearChange(event.target.value)} />
+        </label>
       </div>
     </div>
   )
