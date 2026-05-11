@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.5 (2026-05-11)
+
+- **Navegador:** título da aba e texto de carregamento inicial passam a **Implantação - Azoup** (alinha `index.html`, `APP_BROWSER_DOCUMENT_TITLE` e `main.tsx`).
+
 ## v3.4.4 (2026-05-11)
 
 - **CI:** ESLint em `PlanModelsPage` — remoção de `toastError` não usado e dependência `toastMutationSuccess` em `onPhaseSave` (`react-hooks/exhaustive-deps`).
