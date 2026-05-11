@@ -32,6 +32,11 @@ function projectMatchesFilters(project: DbProject, filters: DashboardFilters): b
   return true
 }
 
+/** Projetos que passam pelos filtros da consulta (analista, status, plano, cliente) sem recorte por período. */
+export function filterProjectsByDashboardFilters(projects: DbProject[], filters: DashboardFilters): DbProject[] {
+  return projects.filter((p) => projectMatchesFilters(p, filters))
+}
+
 function projectMatchesPeriod(project: DbProject, range: DashboardPeriodRange): boolean {
   return isIsoInRange(project.startDate ?? project.createdAt, range)
 }

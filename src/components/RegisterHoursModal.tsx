@@ -1,4 +1,4 @@
-import { Component, FormEvent, type ReactNode, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { Component, FormEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { format } from 'date-fns'
 import { Check, Clock, History, ImagePlus, Paperclip, Pause, Play, X } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -13,6 +13,7 @@ import {
   type AttendanceKind,
 } from '../services/attendanceRegistration'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import {
   formatClockHmsFromHours,
   formatClockHmsFromSeconds,
@@ -138,10 +139,10 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [editingHours, setEditingHours] = useState('')
   const [busy, setBusy] = useState(false)
+  const [modalBaseline, setModalBaseline] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const onCloseRef = useRef(onClose)
   const onSubmitRef = useRef<(e: FormEvent) => Promise<void>>(async () => {})
 
   const running = useLiveQuery(async () => getRunningSessionForUser(user.id), [user.id])
@@ -206,6 +207,40 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     return 'manual'
   }, [task, attendanceKind, activeTab, runningHere])
 
+  const modalSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        attendanceKind,
+        activeTab,
+        hours,
+        executionDate,
+        executionTime,
+        taskStatus,
+        notes,
+        analystId,
+        newDate,
+        newTime,
+        docPendingFiles: docPendingFiles.map((x) => x.file.name),
+        editingSessionId,
+        editingHours,
+      }),
+    [
+      attendanceKind,
+      activeTab,
+      hours,
+      executionDate,
+      executionTime,
+      taskStatus,
+      notes,
+      analystId,
+      newDate,
+      newTime,
+      docPendingFiles,
+      editingSessionId,
+      editingHours,
+    ],
+  )
+
   useEffect(() => {
     if (!open || !task) return
     setBusy(false)
@@ -223,6 +258,19 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     setEditingSessionId(null)
     setEditingHours('')
   }, [open, task, projectAnalystId])
+
+  useLayoutEffect(() => {
+    if (!open || !task) {
+      setModalBaseline(null)
+      return
+    }
+    setModalBaseline((prev) => prev ?? modalSnapshot)
+  }, [open, task, modalSnapshot])
+
+  const modalDirty = useMemo(() => {
+    if (!open || modalBaseline === null) return false
+    return modalBaseline !== modalSnapshot
+  }, [open, modalBaseline, modalSnapshot])
 
   useEffect(() => {
     if (!open || !task || attendanceKind !== 'ocorreu') return
@@ -254,15 +302,23 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     return () => window.clearInterval(id)
   }, [runningHere])
 
-  onCloseRef.current = onClose
   onSubmitRef.current = onSubmit
+
+  const attemptClose = useUnsavedCloseGuard({
+    isDirty: () => modalDirty,
+    onSave: async () => {
+      await onSubmit({ preventDefault() {} } as FormEvent)
+    },
+    onDiscard: onClose,
+    message: 'Ha alteracoes nao gravadas no registro de atendimento. Deseja gravar antes de sair?',
+  })
 
   useEffect(() => {
     if (!open || !task) return
     const onKeyDown = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         ev.preventDefault()
-        if (!busy) onCloseRef.current()
+        if (!busy) void attemptClose()
       } else if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
         ev.preventDefault()
         const fakeEvt = { preventDefault() {} } as FormEvent
@@ -271,7 +327,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, busy, task, runningHere, hours, notes, executionDate, activeTab])
+  }, [open, busy, task, runningHere, hours, notes, executionDate, activeTab, attemptClose])
 
   if (!open || !task) return null
   if (task.isInformational) return null
@@ -486,7 +542,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
     <div
       className="modal-backdrop"
       role="presentation"
-      onClick={busy ? undefined : onClose}
+      onClick={busy ? undefined : () => void attemptClose()}
     >
       <div
         className="modal modal--md register-hours-modal"
@@ -509,7 +565,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
             className="modal__close"
             onClick={() => {
               if (busy) return
-              onClose()
+              void attemptClose()
             }}
             aria-label="Fechar"
             disabled={busy}
@@ -966,7 +1022,7 @@ function RegisterHoursModalInner({ open, task, user, onClose }: Props) {
               </span>
             </div>
             <div className="register-hours-modal__footer-actions">
-              <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>
+              <button type="button" className="btn btn--ghost" onClick={() => void attemptClose()} disabled={busy}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn--primary" disabled={busy}>

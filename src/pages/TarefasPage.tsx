@@ -37,7 +37,7 @@ export function TarefasPage() {
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
   const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
-  const { toastError } = useUiFeedback()
+  const { toastMutationError, toastMutationSuccess } = useUiFeedback()
 
   const [tab, setTab] = useState<TarefaTab>('lista')
   const [q, setQ] = useState('')
@@ -81,8 +81,12 @@ export function TarefasPage() {
     if (!canEditTasks) return
     try {
       await setTaskStatus(id, next, user?.id)
+      toastMutationSuccess({ action: 'update', target: 'Tarefa', gender: 'f' })
     } catch (e) {
-      toastError(e instanceof Error ? e.message : 'Não foi possível atualizar')
+      toastMutationError(
+        { action: 'update', target: 'a tarefa', gender: 'f' },
+        e instanceof Error ? e.message : undefined,
+      )
     }
   }
 

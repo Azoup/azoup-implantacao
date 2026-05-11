@@ -628,6 +628,121 @@
   border-color: color-mix(in srgb, var(--success) 35%, var(--border));
   background: color-mix(in srgb, var(--success) 12%, var(--surface));
 }
+.task-schedule-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: default;
+}
+.task-schedule-chip__label {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.task-schedule-chip__date {
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 70%, var(--text-muted));
+}
+.task-schedule-chip__extra {
+  font-weight: 600;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+.task-schedule-chip--info {
+  color: color-mix(in srgb, var(--info, var(--accent)) 80%, var(--text));
+  border-color: color-mix(in srgb, var(--info, var(--accent)) 35%, var(--border));
+  background: color-mix(in srgb, var(--info, var(--accent)) 10%, var(--surface));
+}
+.task-schedule-chip--warning {
+  color: color-mix(in srgb, var(--warning) 84%, var(--text));
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+}
+.task-schedule-chip--success {
+  color: color-mix(in srgb, var(--success) 84%, var(--text));
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border));
+  background: color-mix(in srgb, var(--success) 12%, var(--surface));
+}
+.task-schedule-chip--danger {
+  color: color-mix(in srgb, var(--danger) 84%, var(--text));
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.task-schedule-chip--muted {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--surface-2, var(--surface)) 70%, var(--surface));
+}
+.task-schedule-chip--removed .task-schedule-chip__label {
+  text-decoration: line-through;
+}
+.task-schedule-chip--done_manual {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--success) 10%, var(--surface)),
+    color-mix(in srgb, var(--success) 10%, var(--surface)) 6px,
+    color-mix(in srgb, var(--success) 14%, var(--surface)) 6px,
+    color-mix(in srgb, var(--success) 14%, var(--surface)) 12px
+  );
+}
+
+/* Cartões de tarefa no detalhe do projeto: chip compacto e alinhado ao restante do workspace. */
+.pd-task .task-schedule-chip {
+  max-width: min(100%, 13.5rem);
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.08rem 0.38rem;
+  gap: 0.24rem;
+  font-size: 0.64rem;
+  font-weight: 600;
+  line-height: 1.15;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+}
+.pd-task .task-schedule-chip svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+.pd-task .task-schedule-chip__label {
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.pd-task .task-schedule-chip__date,
+.pd-task .task-schedule-chip__extra {
+  font-size: 0.62rem;
+}
+/* Com data ou texto extra: permite quebra; estados curtos ficam numa linha */
+.pd-task .task-schedule-chip--scheduled,
+.pd-task .task-schedule-chip--in_session,
+.pd-task .task-schedule-chip--done_event,
+.pd-task .task-schedule-chip--done_manual {
+  max-width: min(100%, 15rem);
+  white-space: normal;
+  flex-wrap: wrap;
+}
+/* “Sem agenda”: tom neutro, sem bloco pesado */
+.pd-task .task-schedule-chip--no_schedule.task-schedule-chip--info {
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--border) 94%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+}
+/* Informativa: único indicador no cartão — mais leve que badge duplicado */
+.pd-task .task-schedule-chip--informational.task-schedule-chip--muted {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--border) 88%, var(--text-muted));
+  background: transparent;
+  color: color-mix(in srgb, var(--text-muted) 92%, var(--text));
+}
 .pd-sync-pill.is-pending {
   color: color-mix(in srgb, var(--warning) 88%, var(--text));
   border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
@@ -868,6 +983,20 @@
   color: color-mix(in srgb, var(--info) 90%, var(--text));
   border-color: color-mix(in srgb, var(--info) 35%, var(--border));
   background: color-mix(in srgb, var(--info) 10%, var(--surface));
+}
+.pd-op-summary__admin-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-left: 0.15rem;
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.pd-op-summary__admin-link:hover {
+  border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--text);
 }
 .pd-kpi--freshness.is-neutro {
   border-color: var(--border);
@@ -1474,6 +1603,8 @@
 }
 
 .pd-board-wrap {
+  /* Alinha raio/borda ao toolbar do dashboard (`--vt-toolbar-control-*` onde existir) */
+  --pd-card-radius: 12px;
   overflow-x: auto;
   margin: 0 -0.25rem;
   padding: 0 0.25rem 0.5rem;
@@ -1514,7 +1645,7 @@
   max-width: min(272px, 85vw);
   border: 1px solid var(--border);
   border-top: 3px solid var(--pd-phase-accent, var(--border));
-  border-radius: 12px;
+  border-radius: var(--pd-card-radius, 12px);
   background: var(--bg-elevated);
   padding: 0.5rem 0.55rem 0.58rem;
   display: flex;
@@ -1799,10 +1930,10 @@
 }
 
 .pd-task {
-  --pd-task-control: 2rem;
+  --pd-task-control: 2.25rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.48rem 0.5rem 0.52rem;
+  border-radius: var(--pd-card-radius, 12px);
+  padding: 0.5rem 0.55rem 0.52rem;
   background: var(--surface);
   position: relative;
   overflow: visible;
@@ -1839,27 +1970,34 @@
 }
 
 .pd-task__top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.45rem 0.5rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.45rem 0.65rem;
 }
 
 .pd-task__lead {
-  flex: 1;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.12rem;
 }
 
 .pd-task__rail {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
-  gap: 0.22rem;
+  gap: 0.52rem;
   flex-shrink: 0;
-  margin-top: 0.02rem;
+  align-self: start;
+}
+
+.pd-task__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-shrink: 0;
 }
 
 .pd-task__icon-slot {
@@ -1879,7 +2017,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.35rem 0.4rem;
+  min-width: 0;
+  width: 100%;
 }
 .pd-task__flow-badge {
   display: inline-flex;
@@ -1914,18 +2054,6 @@
   font-weight: 800;
   color: var(--task-code-color, var(--accent));
   font-variant-numeric: tabular-nums;
-}
-
-.pd-task__info-badge {
-  font-size: 0.6rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.12rem 0.4rem;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--task-phase-accent, var(--accent)) 14%, var(--surface));
-  color: var(--task-phase-accent, var(--accent));
-  border: 1px solid color-mix(in srgb, var(--task-phase-accent, var(--accent)) 32%, var(--border));
 }
 
 .pd-task__schedule-badge {
@@ -2069,16 +2197,6 @@
 .pd-task__hours-line-cap {
   color: color-mix(in srgb, var(--text) 78%, var(--text-muted));
   font-weight: 650;
-}
-
-.pd-task__hours-line--info {
-  margin: 0.38rem 0 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  line-height: 1.35;
 }
 
 .pd-task__time-budget-track {
@@ -2755,6 +2873,12 @@
 
 .logs-table td {
   vertical-align: top;
+}
+
+.logs-table__project {
+  max-width: 14rem;
+  word-break: break-word;
+  font-weight: 500;
 }
 
 .logs-user {

@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Camera, Edit3, Trash2, UserCheck, UserX } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
@@ -13,6 +13,7 @@ import { AnalystAvatarCropper } from '../components/AnalystAvatarCropper'
 import { AnalystReplacementPickModal } from '../components/AnalystReplacementPickModal'
 import { reassignAnalystReferences } from '../services/analystAssignments'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 const ANALYST_COLORS = ['#FF8B17', '#0EA5E9', '#8B5CF6', '#22C55E', '#EF4444', '#EC4899', '#14B8A6', '#6366F1']
@@ -30,7 +31,7 @@ type ReplacementFlowState =
   | { mode: 'remove'; subjectId: string; candidates: DbAnalyst[] }
 
 export function AnalystsPage() {
-  const { toastWarn, requestConfirm } = useUiFeedback()
+  const { toastWarn, requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
   const { user } = useAuth()
   const canEditAnalysts = hasScope(user, 'analysts.edit')
   const analysts = useLiveQuery(() => db.analysts.toArray(), []) ?? emptyAnalysts
@@ -53,22 +54,31 @@ export function AnalystsPage() {
     const flow = replacementFlow
     if (!flow) return
     setReplacementFlow(null)
-    if (flow.mode === 'inactivate') {
+    try {
+      if (flow.mode === 'inactivate') {
+        await reassignAnalystReferences(flow.subjectId, replacementId)
+        await db.analysts.update(flow.subjectId, { active: false })
+        toastMutationSuccess({ action: 'deactivate', target: 'Analista' })
+        return
+      }
+      const ok = await requestConfirm({
+        title: 'Remover analista',
+        message:
+          'Remover este analista definitivamente? As referências ativas passam a usar o substituto escolhido (ou ficam sem responsável).',
+        confirmLabel: 'Remover',
+        cancelLabel: 'Cancelar',
+        danger: true,
+      })
+      if (!ok) return
       await reassignAnalystReferences(flow.subjectId, replacementId)
-      await db.analysts.update(flow.subjectId, { active: false })
-      return
+      await db.analysts.delete(flow.subjectId)
+      toastMutationSuccess({ action: 'delete', target: 'Analista' })
+    } catch (err) {
+      toastMutationError(
+        { action: flow.mode === 'inactivate' ? 'deactivate' : 'delete', target: 'o analista' },
+        err instanceof Error ? err.message : undefined,
+      )
     }
-    const ok = await requestConfirm({
-      title: 'Remover analista',
-      message:
-        'Remover este analista definitivamente? As referências ativas passam a usar o substituto escolhido (ou ficam sem responsável).',
-      confirmLabel: 'Remover',
-      cancelLabel: 'Cancelar',
-      danger: true,
-    })
-    if (!ok) return
-    await reassignAnalystReferences(flow.subjectId, replacementId)
-    await db.analysts.delete(flow.subjectId)
   }
 
   function openNew() {
@@ -117,11 +127,10 @@ export function AnalystsPage() {
     setCropSrc(dataUrl)
   }
 
-  async function onSave(e: FormEvent) {
-    e.preventDefault()
+  async function persistDraft() {
     if (!canEditAnalysts) return
     const name = draft.name.trim()
-    if (!name) return
+    if (!name) throw new Error('Informe o nome do analista.')
     if (draft.id) {
       await db.analysts.update(draft.id, {
         name,
@@ -141,6 +150,19 @@ export function AnalystsPage() {
     closeModal()
   }
 
+  async function onSave(e: FormEvent) {
+    e.preventDefault()
+    try {
+      await persistDraft()
+      toastMutationSuccess({ action: draft.id ? 'update' : 'create', target: 'Analista' })
+    } catch (err) {
+      toastMutationError(
+        { action: draft.id ? 'update' : 'create', target: 'o analista' },
+        err instanceof Error ? err.message : undefined,
+      )
+    }
+  }
+
   useLayoutEffect(() => {
     if (!open) {
       setAnalystModalBaseline(null)
@@ -158,44 +180,76 @@ export function AnalystsPage() {
     enabled: open && canEditAnalysts,
     isDirty: () => analystsModalDirty,
     onSave: async () => {
-      await onSave({ preventDefault() {} } as FormEvent)
+      await persistDraft()
     },
     message: 'Há alterações não gravadas neste analista.',
   })
 
+  const attemptCloseModal = useUnsavedCloseGuard({
+    isDirty: () => analystsModalDirty,
+    onSave: persistDraft,
+    onDiscard: closeModal,
+    message: 'Ha alteracoes nao gravadas neste analista. Deseja gravar e sair?',
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      ev.preventDefault()
+      void attemptCloseModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, attemptCloseModal])
+
   /** `currentlyActive`: estado atual do analista no card (true = está ativo; botão Inativar). */
   async function toggleActive(id: string, currentlyActive: boolean) {
     if (!canEditAnalysts) return
-    if (currentlyActive) {
-      const others = analysts.filter((a) => a.active && a.id !== id)
-      if (others.length === 0) {
-        await reassignAnalystReferences(id, null)
-        await db.analysts.update(id, { active: false })
+    try {
+      if (currentlyActive) {
+        const others = analysts.filter((a) => a.active && a.id !== id)
+        if (others.length === 0) {
+          await reassignAnalystReferences(id, null)
+          await db.analysts.update(id, { active: false })
+          toastMutationSuccess({ action: 'deactivate', target: 'Analista' })
+          return
+        }
+        setReplacementFlow({ mode: 'inactivate', subjectId: id, candidates: others })
         return
       }
-      setReplacementFlow({ mode: 'inactivate', subjectId: id, candidates: others })
-      return
+      await db.analysts.update(id, { active: true })
+      toastMutationSuccess({ action: 'activate', target: 'Analista' })
+    } catch (err) {
+      toastMutationError(
+        { action: currentlyActive ? 'deactivate' : 'activate', target: 'o analista' },
+        err instanceof Error ? err.message : undefined,
+      )
     }
-    await db.analysts.update(id, { active: true })
   }
 
   async function remove(id: string) {
     if (!canEditAnalysts) return
     const others = analysts.filter((a) => a.active && a.id !== id)
-    if (others.length === 0) {
-      const ok = await requestConfirm({
-        title: 'Remover analista',
-        message: 'Remover analista definitivamente? Não há outros analistas ativos para assumir vínculos.',
-        confirmLabel: 'Remover',
-        cancelLabel: 'Cancelar',
-        danger: true,
-      })
-      if (!ok) return
-      await reassignAnalystReferences(id, null)
-      await db.analysts.delete(id)
-      return
+    try {
+      if (others.length === 0) {
+        const ok = await requestConfirm({
+          title: 'Remover analista',
+          message: 'Remover analista definitivamente? Não há outros analistas ativos para assumir vínculos.',
+          confirmLabel: 'Remover',
+          cancelLabel: 'Cancelar',
+          danger: true,
+        })
+        if (!ok) return
+        await reassignAnalystReferences(id, null)
+        await db.analysts.delete(id)
+        toastMutationSuccess({ action: 'delete', target: 'Analista' })
+        return
+      }
+      setReplacementFlow({ mode: 'remove', subjectId: id, candidates: others })
+    } catch (err) {
+      toastMutationError({ action: 'delete', target: 'o analista' }, err instanceof Error ? err.message : undefined)
     }
-    setReplacementFlow({ mode: 'remove', subjectId: id, candidates: others })
   }
 
   return (
@@ -276,7 +330,7 @@ export function AnalystsPage() {
       />
 
       {open && canEditAnalysts ? (
-        <div className="modal-backdrop" role="presentation" onClick={closeModal}>
+        <div className="modal-backdrop" role="presentation" onClick={() => void attemptCloseModal()}>
           <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <h2 className="modal__title">{draft.id ? 'Editar analista' : 'Novo analista'}</h2>
             <form className="stack" onSubmit={onSave}>
@@ -356,7 +410,7 @@ export function AnalystsPage() {
                 </div>
               </div>
               <div className="modal__actions">
-                <button type="button" className="btn btn--ghost" onClick={closeModal}>
+                <button type="button" className="btn btn--ghost" onClick={() => void attemptCloseModal()}>
                   Cancelar
                 </button>
                 <button type="submit" className="btn btn--primary">

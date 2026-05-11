@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { db } from '../db/database'
 import { useAuth } from '../auth/AuthContext'
+import { RescheduleChainMigrationPanel } from '../components/RescheduleChainMigrationPanel'
 import { ALL_PERMISSION_SCOPES, defaultScopesForRole, hasScope, PERMISSION_MODULES, scopesForUser } from '../auth/permissions'
 import type { DbUser, PermissionScope } from '../db/types'
 import { formatDatePt } from '../lib/dates'
@@ -1093,6 +1094,10 @@ export function SettingsPage() {
             </section>
           ) : null}
         </section>
+      ) : null}
+
+      {tab === 'console' && canManageUsers ? (
+        <RescheduleChainMigrationPanel actorUserId={current?.id} />
       ) : null}
 
       {tab === 'console' && canManageUsers ? (

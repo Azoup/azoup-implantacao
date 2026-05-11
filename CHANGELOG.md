@@ -1,5 +1,108 @@
 # Changelog
 
+## v3.4.3 (2026-05-11)
+
+- **Projetos:** no card da grade, linha discreta **Início** + data (ícone calendário) logo abaixo do nome; usa `start_date` do projeto e, se ausente, a data de cadastro (`created_at`) como fallback.
+
+## v3.4.2 (2026-05-11)
+
+- **Logs de auditoria:** alterações pelo modal **Editar projeto e cliente** (nome, datas, endereço, analista, situação etc.) passam a registrar entrada `alteracao` em **projeto** com resumo campo a campo quando há diferença real em relação ao estado anterior.
+
+## v3.4.1 (2026-05-11)
+
+- **Edição de projeto (nuvem):** ao salvar com Supabase ativo, a UI aguarda a confirmação da gravação no PostgREST antes de fechar o modal e mostrar sucesso; se a nuvem falhar (RLS, sessão, rede), o erro aparece no formulário e o toast de erro substitui o falso positivo de antes (o salvamento local em Dexie já tinha ocorrido em background).
+
+## v3.4.0 (2026-05-11)
+
+- **Feedback global (sucesso/erro):** mensagens contextuais padronizadas para operacoes de criar/alterar/salvar/excluir/ativar/inativar/sincronizar, com camada central no `UiFeedbackContext` e aplicacao nas telas de lacuna (tarefas, analistas, modelos de plano e cadastro de projeto).
+- **Protecao de edicao:** confirmacao ao fechar com alteracoes nao gravadas (cancelar, clique fora e ESC) com opcoes de continuar editando, descartar ou gravar e sair em modais criticos (`Agenda`, `Projeto`, `Analistas`, `PlanPhaseModal`, `PlanTaskModal` e `RegisterHoursModal`).
+
+## v3.3.12 (2026-05-11)
+
+- **Logs de auditoria:** coluna **Projeto** na grade, resolvida a partir da entidade (tarefa, fase, timer, comentário, exclusão de projeto etc.) e fallback para texto antigo quando a tarefa já foi removida mas o log traz o nome do projeto em `details`.
+
+## v3.3.11 (2026-05-11)
+
+- **Navegador:** título da aba **Implantação Azoup** (em vez de marca + versão) e favicon igual ao logo bolinha laranja da Azoup (`Logo_Bolinha_Laranja_AZOUP.ico`, mesmo do menu lateral).
+
+## v3.3.10 (2026-05-10)
+
+- **Dashboard / Resumo — KPIs**: cartões mais compactos na vertical (padding, gaps entre grupos/cards, número e rótulo menores, ícone 36px); rótulo com no máximo **2 linhas** para alinhar altura entre Projetos / Tarefas / Viradas. Sem mudança de cores, filtros ou dados.
+
+## v3.3.9 (2026-05-10)
+
+- **Dashboard / Projetos em andamento**: recolhido continua mostrando só **1** projeto; o botão volta a ser **Mostrar tudo** e expande a **lista completa** de uma vez (com scroll na área da lista), em vez de revelar de 2 em 2.
+
+## v3.3.8 (2026-05-10)
+
+- **Detalhe do projeto / cartões de tarefa (Fases & tarefas)**: visual mais limpo — removidos o badge “INFORMATIVA” duplicado e a linha de texto repetindo o mesmo; **uma única** `TaskScheduleChip` com tooltip explicando horas de contrato. Chips de agenda no cartão ficaram **menores** (padding, raio, ícone); **Sem agenda** com tom neutro (menos “bloco”); **Informativa** com estilo tracejado discreto.
+
+## v3.3.7 (2026-05-10)
+
+- **Dashboard / Projetos em andamento**: estado inicial mostra só **1** cartão; **Mostrar mais** acrescenta **2** projetos por clique (em vez de alternar para a lista inteira). **Mostrar menos** volta ao primeiro cartão.
+
+## v3.3.6 (2026-05-10)
+
+- **Dashboard / KPIs de viradas (Hoje, Semana, Mês)**: o escopo deixou de cruzar com o período da consulta (`metrics.scopedProjects` por `startDate` do projeto). Agora segue o mesmo critério do chip **Total** — só filtros de facet; o recorte temporal é só a janela KPI — para viradas e tarefas aparecerem quando o evento cai no período, mesmo com projeto iniciado fora do preset da consulta.
+- **Dashboard / filtro Mês**: barra do seletor de mês com trilho visual (ícone de calendário, bloco agrupado, hierarquia mais clara).
+
+## v3.3.5 (2026-05-10)
+
+- **Dashboard / Projetos em andamento (painel Resumo)**: a lista deixa de usar `metrics.scopedProjects` (recorte por **período da consulta** + facet), que esvaziava ou distorcia cartões ao mudar preset/KPI; passa a listar **todos** os projetos ativos em andamento no workspace. A aba **Consulta** mantém a lista filtrada pelo recorte. Estado inicial **recolhido** (5 itens + **Mostrar mais**), ordenação restaurada; botão renomeado para **Mostrar mais (N)**.
+
+## v3.3.4 (2026-05-10)
+
+- **Dashboard / Resumo**: removido o KPI **Tarefas a agendar**; permanecem os KPIs de tarefas: novas no período, agendadas, concluídas e agendas canceladas.
+- **Dashboard / KPI “Projetos em andamento”**: passa a refletir projetos **operacionais em curso** (`status` ativo, coluna derivada do plano diferente de finalizados/cancelados — alinhado aos cartões “Em execução”), **excluindo pausados** e projetos cuja coluna kanban é finalizados mesmo com status ainda “ativo”. O escopo usa só filtros de facet (analista, status, plano, cliente) para esse KPI — **sem** recorte pelo período da consulta nem pela janela Hoje/semana/mês, para não zerar contagens de projetos antigos ainda em execução.
+
+## v3.3.3 (2026-05-10)
+
+- **Detalhe do projeto / Fases & tarefas**: linha de tarefa com grid (`minmax(0,1fr)` + trilho fixo), chips de agenda com texto que pode quebrar para não invadir avatar/ações; trilho com mais espaço entre avatar e grupo de ícones; áreas de toque dos controles ligeiramente maiores (`--pd-task-control`).
+
+## v3.3.2 (2026-05-10)
+
+- **Agenda**: hierarquia visual e legibilidade — barra de período em superfície com borda/sombra leve; cabeçalhos de dia da grade com ênfase em “hoje”; cartões de evento com raio/padding/sombra alinhados ao tema escuro; ícones de Meet/Google com área de toque maior em touch; estados vazios estruturados (execução + tarefas não agendadas); painel “Execução de hoje” e lateral com tipografia de display consistente.
+
+## v3.3.1 (2026-05-10)
+
+- **Dashboard / KPI “Total”**: contagens e drilldown passam a usar o escopo só por filtros de facet (analista, status, plano, cliente), **sem** recorte do período da consulta (`periodPreset`/datas custom). Corrige números que pareciam limitados ao mês mesmo com o chip Total.
+
+## v3.3.1 (2026-05-10)
+
+- **Kanban / detalhe do projeto**: cadeias legadas `rescheduledToTaskId` passam a mostrar **um único cartão por tarefa lógica** (folha da cadeia); predecessores somem do quadro por fase. Horas reais e eventos/comentários das cópias são **agregados** na folha; chip de agenda aceita eventos mesclados e destaca quando há **agenda futura após cancelamento** anterior. Link rápido para **Migração de cadeias** em Configurações (admin). Ver `src/lib/rescheduleChainKanban.ts`.
+- **Tarefas** (`TarefasViews`): mesma regra de ocultação nas visões Prazo e Fase para evitar duplicatas.
+- **Sidebar**: ícones e rótulos PT-BR mais intuitivos (sem mudar escopos).
+- **Workspace**: raio de cartão/colunas do board alinhado a tokens (`--pd-card-radius`), link admin no resumo operacional.
+- **Portal**: estado vazio da home do portal com hierarquia mais clara.
+- **Documentação**: `docs/product-vision-roadmap.md` — visão “centro de implantações” por fases.
+
+## v3.2.0 (2026-05-10)
+
+**Reformulação Tarefa : N Agendas** — refundação do modelo de tarefas no VYNTASK, alinhando o dashboard, a agenda e o detalhe de projeto a um único conceito: cada tarefa tem 1 entidade, com 0..N agendas (eventos) vinculadas. Cancelamento de agenda nunca mais cancela a tarefa.
+
+- **Dashboard / KPIs** (`src/lib/metrics/dashboardKpiBreakdown.ts`):
+  - "Tarefas agendadas" agora exige `≥1 DbEvent agendado` no recorte temporal. Corrige o bug histórico que contava tarefas com status `pendente/em_andamento` mesmo sem agenda real.
+  - "Tarefas concluídas" passa a derivar de `≥1 DbEvent realizado` no recorte (ou de conclusão manual auditada).
+  - "Agendas canceladas" (renomeado de "Tarefas canceladas") agora conta EVENTOS cancelados no recorte — uma tarefa pode contar várias vezes.
+  - Novo KPI **"Tarefas a agendar"**: backlog de tarefas no escopo sem nenhum evento, excluindo informativas e canceladas manualmente.
+- **FilterBar** (`src/components/dashboard/DashboardFilterBar.tsx`): chips `Hoje · Essa semana · Mês · Total` com seletor mês/ano embutido (aparece apenas quando "Mês" está ativo), incluindo setas `‹ ›` para navegar entre meses, com atalhos para teclado e acessibilidade.
+- **Domínio**:
+  - Novos campos em `DbTask`: `completedManualOverride`, `completedManualOverrideReason`, `cancelledManually`.
+  - Campos legados (`rescheduledFromTaskId`, `rescheduledToTaskId`, `cancellationReason`, `cancelledAt`) marcados `@deprecated`; serão dropados em 4.0.0.
+  - Novo `recomputeTaskStatus(taskId)` — ponto único de derivação a partir dos eventos.
+  - Novas funções em `src/services/events.ts`: `cancelEventNoHours`, `cancelEventWithHours`, `markEventRealized`, `rescheduleEvent`.
+  - Novas funções em `src/services/tasks.ts`: `setTaskCompletedManualOverride`, `clearTaskCompletedManualOverride`, `removeTaskFromScope`, `deriveTaskStatusFromEvents`.
+- **Atendimento** (`src/services/attendanceRegistration.ts`): removido `createRescheduledCopy`. No fluxo "não compareceu", a tarefa permanece aberta — um novo `DbEvent` agendado é criado para a mesma tarefa (via `attachNewScheduledEvent`/`rescheduleEvent`). Cancelamentos consomem horas pelo `TimeLog` sem mexer no status da tarefa.
+- **Override manual de conclusão**: novo `ManualCompleteTaskModal` exigindo justificativa obrigatória quando o usuário tenta concluir uma tarefa sem nenhum evento `realizado`. Persiste o motivo em `completedManualOverrideReason` e gera entrada em `auditLogs`.
+- **TaskScheduleChip** (`src/components/TaskScheduleChip.tsx`): chip único e reaproveitável com 6 estados visuais (Sem agenda · Agendada · Em sessão · Concluída · Concluída (manual) · Removida do escopo · Informativa), aplicado em `ProjectDetailPage`.
+- **Migração admin** (`src/services/rescheduleChainMigration.ts` + `RescheduleChainMigrationPanel`): painel em `Configurações > Console` para consolidar cadeias de reagendamento legadas em uma única tarefa-raiz, mesclando eventos/horas/comentários/sessões. Três estágios obrigatórios: Diagnosticar (read-only) → Backup JSON → Executar. Idempotente via marker em `auditLogs`. Quarentena automática para cadeias com ciclo ou bifurcação.
+- **Schema Dexie**: nova versão `v19` adicionando `completedManualOverride`/`cancelledManually` em `tasks` e índice `status` em `events`.
+- **Testes**: matriz de `dashboardKpiBreakdown` reescrita com cenários explícitos do novo modelo (9 testes cobrindo cancelamento sem cancelar tarefa, múltiplos cancelamentos, override manual e "a agendar"); todos os 20 testes da suíte passam.
+
+## v3.1.11 (2026-05-08)
+
+- Build: teste `manualsSearch` atualizado com `category` em `ManualDef` (corrige `tsc` na Vercel).
+
 ## v3.1.10 (2026-05-08)
 
 - Manuais: novas ações **Baixar PDF** e **Imprimir** no cabeçalho do leitor (toolbar em pílula com botão primário accent). O PDF é gerado pelo diálogo nativo do navegador ("Salvar como PDF"), funcionando offline e sem dependências extras.

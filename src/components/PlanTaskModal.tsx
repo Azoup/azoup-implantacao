@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import type { DbPlanTask } from '../db/types'
 import { formatDecimalHoursForBrInput, parseDurationFlexibleToHours } from '../lib/durationFormat'
 import { AiFormatModal } from './AiFormatModal'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 
 export type PlanTaskFormValues = {
@@ -39,7 +40,7 @@ export function PlanTaskModal({
   variant = 'standard',
   auditOnEdit = false,
 }: Props) {
-  const { toastError } = useUiFeedback()
+  const { toastError, toastMutationError } = useUiFeedback()
   const codeRef = useRef<HTMLInputElement>(null)
   const titleRef = useRef<HTMLInputElement>(null)
   const hoursRef = useRef<HTMLInputElement>(null)
@@ -53,6 +54,7 @@ export function PlanTaskModal({
   const [auditJustification, setAuditJustification] = useState('')
   const [saving, setSaving] = useState(false)
   const [aiOpen, setAiOpen] = useState(false)
+  const [baseline, setBaseline] = useState<string | null>(null)
 
   const isCatalogAdHoc = variant === 'catalogAdHoc'
 
@@ -80,6 +82,32 @@ export function PlanTaskModal({
     }
     setAuditJustification('')
   }, [open, task, defaultCode, isCatalogAdHoc])
+
+  const draftSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        code,
+        title,
+        description,
+        estimatedHoursDraft,
+        isInformational,
+        auditJustification,
+      }),
+    [code, title, description, estimatedHoursDraft, isInformational, auditJustification],
+  )
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setBaseline(null)
+      return
+    }
+    setBaseline((prev) => prev ?? draftSnapshot)
+  }, [open, draftSnapshot])
+
+  const modalDirty = useMemo(() => {
+    if (!open || baseline === null) return false
+    return baseline !== draftSnapshot
+  }, [open, baseline, draftSnapshot])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -140,11 +168,32 @@ export function PlanTaskModal({
       }
       onClose()
     } catch (ex) {
-      toastError(ex instanceof Error ? ex.message : 'Não foi possível salvar.')
+      toastMutationError(
+        { action: task ? 'update' : 'save', target: 'a tarefa', gender: 'f' },
+        ex instanceof Error ? ex.message : undefined,
+      )
     } finally {
       setSaving(false)
     }
   }
+
+  const attemptClose = useUnsavedCloseGuard({
+    isDirty: () => modalDirty,
+    onSave: onSubmit.bind(null, { preventDefault() {} } as FormEvent),
+    onDiscard: onClose,
+    message: 'Ha alteracoes nao gravadas nesta tarefa. Deseja gravar antes de sair?',
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape' || saving) return
+      ev.preventDefault()
+      void attemptClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, saving, attemptClose])
 
   if (!open) return null
 
@@ -157,7 +206,7 @@ export function PlanTaskModal({
       : 'Nova tarefa'
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
+    <div className="modal-backdrop" role="presentation" onClick={() => (!saving ? void attemptClose() : undefined)}>
       <div
         className="modal modal--plan-form modal--plan-task"
         role="dialog"
@@ -169,7 +218,13 @@ export function PlanTaskModal({
           <h2 id="plan-task-modal-title" className="modal__title">
             {modalTitle}
           </h2>
-          <button type="button" className="modal-plan__close" aria-label="Fechar" disabled={saving} onClick={onClose}>
+          <button
+            type="button"
+            className="modal-plan__close"
+            aria-label="Fechar"
+            disabled={saving}
+            onClick={() => void attemptClose()}
+          >
             <X size={22} strokeWidth={2} />
           </button>
         </div>
@@ -267,7 +322,7 @@ export function PlanTaskModal({
         </div>
         <div className="modal-plan__footer">
           <div className="modal-plan__footer-actions">
-            <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
+            <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => void attemptClose()}>
               Cancelar
             </button>
             <button type="submit" className="btn btn--primary" form="vyntask-plan-task-form" disabled={saving}>

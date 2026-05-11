@@ -1,10 +1,9 @@
 import { db } from '../db/database'
-import { uuid } from '../lib/uuid'
 import type { DbTask, DbUser } from '../db/types'
 import { addTaskTimeLog } from './timeLogs'
 import { addManualTimeSession, startTimer, stopTimer, getRunningSessionForUser } from './timeSessions'
-import { createEventValidated } from './events'
-import { setTaskStatus } from './tasks'
+import { createEventValidated, rescheduleEvent } from './events'
+import { recomputeTaskStatus, setTaskStatus } from './tasks'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
 import type { TaskStatus } from '../db/types'
 import { enqueuePendingProjectGraphSync } from '../sync/supabaseDexieBridge'
@@ -40,27 +39,48 @@ async function hasEventForTaskOnDate(taskId: string, date: string): Promise<bool
   return events.some((e) => (e.startTime ?? '').slice(0, 10) === date)
 }
 
-async function createRescheduledCopy(task: DbTask, newDate: string, newTime: string): Promise<string> {
+/**
+ * No novo modelo (1 Tarefa : N Eventos), reagendar é criar um novo evento `agendado` para a MESMA tarefa.
+ * Se houver um evento em aberto (agendado) próximo da data atual, ele é cancelado primeiro via rescheduleEvent.
+ */
+async function attachNewScheduledEvent(
+  task: DbTask,
+  newDate: string,
+  newTime: string,
+  consumeHoursOnCancel: number,
+  cancelNotes: string | undefined,
+  actorUserId?: string,
+): Promise<void> {
   const hhmm = /^\d{2}:\d{2}$/.test(newTime) ? newTime : '12:00'
-  const siblings = await db.tasks.where('phaseId').equals(task.phaseId).toArray()
-  const nextSort = siblings.reduce((m, x) => Math.max(m, x.sortOrder), 0) + 1
-  const newTaskId = uuid()
-  await db.tasks.add({
-    ...task,
-    id: newTaskId,
-    status: 'pendente',
-    actualHours: 0,
-    dueDate: toIsoAt(newDate, hhmm),
-    createdAt: new Date().toISOString(),
-    sortOrder: nextSort,
-    title: `${task.title} (reagendada)`,
-    completedAt: null,
-    cancelledAt: null,
-    cancellationReason: null,
-    rescheduledFromTaskId: task.id,
-    rescheduledToTaskId: null,
+  const startIso = toIsoAt(newDate, hhmm)
+  const endIso = new Date(new Date(startIso).getTime() + 60 * 60 * 1000).toISOString()
+
+  const existing = (await db.events.where('taskId').equals(task.id).toArray()).find((e) => e.status === 'agendado')
+  if (existing) {
+    await rescheduleEvent({
+      eventId: existing.id,
+      newStartTime: startIso,
+      newEndTime: endIso,
+      consumeHours: consumeHoursOnCancel,
+      cancelNotes,
+      actorUserId,
+    })
+    return
+  }
+
+  await createEventValidated({
+    title: `${task.code} ${task.title}`.trim(),
+    description: cancelNotes ?? 'Nova agenda criada via atendimento.',
+    startTime: startIso,
+    endTime: endIso,
+    status: 'agendado',
+    projectId: task.projectId,
+    taskId: task.id,
+    analystId: task.assignedTo,
+    meetingLink: null,
+    executionState: 'scheduled',
   })
-  return newTaskId
+  await recomputeTaskStatus(task.id, actorUserId)
 }
 
 async function createRetroEventSafely(
@@ -202,12 +222,19 @@ export async function registerTaskAttendance(input: RegisterAttendanceInput): Pr
     if (!input.newDate) throw new Error('Informe a data de reagendamento.')
     const rescheduleTime =
       input.newTime && /^\d{2}:\d{2}$/.test(input.newTime) ? input.newTime : '12:00'
-    const newTaskId = await createRescheduledCopy(task, input.newDate, rescheduleTime)
-    await db.tasks.update(task.id, {
-      cancellationReason: 'client_no_show',
-      rescheduledToTaskId: newTaskId,
-    })
-    await setTaskStatus(task.id, 'cancelado', input.actorUserId)
+
+    // Modelo novo: a tarefa permanece aberta; criamos um novo evento agendado vinculado.
+    // O cancelamento de evento (com ou sem horas) NÃO altera o status da tarefa.
+    await attachNewScheduledEvent(
+      task,
+      input.newDate,
+      rescheduleTime,
+      withHours ? safeHours : 0,
+      input.attendanceKind === 'nao_compareceu_sem_aviso'
+        ? `No-show sem aviso. ${notes}`.trim()
+        : `Cliente avisou. ${notes}`.trim(),
+      input.actorUserId,
+    )
   }
 
   if (input.attendanceKind === 'ocorreu' && input.outcomeMode === 'concluir') {

@@ -1,24 +1,24 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import {
+  BarChart3,
   BookOpen,
-  Briefcase,
-  CalendarDays,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
-  Gauge,
-  History,
-  Kanban,
+  ClipboardList,
+  Columns3,
+  FolderKanban,
+  Footprints,
+  Globe,
+  LayoutDashboard,
   Library,
-  ListChecks,
   LogOut,
-  Route,
   Moon,
-  PieChart,
   Plus,
+  ScrollText,
   SlidersHorizontal,
   Sparkles,
-  UserCircle2,
   Sun,
   UsersRound,
 } from 'lucide-react'
@@ -40,17 +40,17 @@ type NavItem = {
 }
 
 const mainNav: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: Gauge, scope: 'dashboard.view' },
-  { to: '/visao-geral', label: 'Visão geral', icon: Kanban, scope: 'overview.view' },
-  { to: '/projetos', label: 'Projetos', icon: Briefcase, scope: 'projects.view' },
-  { to: '/implantacao', label: 'Jornada do cliente', icon: Route, scope: 'projects.view' },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, scope: 'dashboard.view' },
+  { to: '/visao-geral', label: 'Visão geral', icon: Columns3, scope: 'overview.view' },
+  { to: '/projetos', label: 'Projetos', icon: FolderKanban, scope: 'projects.view' },
+  { to: '/implantacao', label: 'Implantação', icon: Footprints, scope: 'projects.view' },
   { to: '/manuais', label: 'Manuais', icon: BookOpen, scope: 'manuals.view', visibleIf: canAccessManuais },
-  { to: '/tarefas', label: 'Tarefas', icon: ListChecks, scope: 'tasks.view' },
-  { to: '/agenda', label: 'Agenda', icon: CalendarDays, scope: 'agenda.view' },
-  { to: '/relatorios', label: 'Relatórios', icon: PieChart, scope: 'reports.view' },
-  { to: '/logs', label: 'Logs', icon: History, scope: 'reports.view' },
+  { to: '/tarefas', label: 'Tarefas', icon: ClipboardList, scope: 'tasks.view' },
+  { to: '/agenda', label: 'Agenda', icon: CalendarClock, scope: 'agenda.view' },
+  { to: '/relatorios', label: 'Relatórios', icon: BarChart3, scope: 'reports.view' },
+  { to: '/logs', label: 'Logs', icon: ScrollText, scope: 'reports.view' },
   { to: '/assistente', label: 'Assistente', icon: Sparkles, scope: 'ai.view' },
-  { to: '/portal', label: 'Portal Cliente', icon: UserCircle2, scope: 'portal.view' },
+  { to: '/portal', label: 'Portal do cliente', icon: Globe, scope: 'portal.view' },
 ]
 
 const bottomNav: NavItem[] = [

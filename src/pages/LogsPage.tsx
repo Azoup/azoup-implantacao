@@ -1,8 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
-import { emptyAuditLogs } from '../lib/stableDexieEmpty'
+import {
+  emptyAuditLogs,
+  emptyComments,
+  emptyPhases,
+  emptyProjects,
+  emptyTasks,
+  emptyTimeSessions,
+} from '../lib/stableDexieEmpty'
 import { formatDatePt } from '../lib/dates'
+import { resolveAuditLogProjectDisplay, type AuditProjectResolveMaps } from '../lib/auditLogProjectResolve'
 import type { AuditAction } from '../db/types'
 
 type ActionFilter = 'all' | AuditAction
@@ -15,6 +23,22 @@ function toLocalDateTimeInput(iso: string): string {
 
 export function LogsPage() {
   const logs = useLiveQuery(() => db.auditLogs.orderBy('createdAt').reverse().toArray(), []) ?? emptyAuditLogs
+  const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
+  const tasks = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
+  const phases = useLiveQuery(() => db.phases.toArray(), []) ?? emptyPhases
+  const timeSessions = useLiveQuery(() => db.timeSessions.toArray(), []) ?? emptyTimeSessions
+  const comments = useLiveQuery(() => db.comments.toArray(), []) ?? emptyComments
+
+  const projectResolveMaps = useMemo((): AuditProjectResolveMaps => {
+    return {
+      projectById: new Map(projects.map((p) => [p.id, { projectName: p.projectName }])),
+      taskById: new Map(tasks.map((t) => [t.id, { projectId: t.projectId }])),
+      phaseById: new Map(phases.map((ph) => [ph.id, { projectId: ph.projectId }])),
+      sessionById: new Map(timeSessions.map((s) => [s.id, { taskId: s.taskId }])),
+      commentById: new Map(comments.map((c) => [c.id, { projectId: c.projectId, taskId: c.taskId }])),
+    }
+  }, [projects, tasks, phases, timeSessions, comments])
+
   const [fromAt, setFromAt] = useState('')
   const [toAt, setToAt] = useState('')
   const [action, setAction] = useState<ActionFilter>('all')
@@ -88,6 +112,7 @@ export function LogsPage() {
                   <th>Data/hora</th>
                   <th>Ação</th>
                   <th>Usuário</th>
+                  <th>Projeto</th>
                   <th>Entidade</th>
                   <th>Item</th>
                   <th>Detalhes</th>
@@ -111,6 +136,7 @@ export function LogsPage() {
                         <small className="muted">{l.userEmail}</small>
                       </div>
                     </td>
+                    <td className="logs-table__project">{resolveAuditLogProjectDisplay(l, projectResolveMaps)}</td>
                     <td>{l.entity}</td>
                     <td>{l.entityLabel}</td>
                     <td>{l.details}</td>

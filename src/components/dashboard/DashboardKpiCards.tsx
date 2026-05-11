@@ -39,9 +39,9 @@ type KpiCardProps = {
 function KpiCompositeIcon({ Main, Mark }: { Main: LucideIcon; Mark: LucideIcon }) {
   return (
     <span className="dashboard-cc__hero-icon dashboard-cc__hero-icon--stacked">
-      <Main size={20} strokeWidth={2} aria-hidden />
+      <Main size={18} strokeWidth={2} aria-hidden />
       <span className="dashboard-cc__hero-icon-badge" aria-hidden>
-        <Mark size={11} strokeWidth={2.6} />
+        <Mark size={10} strokeWidth={2.6} />
       </span>
     </span>
   )
@@ -185,7 +185,7 @@ export function DashboardKpiCards({
           />
           <DashboardKpiCard
             count={kpis.tasksCancelled}
-            label="Tarefas canceladas"
+            label="Agendas canceladas"
             toneClassName="is-danger"
             drilldownKey="tasks_cancelled"
             activeDrilldown={activeDrilldown}

@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import type { DbPlanPhase } from '../db/types'
 import { PHASE_COLOR_PRESETS, inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 
 type Props = {
   open: boolean
@@ -16,6 +17,7 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
   const [colorHex, setColorHex] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [baseline, setBaseline] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -23,6 +25,21 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
     setColorHex(phase?.colorHex ?? inferPhaseColor(phase?.name ?? '', orderIndex))
     setErr(null)
   }, [open, phase, orderIndex])
+
+  const snapshot = useMemo(() => JSON.stringify({ name, colorHex }), [name, colorHex])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setBaseline(null)
+      return
+    }
+    setBaseline((prev) => prev ?? snapshot)
+  }, [open, snapshot])
+
+  const dirty = useMemo(() => {
+    if (!open || baseline === null) return false
+    return baseline !== snapshot
+  }, [open, baseline, snapshot])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
@@ -43,12 +60,32 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
     }
   }
 
+  const attemptClose = useUnsavedCloseGuard({
+    isDirty: () => dirty,
+    onSave: async () => {
+      await onSubmit({ preventDefault() {} } as FormEvent)
+    },
+    onDiscard: onClose,
+    message: 'Ha alteracoes nao gravadas nesta fase. Deseja gravar antes de sair?',
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape' || saving) return
+      ev.preventDefault()
+      void attemptClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, saving, attemptClose])
+
   if (!open) return null
 
   const title = phase ? 'Editar fase' : 'Nova fase'
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
+    <div className="modal-backdrop" role="presentation" onClick={() => (!saving ? void attemptClose() : undefined)}>
       <div
         className="modal modal--plan-form"
         role="dialog"
@@ -60,7 +97,13 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
           <h2 id="plan-phase-modal-title" className="modal__title">
             {title}
           </h2>
-          <button type="button" className="modal-plan__close" aria-label="Fechar" disabled={saving} onClick={onClose}>
+          <button
+            type="button"
+            className="modal-plan__close"
+            aria-label="Fechar"
+            disabled={saving}
+            onClick={() => void attemptClose()}
+          >
             <X size={22} strokeWidth={2} />
           </button>
         </div>
@@ -111,7 +154,7 @@ export function PlanPhaseModal({ open, onClose, phase, orderIndex, onSave }: Pro
             </p>
             {err ? <p className="auth__error">{err}</p> : null}
             <div className="modal-plan__footer">
-              <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
+              <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => void attemptClose()}>
                 Cancelar
               </button>
               <button type="submit" className="btn btn--primary" disabled={saving}>

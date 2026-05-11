@@ -160,7 +160,13 @@ export function PortalHomePage() {
             })}
           </div>
         ) : (
-          <p>Nenhum projeto vinculado ao seu perfil.</p>
+          <div className="portal-empty-state">
+            <h3>Nenhum projeto vinculado ainda</h3>
+            <p>
+              Quando a equipe associar sua empresa ao projeto de implantação, os cards aparecem aqui com prazos,
+              consumo de horas e links rápidos.
+            </p>
+          </div>
         )}
       </section>
     </main>

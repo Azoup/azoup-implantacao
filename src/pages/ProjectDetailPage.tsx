@@ -46,6 +46,8 @@ import { CustomPlanPhaseModal } from '../components/CustomPlanPhaseModal'
 import { PlanTaskModal, type PlanTaskFormValues, type PlanTaskSaveMeta } from '../components/PlanTaskModal'
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
+import { TaskScheduleChip } from '../components/TaskScheduleChip'
+import { ManualCompleteTaskModal } from '../components/ManualCompleteTaskModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { AiFormatModal } from '../components/AiFormatModal'
 import { db } from '../db/database'
@@ -71,7 +73,8 @@ import { buildCustomPlanBlueprintBlocks, buildLabelsTabSections, type PlanBluepr
 import { planLabelTabPillStyle, planLabelColorsFromCode, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { normalizeDocLinkUrl } from '../lib/docUrls'
 import { compareTaskCode } from '../lib/taskCode'
-import { getPrimaryScheduledEventForTask } from '../lib/taskSchedule'
+import { getPrimaryScheduledEventFromCandidates } from '../lib/taskSchedule'
+import { buildRescheduleKanbanProjectModel } from '../lib/rescheduleChainKanban'
 import { CUSTOM_PLAN_TYPE, planPillClass, planSummaryLabel } from '../constants/customPlan'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
@@ -97,7 +100,7 @@ import {
   updateProjectTask,
 } from '../services/customProjectStructure'
 import { concludeOperationalTaskWithHourGuards } from '../services/taskProjectConclude'
-import { setTaskStatus } from '../services/tasks'
+import { setTaskCompletedManualOverride, setTaskStatus } from '../services/tasks'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
@@ -146,8 +149,15 @@ const icSm = { size: 14, strokeWidth: 2, absoluteStrokeWidth: true } as const
 const MAX_DOC_FILE_BYTES = 10 * 1024 * 1024
 const MAX_DOC_FILES = 12
 
-function phaseStats(phaseId: string, projectId: string, tasks: DbTask[]) {
-  const ts = tasks.filter((t) => t.projectId === projectId && t.phaseId === phaseId)
+function phaseStats(
+  phaseId: string,
+  projectId: string,
+  tasks: DbTask[],
+  hiddenTaskIds: ReadonlySet<string>,
+) {
+  const ts = tasks.filter(
+    (t) => t.projectId === projectId && t.phaseId === phaseId && !hiddenTaskIds.has(t.id),
+  )
   const done = ts.filter((t) => t.status === 'concluida').length
   const total = ts.length
   const pct = total ? Math.round((done / total) * 100) : 0
@@ -268,6 +278,8 @@ export function ProjectDetailPage() {
   const [docLinkLabelDraft, setDocLinkLabelDraft] = useState('')
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false)
   const [deleteProjectBusy, setDeleteProjectBusy] = useState(false)
+  const [manualCompleteTask, setManualCompleteTask] = useState<DbTask | null>(null)
+  const [manualCompleteBusy, setManualCompleteBusy] = useState(false)
   const [docEditingId, setDocEditingId] = useState<string | null>(null)
   const [docEditDraft, setDocEditDraft] = useState('')
   const [docEditBusy, setDocEditBusy] = useState(false)
@@ -291,14 +303,34 @@ export function ProjectDetailPage() {
     return () => window.clearInterval(id)
   }, [])
 
-  const scheduledEventByTaskId = useMemo(() => {
-    const m = new Map<string, DbEvent>()
-    for (const t of tasks) {
-      const ev = getPrimaryScheduledEventForTask(projectEvents, t.id)
-      if (ev) m.set(t.id, ev)
+  /** Todos os eventos por tarefa (modelo 1 Tarefa : N Eventos). Ordenados por startTime ascendente. */
+  const eventsByTaskId = useMemo(() => {
+    const m = new Map<string, DbEvent[]>()
+    for (const ev of projectEvents) {
+      if (!ev.taskId) continue
+      const arr = m.get(ev.taskId) ?? []
+      arr.push(ev)
+      m.set(ev.taskId, arr)
+    }
+    for (const arr of m.values()) {
+      arr.sort((a, b) => a.startTime.localeCompare(b.startTime))
     }
     return m
-  }, [projectEvents, tasks])
+  }, [projectEvents])
+
+  /**
+   * Cadeias legadas rescheduled*: um cartão por folha — predecessores ocultos no quadro.
+   * Ver comentário em `src/lib/rescheduleChainKanban.ts`.
+   */
+  const rescheduleKanban = useMemo(
+    () => (projectId ? buildRescheduleKanbanProjectModel(projectId, tasks, projectEvents) : null),
+    [projectId, tasks, projectEvents],
+  )
+
+  const tasksVisibleInProject = useMemo(() => {
+    if (!projectId || !rescheduleKanban) return [] as DbTask[]
+    return tasks.filter((t) => t.projectId === projectId && !rescheduleKanban.hiddenTaskIds.has(t.id))
+  }, [projectId, tasks, rescheduleKanban])
 
   const sortedPhases = useMemo(
     () => [...phases].sort((a, b) => a.orderIndex - b.orderIndex),
@@ -321,8 +353,8 @@ export function ProjectDetailPage() {
     return getPhaseSegments(phases, tasks, projectId).currentPhaseName
   }, [phases, tasks, projectId])
 
-  const pct = projectId ? projectProgressPercent(tasks, projectId) : 0
-  const doneTasks = tasks.filter((t) => t.status === 'concluida').length
+  const pct = projectId ? projectProgressPercent(tasksVisibleInProject, projectId) : 0
+  const doneTasks = tasksVisibleInProject.filter((t) => t.status === 'concluida').length
   const saldo = project ? Math.max(0, project.hoursContracted - project.hoursUsed) : 0
 
   const commentsByTask = useMemo(() => {
@@ -338,6 +370,21 @@ export function ProjectDetailPage() {
     }
     return m
   }, [taskCommentsOnly])
+
+  const commentsByCanonicalLeaf = useMemo(() => {
+    const m = new Map<string, DbComment[]>()
+    if (!rescheduleKanban) return m
+    for (const [leafId, memberIds] of rescheduleKanban.chainMemberIdsByLeaf) {
+      const arr: DbComment[] = []
+      for (const mid of memberIds) {
+        arr.push(...(commentsByTask.get(mid) ?? []))
+      }
+      arr.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      m.set(leafId, arr)
+    }
+    return m
+  }, [commentsByTask, rescheduleKanban])
+
   const taskById = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks])
   const noShowCancelledCount = useMemo(
     () => tasks.filter((task) => task.status === 'cancelado' && task.cancellationReason === 'client_no_show').length,
@@ -610,6 +657,15 @@ export function ProjectDetailPage() {
       if (next === 'concluida') {
         const phase = phaseById.get(task.phaseId)
         const informational = effectiveTaskIsInformational(task, phase, planBlueprint?.blocks)
+        // Override manual: tarefa operacional sem nenhum evento realizado exige justificativa explícita.
+        if (!informational) {
+          const taskEvents = eventsByTaskId.get(task.id) ?? []
+          const hasRealized = taskEvents.some((e) => e.status === 'realizado')
+          if (!hasRealized) {
+            setManualCompleteTask(task)
+            return
+          }
+        }
         const r = await concludeOperationalTaskWithHourGuards(task, informational, me.id, {
           requestConfirm,
           requestDestructiveWithReason,
@@ -620,6 +676,19 @@ export function ProjectDetailPage() {
       }
     } catch (e) {
       toastError(e instanceof Error ? e.message : 'Não foi possível atualizar a tarefa')
+    }
+  }
+
+  async function confirmManualCompleteTask(reason: string) {
+    if (!manualCompleteTask) return
+    setManualCompleteBusy(true)
+    try {
+      await setTaskCompletedManualOverride(manualCompleteTask.id, reason, me.id)
+      setManualCompleteTask(null)
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Não foi possível concluir a tarefa.')
+    } finally {
+      setManualCompleteBusy(false)
     }
   }
 
@@ -1007,7 +1076,7 @@ export function ProjectDetailPage() {
         <div className="pd-kpi">
           <span className="pd-kpi__label">Tarefas</span>
           <span className="pd-kpi__value">
-            {doneTasks} / {tasks.length}
+            {doneTasks} / {tasksVisibleInProject.length}
           </span>
         </div>
         <div className="pd-kpi pd-kpi--phase">
@@ -1018,6 +1087,11 @@ export function ProjectDetailPage() {
       <div className="pd-op-summary" aria-label="Sinais operacionais de agenda">
         <span className="pd-op-summary__chip is-no-show">No-show: {noShowCancelledCount}</span>
         <span className="pd-op-summary__chip is-rescheduled">Reagendadas: {followUpRescheduleCount}</span>
+        {hasScope(me, 'settings.view') && followUpRescheduleCount > 0 ? (
+          <Link className="pd-op-summary__admin-link muted" to="/configuracoes#reschedule-chain-migration">
+            Migração de cadeias (admin)
+          </Link>
+        ) : null}
       </div>
 
       <div className="pd-tabs" role="tablist" aria-label="Seções do projeto">
@@ -1079,7 +1153,12 @@ export function ProjectDetailPage() {
         <div className="pd-board-wrap">
           <div className="pd-board">
             {sortedPhases.map((phase) => {
-              const { done, total, pct: pPct, list } = phaseStats(phase.id, proj.id, tasks)
+              const { done, total, pct: pPct, list } = phaseStats(
+                phase.id,
+                proj.id,
+                tasks,
+                rescheduleKanban?.hiddenTaskIds ?? new Set(),
+              )
               const locked = phase.status === 'bloqueada'
               const ativa = phase.status === 'ativa'
               const concl = phase.status === 'concluida'
@@ -1234,8 +1313,13 @@ export function ProjectDetailPage() {
                   </header>
                   <div className="pd-phase__tasks">
                     {list.map((t) => {
-                      const scheduledEv = scheduledEventByTaskId.get(t.id)
-                      const taskComments = commentsByTask.get(t.id) ?? []
+                      const mergedRowEvents = rescheduleKanban?.mergedEventsByLeaf.get(t.id)
+                      const scheduledEv = getPrimaryScheduledEventFromCandidates(
+                        mergedRowEvents ?? eventsByTaskId.get(t.id) ?? [],
+                      )
+                      const displayActual = rescheduleKanban?.aggregateActualByLeaf.get(t.id) ?? t.actualHours
+                      const taskComments =
+                        commentsByCanonicalLeaf.get(t.id) ?? commentsByTask.get(t.id) ?? []
                       const showDesc = expandedDesc[t.id]
                       const canAct = canEditProjects && !locked && t.status !== 'concluida' && t.status !== 'cancelado'
                       const doneTask = t.status === 'concluida'
@@ -1246,9 +1330,14 @@ export function ProjectDetailPage() {
                       )
                       const hoursPct =
                         !informational && t.estimatedHours > 0
-                          ? Math.min(100, (t.actualHours / t.estimatedHours) * 100)
+                          ? Math.min(100, (displayActual / t.estimatedHours) * 100)
                           : null
-                      const liveTimerHere = !informational && runningTimerSession?.taskId === t.id
+                      const chainMembers = rescheduleKanban?.chainMemberIdsByLeaf.get(t.id)
+                      const timerTaskId = runningTimerSession?.taskId
+                      const liveTimerHere =
+                        !informational &&
+                        Boolean(timerTaskId) &&
+                        (chainMembers?.includes(timerTaskId!) || timerTaskId === t.id)
                       const codeColors = planLabelColorsFromCode(t.code, phase.colorHex)
                       const relatedSource = t.rescheduledFromTaskId ? taskById.get(t.rescheduledFromTaskId) : null
                       const relatedTarget = t.rescheduledToTaskId ? taskById.get(t.rescheduledToTaskId) : null
@@ -1271,27 +1360,37 @@ export function ProjectDetailPage() {
                             <div className="pd-task__lead">
                               <div className="pd-task__code-row">
                                 <span className="pd-task__code">{t.code}</span>
+                                <TaskScheduleChip
+                                  task={t}
+                                  events={projectEvents}
+                                  rowScopedEvents={mergedRowEvents}
+                                />
+                                {t.completedManualOverride && t.completedManualOverrideReason ? (
+                                  <span
+                                    className="pd-task__flow-badge is-rebooked"
+                                    title={`Conclusão manual: ${t.completedManualOverrideReason}`}
+                                  >
+                                    Manual
+                                  </span>
+                                ) : null}
                                 {t.cancellationReason === 'client_no_show' ? (
-                                  <span className="pd-task__flow-badge is-no-show">No-show</span>
+                                  <span className="pd-task__flow-badge is-no-show">No-show (legado)</span>
                                 ) : null}
                                 {t.rescheduledToTaskId ? (
                                   <span
                                     className="pd-task__flow-badge is-rebooked"
-                                    title={relatedTarget ? `Nova tentativa: ${relatedTarget.code}` : 'Nova tentativa criada'}
+                                    title={relatedTarget ? `Tarefa legada — cadeia: ${relatedTarget.code}` : 'Reagendamento legado'}
                                   >
-                                    Reagendada
+                                    Reag. legada
                                   </span>
                                 ) : null}
                                 {t.rescheduledFromTaskId ? (
                                   <span
                                     className="pd-task__flow-badge is-follow-up"
-                                    title={relatedSource ? `Origem: ${relatedSource.code}` : 'Tarefa criada por reagendamento'}
+                                    title={relatedSource ? `Origem (legado): ${relatedSource.code}` : 'Tarefa criada por reagendamento legado'}
                                   >
-                                    Retomada
+                                    Retomada (legado)
                                   </span>
-                                ) : null}
-                                {informational ? (
-                                  <span className="pd-task__info-badge">Informativa</span>
                                 ) : null}
                                 {t.isAdHoc ? (
                                   <span
@@ -1325,21 +1424,22 @@ export function ProjectDetailPage() {
                                   </span>
                                 )
                               })()}
-                              <span className="pd-task__icon-slot" aria-hidden>
-                                {taskStatusIcon(liveTimerHere ? 'em_andamento' : t.status)}
-                              </span>
-                              {!doneTask && canAct ? (
-                                <button
-                                  type="button"
-                                  className="btn btn--primary btn--xs btn--icon pd-task__conclude"
-                                  onClick={() => onTaskStatus(t.id, 'concluida')}
-                                  title="Marcar como concluída"
-                                  aria-label="Marcar tarefa como concluída"
-                                >
-                                  <CheckCircle2 {...icSm} aria-hidden />
-                                </button>
-                              ) : null}
-                              <details className="pd-task__more">
+                              <div className="pd-task__actions">
+                                <span className="pd-task__icon-slot" aria-hidden>
+                                  {taskStatusIcon(liveTimerHere ? 'em_andamento' : t.status)}
+                                </span>
+                                {!doneTask && canAct ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn--primary btn--xs btn--icon pd-task__conclude"
+                                    onClick={() => onTaskStatus(t.id, 'concluida')}
+                                    title="Marcar como concluída"
+                                    aria-label="Marcar tarefa como concluída"
+                                  >
+                                    <CheckCircle2 {...icSm} aria-hidden />
+                                  </button>
+                                ) : null}
+                                <details className="pd-task__more">
                                 <summary
                                   className="btn btn--ghost btn--xs btn--icon pd-task__more-trigger"
                                   aria-label="Menu da tarefa"
@@ -1423,13 +1523,10 @@ export function ProjectDetailPage() {
                                   ) : null}
                                 </div>
                               </details>
+                              </div>
                             </div>
                           </div>
-                          {informational ? (
-                            <p className="pd-task__hours-line pd-task__hours-line--info">
-                              Informativa · não entra nas horas do contrato
-                            </p>
-                          ) : (
+                          {!informational ? (
                             <div
                               className={
                                 'pd-task__hours-line' +
@@ -1439,7 +1536,7 @@ export function ProjectDetailPage() {
                             >
                               <Clock className="pd-task__hours-line-ic" {...icSm} aria-hidden />
                               <span className="pd-task__hours-line-values">
-                                <strong>{formatDurationHmFromHours(t.actualHours)}</strong>
+                                <strong>{formatDurationHmFromHours(displayActual)}</strong>
                                 <span className="pd-task__hours-line-sep" aria-hidden>
                                   /
                                 </span>
@@ -1452,7 +1549,7 @@ export function ProjectDetailPage() {
                                 </span>
                               </span>
                             </div>
-                          )}
+                          ) : null}
                           {doneTask ? (
                             <button
                               type="button"
@@ -1467,7 +1564,7 @@ export function ProjectDetailPage() {
                             <>
                               {!informational ? (
                                 <>
-                                  {t.isAdHoc && t.estimatedHours <= 0 && t.actualHours > 0 ? (
+                                  {t.isAdHoc && t.estimatedHours <= 0 && displayActual > 0 ? (
                                     <div
                                       className="pd-task__adhoc-spent-meter pd-task__adhoc-spent-meter--solo"
                                       aria-hidden
@@ -1476,7 +1573,7 @@ export function ProjectDetailPage() {
                                       <div
                                         className="pd-task__adhoc-spent-meter-fill"
                                         style={{
-                                          width: `${Math.min(100, (t.actualHours / 6) * 100)}%`,
+                                          width: `${Math.min(100, (displayActual / 6) * 100)}%`,
                                         }}
                                       />
                                     </div>
@@ -2106,6 +2203,13 @@ export function ProjectDetailPage() {
       />
 
       <RegisterHoursModal open={!!hoursTask} task={hoursTask} user={me} onClose={() => setHoursTask(null)} />
+      <ManualCompleteTaskModal
+        open={!!manualCompleteTask}
+        task={manualCompleteTask}
+        busy={manualCompleteBusy}
+        onCancel={() => (manualCompleteBusy ? undefined : setManualCompleteTask(null))}
+        onConfirm={confirmManualCompleteTask}
+      />
       <ConfirmProjectDeleteModal
         open={deleteProjectOpen}
         projectName={proj.projectName}

@@ -11,6 +11,12 @@ import {
 } from 'react'
 import { SYNC_FAILURE_EVENT, type SyncFailureDetail } from '../sync/syncFailure'
 import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
+import {
+  buildFeedbackErrorMessage,
+  buildFeedbackSuccessMessage,
+  type FeedbackAction,
+  type FeedbackGender,
+} from '../lib/feedbackMessages'
 
 export type ToastTone = 'info' | 'error' | 'warn'
 
@@ -46,6 +52,11 @@ type UiFeedbackContextValue = {
   toast: (message: string, tone?: ToastTone) => void
   toastError: (message: string) => void
   toastWarn: (message: string) => void
+  toastMutationSuccess: (input: { action: FeedbackAction; target?: string; gender?: FeedbackGender }) => void
+  toastMutationError: (
+    input: { action: FeedbackAction; target?: string; gender?: FeedbackGender },
+    fallback?: string,
+  ) => void
   requestConfirm: (options: ConfirmOptions) => Promise<boolean | null>
   requestDestructiveWithReason: (options: DestructiveWithReasonOptions) => Promise<string | null>
 }
@@ -142,10 +153,41 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
 
   const toastError = useCallback((message: string) => toast(message, 'error'), [toast])
   const toastWarn = useCallback((message: string) => toast(message, 'warn'), [toast])
+  const toastMutationSuccess = useCallback(
+    (input: { action: FeedbackAction; target?: string; gender?: FeedbackGender }) => {
+      toast(buildFeedbackSuccessMessage(input), 'info')
+    },
+    [toast],
+  )
+  const toastMutationError = useCallback(
+    (
+      input: { action: FeedbackAction; target?: string; gender?: FeedbackGender },
+      fallback?: string,
+    ) => {
+      toastError(fallback || buildFeedbackErrorMessage(input))
+    },
+    [toastError],
+  )
 
   const value = useMemo(
-    () => ({ toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason }),
-    [toast, toastError, toastWarn, requestConfirm, requestDestructiveWithReason],
+    () => ({
+      toast,
+      toastError,
+      toastWarn,
+      toastMutationSuccess,
+      toastMutationError,
+      requestConfirm,
+      requestDestructiveWithReason,
+    }),
+    [
+      toast,
+      toastError,
+      toastWarn,
+      toastMutationSuccess,
+      toastMutationError,
+      requestConfirm,
+      requestDestructiveWithReason,
+    ],
   )
 
   useEffect(() => {

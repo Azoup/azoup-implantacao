@@ -74,6 +74,7 @@ export function ProjectsPage() {
   const plans = useLiveQuery(() => db.planModels.filter((p) => p.active).toArray(), []) ?? emptyPlanModels
 
   const [open, setOpen] = useState(false)
+  const [projectModalDirty, setProjectModalDirty] = useState(false)
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
@@ -89,7 +90,7 @@ export function ProjectsPage() {
 
   useRegisterUnsavedChanges({
     enabled: open,
-    isDirty: () => open,
+    isDirty: () => projectModalDirty,
     message:
       'O formulário de criação ou edição de projeto está aberto. Feche-o após gravar, ou saia sem gravar para descartar.',
   })
@@ -404,6 +405,8 @@ export function ProjectsPage() {
                 : 'Falha na sincronização; nova tentativa na fila'
           const syncStatusTitle = syncMeta.lastErrorCode ?? syncStatusLabel
           const freshness = deriveProjectFreshnessBySla(p).status
+          const projectStartIso = p.startDate ?? p.createdAt
+          const projectStartLabel = formatDatePt(projectStartIso)
 
           const resolveCodeColor = (code: string): string | null => {
             const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
@@ -414,15 +417,33 @@ export function ProjectsPage() {
           return (
             <article key={p.id} className="proj-card">
               <div className="proj-card__head">
-                <h2 className="proj-card__title">
-                  <Link
-                    to={`/projetos/${p.id}`}
-                    title={tooltipBits.length ? tooltipBits.join(' · ') : undefined}
-                    className="proj-card__title-link"
-                  >
-                    {p.projectName}
-                  </Link>
-                </h2>
+                <div className="proj-card__title-stack">
+                  <h2 className="proj-card__title">
+                    <Link
+                      to={`/projetos/${p.id}`}
+                      title={tooltipBits.length ? tooltipBits.join(' · ') : undefined}
+                      className="proj-card__title-link"
+                    >
+                      {p.projectName}
+                    </Link>
+                  </h2>
+                  <p className="proj-card__start-line" aria-label={`Data de início: ${projectStartLabel}`}>
+                    <CalendarDays
+                      className="proj-card__start-icon"
+                      size={13}
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <span className="proj-card__start-kicker">Início</span>
+                    <time
+                      className="proj-card__start-date"
+                      dateTime={projectStartIso.slice(0, 10)}
+                      title={p.startDate ? 'Data de início do projeto' : 'Data de início (cadastro do projeto)'}
+                    >
+                      {projectStartLabel}
+                    </time>
+                  </p>
+                </div>
                 <div className="proj-card__badges">
                   {analyst ? (
                     <span
@@ -606,7 +627,9 @@ export function ProjectsPage() {
         onClose={() => {
           setOpen(false)
           setEditingProject(null)
+          setProjectModalDirty(false)
         }}
+        onDirtyChange={setProjectModalDirty}
         user={user}
         plans={plans}
         analysts={analysts}

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Building2, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react'
 import type {
   DbAnalyst,
@@ -26,8 +26,11 @@ import {
 import { dispatchSyncFailure } from '../sync/syncFailure'
 import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { createCustomProject, createProjectFromPlan } from '../services/project'
+import { getUserForAudit, writeAuditLog } from '../services/auditLogs'
+import { describeProjectPersistPatchDiff } from '../lib/projectEditAuditDiff'
 import { getBillableEstimatedSumForProject } from '../services/customProjectHours'
 import { normalizeProjectPlacement } from '../services/projectGovernance'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { fetchCnpjFromBrasilApi } from '../services/brasilCnpj'
 import { fetchCepViaViaCep } from '../services/viacep'
@@ -92,27 +95,25 @@ function emptyToNull(s: string): string | null {
   return t ? t : null
 }
 
-function queueProjectPatchSync(projectId: string, patch: Partial<DbProject>, opId: string): void {
-  if (!isSupabaseConfigured()) return
-  void updateProjectPartialInSupabase(projectId, patch, opId).catch((syncErr) => {
-    const msg = syncErr instanceof Error ? syncErr.message : String(syncErr)
-    const code = msg.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? 'PRJ_CREATE_SYNC'
-    enqueuePendingProjectGraphSync(projectId, {
-      opId,
-      lastErrorCode: code,
-      lastErrorMessage: msg,
-    })
-    dispatchSyncFailure({
-      table: 'projects',
-      operation: 'upsert',
-      message: `Sincronização pendente na nuvem após salvar localmente. ${msg}`,
-    })
-    console.warn('[Supabase] edição enfileirada para re-sync em background', {
-      projectId,
-      opId,
-      error: msg,
-    })
+function handleProjectPatchSyncFailure(projectId: string, opId: string, syncErr: unknown): never {
+  const msg = syncErr instanceof Error ? syncErr.message : String(syncErr)
+  const code = msg.match(/PRJ_CREATE_[A-Z_]+/)?.[0] ?? 'PRJ_CREATE_SYNC'
+  enqueuePendingProjectGraphSync(projectId, {
+    opId,
+    lastErrorCode: code,
+    lastErrorMessage: msg,
   })
+  dispatchSyncFailure({
+    table: 'projects',
+    operation: 'upsert',
+    message: `Falha ao gravar na nuvem após salvar localmente. ${msg}`,
+  })
+  console.warn('[Supabase] edição de projeto não confirmada na nuvem', {
+    projectId,
+    opId,
+    error: msg,
+  })
+  throw syncErr instanceof Error ? syncErr : new Error(msg)
 }
 
 function isoToDateInput(iso: string | null | undefined): string {
@@ -130,6 +131,7 @@ type Props = {
   initialKanbanColumn: KanbanColumn
   /** Se definido, modal em modo edição (não recria tarefas). */
   projectToEdit?: DbProject | null
+  onDirtyChange?: (dirty: boolean) => void
 }
 
 export function ProjectCreateModal({
@@ -140,8 +142,9 @@ export function ProjectCreateModal({
   analysts,
   initialKanbanColumn,
   projectToEdit = null,
+  onDirtyChange,
 }: Props) {
-  const { requestConfirm } = useUiFeedback()
+  const { requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
   const bodyRef = useRef<HTMLDivElement>(null)
   const plansRef = useRef(plans)
   plansRef.current = plans
@@ -183,6 +186,7 @@ export function ProjectCreateModal({
   const [err, setErr] = useState<string | null>(null)
   const [lookupHint, setLookupHint] = useState<string | null>(null)
   const [aiOpenField, setAiOpenField] = useState<'modules' | 'notes' | null>(null)
+  const [modalBaseline, setModalBaseline] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -259,6 +263,83 @@ export function ProjectCreateModal({
     if (!plans.some((p) => p.key === planKey)) setPlanKey(plans[0].key)
   }, [plans, planKey])
 
+  const modalSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        projectName,
+        planKey,
+        customContractHours,
+        analystId,
+        startDate,
+        dueDate,
+        cnpjDigits,
+        razaoSocial,
+        tradeName,
+        corporateEmail,
+        cepDigits,
+        addressStreet,
+        addressNumber,
+        addressComplement,
+        addressNeighborhood,
+        addressCity,
+        addressState,
+        implantationContactName,
+        implantationPhoneDigits,
+        clientApiId,
+        internalNotes,
+        stateRegistration,
+        secondaryCnpjDigits,
+        secondaryRazaoSocial,
+        modulesDescription,
+        projectStatus,
+      }),
+    [
+      projectName,
+      planKey,
+      customContractHours,
+      analystId,
+      startDate,
+      dueDate,
+      cnpjDigits,
+      razaoSocial,
+      tradeName,
+      corporateEmail,
+      cepDigits,
+      addressStreet,
+      addressNumber,
+      addressComplement,
+      addressNeighborhood,
+      addressCity,
+      addressState,
+      implantationContactName,
+      implantationPhoneDigits,
+      clientApiId,
+      internalNotes,
+      stateRegistration,
+      secondaryCnpjDigits,
+      secondaryRazaoSocial,
+      modulesDescription,
+      projectStatus,
+    ],
+  )
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setModalBaseline(null)
+      return
+    }
+    setModalBaseline((prev) => prev ?? modalSnapshot)
+  }, [open, modalSnapshot])
+
+  const modalDirty = useMemo(() => {
+    if (!open || modalBaseline === null) return false
+    return modalSnapshot !== modalBaseline
+  }, [open, modalSnapshot, modalBaseline])
+
+  useEffect(() => {
+    onDirtyChange?.(open && modalDirty)
+  }, [open, modalDirty, onDirtyChange])
+
   const scrollToSection = (id: string) => {
     const root = bodyRef.current
     const el = root?.querySelector(`#${id}`)
@@ -309,8 +390,7 @@ export function ProjectCreateModal({
     }
   }
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault()
+  async function persistProject() {
     if (saving) return
     setErr(null)
     const name = projectName.trim()
@@ -383,15 +463,33 @@ export function ProjectCreateModal({
             hoursContracted: customHoursForPatch,
           }
         }
+        const auditDetails = describeProjectPersistPatchDiff(projectToEdit, patch, {
+          analystNameById: new Map(analysts.map((a) => [a.id, a.name])),
+        })
         if (isSupabaseConfigured()) {
           const opId = crypto.randomUUID()
           await withDexieSupabaseSyncMuted(async () => {
             await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
           })
-          queueProjectPatchSync(projectToEdit.id, patch as Partial<DbProject>, opId)
-          setLookupHint('Alterações salvas localmente. Sincronização pendente na nuvem.')
+          try {
+            await updateProjectPartialInSupabase(projectToEdit.id, patch as Partial<DbProject>, opId)
+          } catch (syncErr) {
+            handleProjectPatchSyncFailure(projectToEdit.id, opId, syncErr)
+          }
+          setLookupHint('Alterações salvas e confirmadas na nuvem.')
         } else {
           await db.projects.update(projectToEdit.id, patch as Partial<DbProject>)
+        }
+        if (auditDetails) {
+          const actor = await getUserForAudit(user.id)
+          await writeAuditLog({
+            action: 'alteracao',
+            entity: 'projeto',
+            entityId: projectToEdit.id,
+            entityLabel: name.trim(),
+            details: auditDetails,
+            user: actor,
+          })
         }
       } else if (planKey === CUSTOM_PLAN_TYPE) {
         await createCustomProject({
@@ -411,12 +509,45 @@ export function ProjectCreateModal({
         })
       }
       onClose()
+      toastMutationSuccess({
+        action: projectToEdit ? 'update' : 'create',
+        target: 'Projeto',
+        gender: 'm',
+      })
     } catch (ex) {
-      setErr(mapProjectCreateError(ex, !!projectToEdit))
+      const message = mapProjectCreateError(ex, !!projectToEdit)
+      setErr(message)
+      toastMutationError(
+        { action: projectToEdit ? 'update' : 'create', target: 'o projeto', gender: 'm' },
+        message,
+      )
     } finally {
       setSaving(false)
     }
   }
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault()
+    await persistProject()
+  }
+
+  const attemptClose = useUnsavedCloseGuard({
+    isDirty: () => modalDirty,
+    onSave: persistProject,
+    onDiscard: onClose,
+    message: 'Ha alteracoes nao gravadas no formulario do projeto. Deseja gravar antes de sair?',
+  })
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape' || saving) return
+      ev.preventDefault()
+      void attemptClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, saving, attemptClose])
 
   if (!open) return null
 
@@ -433,7 +564,7 @@ export function ProjectCreateModal({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={() => !saving && onClose()}>
+    <div className="modal-backdrop" role="presentation" onClick={() => (!saving ? void attemptClose() : undefined)}>
       <div
         className="modal modal--project-create"
         role="dialog"
@@ -795,7 +926,7 @@ export function ProjectCreateModal({
         <div className="project-create-modal__footer">
           {err ? <p className="auth__error project-create-modal__footer-err">{err}</p> : null}
           <div className="modal__actions">
-            <button type="button" className="btn btn--ghost" disabled={saving} onClick={onClose}>
+            <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => void attemptClose()}>
               Cancelar
             </button>
             <button type="submit" className="btn btn--primary" form="vyntask-project-create-form" disabled={saving}>

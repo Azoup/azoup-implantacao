@@ -8,6 +8,7 @@ import {
   type DueBucket,
 } from '../lib/taskDueBucket'
 import { compareTaskCode } from '../lib/taskCode'
+import { computeRescheduleKanbanHiddenTaskIds } from '../lib/rescheduleChainKanban'
 import { TASK_STATUS_OPTIONS } from '../constants/tasks'
 import type { DbPhase, DbProject, DbTask, TaskStatus } from '../db/types'
 import { AnalystAvatar } from '../components/AnalystAvatar'
@@ -32,11 +33,13 @@ const BUCKET_ACCENT: Record<DueBucket, string> = {
 export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, canEdit }: TarefasPrazoViewProps) {
   const projectNameById = useMemo(() => new Map(projects.map((p) => [p.id, p.projectName])), [projects])
   const analystById = useMemo(() => new Map(analysts.map((a) => [a.id, a])), [analysts])
+  const hiddenRescheduleIds = useMemo(() => computeRescheduleKanbanHiddenTaskIds(tasks), [tasks])
 
   const byBucket = useMemo(() => {
     const m = new Map<DueBucket, DbTask[]>()
     for (const b of DUE_BUCKET_ORDER) m.set(b, [])
     for (const t of tasks) {
+      if (hiddenRescheduleIds.has(t.id)) continue
       const b = classifyDueBucket(t.dueDate)
       m.get(b)!.push(t)
     }
@@ -49,7 +52,7 @@ export function TarefasPrazoView({ tasks, projects, analysts, onStatusChange, ca
       })
     }
     return m
-  }, [tasks, projectNameById])
+  }, [tasks, projectNameById, hiddenRescheduleIds])
 
   return (
     <div className="task-prazo-board" role="region" aria-label="Tarefas por prazo">
@@ -121,6 +124,7 @@ type TarefasFaseViewProps = {
 export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusChange, canEdit }: TarefasFaseViewProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const analystById = useMemo(() => new Map(analysts.map((a) => [a.id, a])), [analysts])
+  const hiddenRescheduleIds = useMemo(() => computeRescheduleKanbanHiddenTaskIds(tasks), [tasks])
 
   const groups = useMemo(() => {
     const projectById = new Map(projects.map((p) => [p.id, p]))
@@ -136,6 +140,7 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
 
     const tasksByProjectId = new Map<string, DbTask[]>()
     for (const t of tasks) {
+      if (hiddenRescheduleIds.has(t.id)) continue
       const list = tasksByProjectId.get(t.projectId)
       if (list) list.push(t)
       else tasksByProjectId.set(t.projectId, [t])
@@ -194,7 +199,7 @@ export function TarefasFaseView({ tasks, projects, phases, analysts, onStatusCha
     }
 
     return out
-  }, [tasks, projects, phases])
+  }, [tasks, projects, phases, hiddenRescheduleIds])
 
   function keyFor(pId: string, phId: string) {
     return `${pId}::${phId}`

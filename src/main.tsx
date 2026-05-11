@@ -9,6 +9,9 @@ import { UnsavedChangesProvider } from './navigation/UnsavedChangesContext'
 import { ThemeProvider } from './theme/ThemeContext'
 import { UiFeedbackProvider } from './ui/UiFeedbackContext'
 import { isSupabaseConfigured } from './lib/supabaseClient'
+import { APP_BROWSER_DOCUMENT_TITLE } from './constants/appMeta'
+
+document.title = APP_BROWSER_DOCUMENT_TITLE
 
 if (import.meta.env.DEV) {
   console.info(

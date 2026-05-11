@@ -6,6 +6,7 @@ const sample: ManualDef = {
   id: 'x',
   title: 'Integração WooCommerce',
   audience: 'internal',
+  category: 'integracoes',
   description: 'REST API e chaves',
   keywords: ['wordpress'],
 }

@@ -4,6 +4,9 @@ import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { uuid } from '../lib/uuid'
 import { syncEventRowToSupabase } from '../sync/supabaseDexieBridge'
 import { dispatchSyncFailure } from '../sync/syncFailure'
+import { addTaskTimeLog } from './timeLogs'
+import { recomputeTaskStatus } from './tasks'
+import { getUserForAudit, writeAuditLog } from './auditLogs'
 
 type EventInput = {
   title: string
@@ -107,6 +110,200 @@ export async function createEventValidated(input: EventInput): Promise<EventWrit
     console.warn('[events] created event saved locally; cloud sync queued', { id, err })
     return { id, cloudSync: 'queued' }
   }
+}
+
+type CancelEventInput = {
+  eventId: string
+  consumeHours?: number
+  notes?: string
+  actorUserId?: string | null
+}
+
+type MarkEventRealizedInput = {
+  eventId: string
+  endTime?: string
+  outcomeSummary?: string | null
+  nextStep?: string | null
+  loggedHours?: number | null
+  closedAt?: string | null
+  actorUserId?: string | null
+}
+
+type RescheduleEventInput = {
+  eventId: string
+  newStartTime: string
+  newEndTime: string
+  consumeHours?: number
+  cancelNotes?: string
+  actorUserId?: string | null
+}
+
+async function persistEventChange(eventId: string): Promise<EventWriteResult> {
+  if (!isSupabaseConfigured()) return { id: eventId, cloudSync: 'local_only' }
+  const updated = await db.events.get(eventId)
+  if (!updated) return { id: eventId, cloudSync: 'queued' }
+  try {
+    await syncEventRowToSupabase(updated)
+    return { id: eventId, cloudSync: 'synced' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    dispatchSyncFailure({ table: 'events', operation: 'upsert', message })
+    console.warn('[events] saved locally; cloud sync queued', { id: eventId, err })
+    return { id: eventId, cloudSync: 'queued' }
+  }
+}
+
+/**
+ * Cancela um evento (agenda) sem consumir horas da tarefa.
+ * O status da tarefa NÃO é alterado por esta função — chame recomputeTaskStatus em seguida.
+ */
+export async function cancelEventNoHours(input: CancelEventInput): Promise<EventWriteResult> {
+  const event = await db.events.get(input.eventId)
+  if (!event) throw new Error('Evento não encontrado.')
+  await db.events.update(input.eventId, {
+    status: 'cancelado',
+    executionState: null,
+    closedAt: new Date().toISOString(),
+    loggedHours: 0,
+    nextStep: input.notes ? `Cancelado sem horas. ${input.notes}` : event.nextStep ?? null,
+  })
+
+  if (input.actorUserId && event.taskId) {
+    const actor = await getUserForAudit(input.actorUserId)
+    await writeAuditLog({
+      action: 'alteracao',
+      entity: 'tarefa',
+      entityId: event.taskId,
+      entityLabel: event.title,
+      details: `Agenda cancelada sem consumo de horas.${input.notes ? ' ' + input.notes : ''}`,
+      user: actor,
+    })
+  }
+
+  if (event.taskId) await recomputeTaskStatus(event.taskId, input.actorUserId ?? undefined)
+  return persistEventChange(input.eventId)
+}
+
+/**
+ * Cancela um evento consumindo horas da tarefa (no-show sem aviso, por exemplo).
+ * Registra um TimeLog `cancelado_com_horas` mas mantém a tarefa aberta.
+ */
+export async function cancelEventWithHours(input: CancelEventInput): Promise<EventWriteResult> {
+  const hours = Number.isFinite(input.consumeHours) ? Math.max(0, Number(input.consumeHours)) : 0
+  if (hours <= 0) throw new Error('Informe horas maiores que zero para cancelar com consumo.')
+  const event = await db.events.get(input.eventId)
+  if (!event) throw new Error('Evento não encontrado.')
+  if (!event.taskId) throw new Error('Evento sem tarefa vinculada não pode consumir horas.')
+
+  await db.events.update(input.eventId, {
+    status: 'cancelado',
+    executionState: null,
+    closedAt: new Date().toISOString(),
+    loggedHours: hours,
+    nextStep: input.notes ? `Cancelado com ${hours}h. ${input.notes}` : event.nextStep ?? null,
+  })
+
+  await addTaskTimeLog({
+    taskId: event.taskId,
+    userId: input.actorUserId ?? '',
+    hours,
+    logType: 'cancelado_com_horas',
+    executionDate: new Date().toISOString(),
+    notes: input.notes ?? 'Agenda cancelada com consumo de horas.',
+  })
+
+  if (input.actorUserId) {
+    const actor = await getUserForAudit(input.actorUserId)
+    await writeAuditLog({
+      action: 'alteracao',
+      entity: 'tarefa',
+      entityId: event.taskId,
+      entityLabel: event.title,
+      details: `Agenda cancelada consumindo ${hours}h.${input.notes ? ' ' + input.notes : ''}`,
+      user: actor,
+    })
+  }
+
+  await recomputeTaskStatus(event.taskId, input.actorUserId ?? undefined)
+  return persistEventChange(input.eventId)
+}
+
+/**
+ * Marca um evento como realizado. O status da tarefa será recomputado para `concluida` (a menos que outro override esteja ativo).
+ */
+export async function markEventRealized(input: MarkEventRealizedInput): Promise<EventWriteResult> {
+  const event = await db.events.get(input.eventId)
+  if (!event) throw new Error('Evento não encontrado.')
+
+  await db.events.update(input.eventId, {
+    status: 'realizado',
+    executionState: 'completed',
+    endTime: input.endTime ?? event.endTime,
+    outcomeSummary: input.outcomeSummary ?? event.outcomeSummary ?? null,
+    nextStep: input.nextStep ?? event.nextStep ?? null,
+    loggedHours: input.loggedHours ?? event.loggedHours ?? null,
+    closedAt: input.closedAt ?? new Date().toISOString(),
+  })
+
+  if (input.actorUserId && event.taskId) {
+    const actor = await getUserForAudit(input.actorUserId)
+    await writeAuditLog({
+      action: 'alteracao',
+      entity: 'tarefa',
+      entityId: event.taskId,
+      entityLabel: event.title,
+      details: `Agenda marcada como realizada${input.loggedHours ? ` (${input.loggedHours}h)` : ''}.`,
+      user: actor,
+    })
+  }
+
+  if (event.taskId) await recomputeTaskStatus(event.taskId, input.actorUserId ?? undefined)
+  return persistEventChange(input.eventId)
+}
+
+/**
+ * Reagenda um evento: cancela o atual (com/sem horas) e cria um novo `agendado` para a mesma tarefa.
+ * Substitui o antigo fluxo de "clonar tarefa" do modelo 1:1.
+ */
+export async function rescheduleEvent(input: RescheduleEventInput): Promise<{ cancelled: EventWriteResult; created: EventWriteResult }> {
+  const event = await db.events.get(input.eventId)
+  if (!event) throw new Error('Evento não encontrado.')
+  ensureValidEventWindow(input.newStartTime, input.newEndTime)
+
+  const hours = Number.isFinite(input.consumeHours) ? Math.max(0, Number(input.consumeHours)) : 0
+  const cancelled =
+    hours > 0
+      ? await cancelEventWithHours({
+          eventId: event.id,
+          consumeHours: hours,
+          notes: input.cancelNotes,
+          actorUserId: input.actorUserId,
+        })
+      : await cancelEventNoHours({
+          eventId: event.id,
+          notes: input.cancelNotes,
+          actorUserId: input.actorUserId,
+        })
+
+  const created = await createEventValidated({
+    title: event.title,
+    description: event.description,
+    startTime: input.newStartTime,
+    endTime: input.newEndTime,
+    status: 'agendado',
+    projectId: event.projectId,
+    taskId: event.taskId,
+    analystId: event.analystId,
+    meetingLink: event.meetingLink,
+    executionState: 'scheduled',
+    outcomeSummary: null,
+    nextStep: null,
+    closedAt: null,
+    loggedHours: null,
+  })
+
+  if (event.taskId) await recomputeTaskStatus(event.taskId, input.actorUserId ?? undefined)
+  return { cancelled, created }
 }
 
 export async function updateEventValidated(eventId: string, input: EventInput): Promise<EventWriteResult> {

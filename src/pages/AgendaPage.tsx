@@ -2,7 +2,7 @@ import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, us
 import { useLiveQuery } from 'dexie-react-hooks'
 import { addDays, addMonths, addWeeks, startOfMonth, subMonths } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock, Video } from 'lucide-react'
+import { Calendar, CalendarPlus, ChevronLeft, ChevronRight, Clock, ListTodo, Video } from 'lucide-react'
 import { formatInTimeZone } from 'date-fns-tz'
 import { toZonedTime } from 'date-fns-tz'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -21,6 +21,7 @@ import { getRunningSessionForUser, startTimer, stopTimer } from '../services/tim
 import { setTaskStatus } from '../services/tasks'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import {
   emptyAnalysts,
@@ -593,7 +594,7 @@ export function AgendaPage() {
     setMeetingLink('')
   }
 
-  function closeEventModal() {
+  function closeEventModalImmediate() {
     if (agendaEventSaving) return
     resetAgendaEventModal()
   }
@@ -737,6 +738,26 @@ export function AgendaPage() {
     message: 'Há alterações não gravadas neste evento da agenda.',
   })
 
+  const attemptCloseEventModal = useUnsavedCloseGuard({
+    isDirty: () => agendaModalDirty,
+    onSave: async () => {
+      await saveEventFromModal({ preventDefault() {} } as FormEvent)
+    },
+    onDiscard: closeEventModalImmediate,
+    message: 'Ha alteracoes nao gravadas neste evento da agenda. Deseja gravar antes de sair?',
+  })
+
+  useEffect(() => {
+    if (!modalOpen) return
+    const onKeyDown = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape' || agendaEventSaving) return
+      ev.preventDefault()
+      void attemptCloseEventModal()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [modalOpen, agendaEventSaving, attemptCloseEventModal])
+
   const slots = hourSlots()
 
   const headerTitle =
@@ -801,7 +822,7 @@ export function AgendaPage() {
         </aside>
 
         <div className="agenda-gc-main">
-          <header className="agenda-gc-bar" aria-label="Período e visualização da agenda">
+          <header className="agenda-gc-bar agenda-gc-bar--surface" aria-label="Período e visualização da agenda">
             <div className="agenda-gc-bar__left">
               <h1 className="agenda-gc-bar__title">Agenda</h1>
               <p className="agenda-gc-bar__sub">{subtitle}</p>
@@ -898,7 +919,13 @@ export function AgendaPage() {
             </div>
             <div className="agenda-exec__list">
               {executionEventsToday.length === 0 ? (
-                <p className="muted">Sem itens para execução hoje.</p>
+                <div className="agenda-empty agenda-exec__empty" role="status">
+                  <Calendar className="agenda-empty__icon" size={26} strokeWidth={1.75} aria-hidden />
+                  <p className="agenda-empty__title">Sem execuções para hoje</p>
+                  <p className="agenda-empty__hint muted">
+                    Compromissos do dia com tarefa vinculada aparecem aqui para timer e fechamento.
+                  </p>
+                </div>
               ) : null}
               {executionEventsToday.map((ev) => {
                 const task = ev.taskId ? taskById.get(ev.taskId) : null
@@ -1156,11 +1183,19 @@ export function AgendaPage() {
               )
             })}
             {unscheduled.length === 0 ? (
-              <p className="muted">
-                {agendaProjectFilterId || unscheduledSearchNorm
-                  ? 'Nenhuma tarefa pendente com esse filtro.'
-                  : 'Tudo agendado ou concluído.'}
-              </p>
+              <div className="agenda-empty uns-list__empty" role="status">
+                <ListTodo className="agenda-empty__icon" size={26} strokeWidth={1.75} aria-hidden />
+                <p className="agenda-empty__title">
+                  {agendaProjectFilterId || unscheduledSearchNorm
+                    ? 'Nenhuma tarefa com esse filtro'
+                    : 'Nada pendente de agendar'}
+                </p>
+                <p className="agenda-empty__hint muted">
+                  {agendaProjectFilterId || unscheduledSearchNorm
+                    ? 'Limpe a busca ou troque o projeto para ver mais itens.'
+                    : 'Tarefas em aberto sem compromisso na agenda aparecem aqui.'}
+                </p>
+              </div>
             ) : null}
           </div>
         </aside>
@@ -1170,7 +1205,7 @@ export function AgendaPage() {
         <div
           className="modal-backdrop modal-backdrop--agenda-event"
           role="presentation"
-          onClick={agendaEventSaving ? undefined : closeEventModal}
+          onClick={agendaEventSaving ? undefined : () => void attemptCloseEventModal()}
         >
           <div
             className="modal modal--agenda-event"
@@ -1333,7 +1368,12 @@ export function AgendaPage() {
                 {isSupabaseConfigured() ? (
                   <span className="muted">Salvar agora, sincronizar na nuvem em segundo plano.</span>
                 ) : null}
-                <button type="button" className="btn btn--ghost" onClick={closeEventModal} disabled={agendaEventSaving}>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => void attemptCloseEventModal()}
+                  disabled={agendaEventSaving}
+                >
                   Fechar
                 </button>
                 <button type="submit" className="btn btn--primary" disabled={!canEditAgenda || agendaEventSaving}>

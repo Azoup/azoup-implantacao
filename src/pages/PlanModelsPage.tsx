@@ -1,5 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
+import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react'
@@ -43,7 +44,7 @@ const BUILTIN_ORDER: PlanTypeKey[] = ['basic', 'pro', 'master']
 const EMPTY_TEMPLATE = '__empty__'
 
 export function PlanModelsPage() {
-  const { toastError, requestConfirm } = useUiFeedback()
+  const { toastError, requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
   const { user } = useAuth()
   const canEditPlanModels = hasScope(user, 'planModels.edit')
   const plans = useLiveQuery(() => db.planModels.toArray(), []) ?? emptyPlanModels
@@ -193,6 +194,7 @@ export function PlanModelsPage() {
           phaseName,
           normalizePhaseColorHex(phaseColorHex, inferPhaseColor(phaseName, phaseEditing.orderIndex)),
         )
+        toastMutationSuccess({ action: 'update', target: 'Fase', gender: 'f' })
       } else {
         const nextOrder =
           detail.phases.length > 0 ? detail.phases[detail.phases.length - 1].orderIndex + 1 : 0
@@ -201,6 +203,7 @@ export function PlanModelsPage() {
           phaseName,
           normalizePhaseColorHex(phaseColorHex, inferPhaseColor(phaseName, nextOrder)),
         )
+        toastMutationSuccess({ action: 'create', target: 'Fase', gender: 'f' })
       }
     },
     [selectedId, phaseEditing, canEditPlanModels, detail.phases],
@@ -230,13 +233,16 @@ export function PlanModelsPage() {
   const onTaskSave = useCallback(
     async (values: PlanTaskFormValues) => {
       if (!canEditPlanModels) return
-      if (taskEditing) await updatePlanTask(taskEditing.id, values)
-      else {
+      if (taskEditing) {
+        await updatePlanTask(taskEditing.id, values)
+        toastMutationSuccess({ action: 'update', target: 'Tarefa', gender: 'f' })
+      } else {
         if (!taskModalPhaseId) throw new Error('Fase não selecionada')
         await addPlanTask(taskModalPhaseId, values)
+        toastMutationSuccess({ action: 'create', target: 'Tarefa', gender: 'f' })
       }
     },
-    [taskEditing, taskModalPhaseId, canEditPlanModels],
+    [taskEditing, taskModalPhaseId, canEditPlanModels, toastMutationSuccess],
   )
 
   async function persistPlanMeta() {
@@ -253,6 +259,7 @@ export function PlanModelsPage() {
       active,
     })
     setMetaOk(true)
+    toastMutationSuccess({ action: 'save', target: 'Plano', gender: 'm' })
     setTimeout(() => setMetaOk(false), 2400)
   }
 
@@ -271,8 +278,13 @@ export function PlanModelsPage() {
     setActive(next)
     try {
       await updatePlanModel(selected.id, { active: next })
-    } catch {
+      toastMutationSuccess({ action: next ? 'activate' : 'deactivate', target: 'Plano', gender: 'm' })
+    } catch (err) {
       setActive(!next)
+      toastMutationError(
+        { action: next ? 'activate' : 'deactivate', target: 'o plano', gender: 'm' },
+        err instanceof Error ? err.message : undefined,
+      )
     }
   }
 
@@ -315,12 +327,15 @@ export function PlanModelsPage() {
 
       const created = await db.planModels.where('key').equals(key).first()
       setNewOpen(false)
+      toastMutationSuccess({ action: 'create', target: 'Plano', gender: 'm' })
       if (created) {
         setSelectedId(created.id)
         setEditStructure(true)
       }
     } catch (err) {
-      setNewErr(err instanceof Error ? err.message : 'Erro ao criar')
+      const message = err instanceof Error ? err.message : 'Erro ao criar'
+      setNewErr(message)
+      toastMutationError({ action: 'create', target: 'o plano', gender: 'm' }, message)
     } finally {
       setNewSaving(false)
     }
@@ -340,8 +355,9 @@ export function PlanModelsPage() {
     try {
       await deletePlanModel(selected.id)
       setSelectedId(plans.find((p) => p.id !== selected.id)?.id ?? null)
+      toastMutationSuccess({ action: 'delete', target: 'Plano', gender: 'm' })
     } catch (err) {
-      toastError(err instanceof Error ? err.message : 'Não foi possível excluir')
+      toastMutationError({ action: 'delete', target: 'o plano', gender: 'm' }, err instanceof Error ? err.message : undefined)
     }
   }
 
@@ -355,7 +371,12 @@ export function PlanModelsPage() {
       danger: true,
     })
     if (!ok) return
-    await deletePlanPhase(ph.id)
+    try {
+      await deletePlanPhase(ph.id)
+      toastMutationSuccess({ action: 'delete', target: 'Fase', gender: 'f' })
+    } catch (err) {
+      toastMutationError({ action: 'delete', target: 'a fase', gender: 'f' }, err instanceof Error ? err.message : undefined)
+    }
   }
 
   async function onDeleteTask(t: DbPlanTask) {
@@ -368,7 +389,12 @@ export function PlanModelsPage() {
       danger: true,
     })
     if (!ok) return
-    await deletePlanTask(t.id)
+    try {
+      await deletePlanTask(t.id)
+      toastMutationSuccess({ action: 'delete', target: 'Tarefa', gender: 'f' })
+    } catch (err) {
+      toastMutationError({ action: 'delete', target: 'a tarefa', gender: 'f' }, err instanceof Error ? err.message : undefined)
+    }
   }
 
   const structuralModalOpen = phaseModalOpen || taskModalOpen
@@ -381,6 +407,7 @@ export function PlanModelsPage() {
         active !== selected.active),
   )
   const planModelsPageDirty = structuralModalOpen || metaDirty || newOpen
+  const newPlanDirty = newOpen && (newName.trim().length > 0 || newHours !== 30 || newTemplateKey !== 'basic')
 
   useRegisterUnsavedChanges({
     enabled: canEditPlanModels,
@@ -395,6 +422,15 @@ export function PlanModelsPage() {
       structuralModalOpen || newOpen
         ? 'Há um fluxo aberto (novo plano ou modal de fase/tarefa). Feche-o ou use “Sair sem gravar”. Para metadados, use Salvar na tela.'
         : 'Há alterações não gravadas no modelo de plano selecionado.',
+  })
+
+  const attemptCloseNewPlan = useUnsavedCloseGuard({
+    isDirty: () => newPlanDirty,
+    onDiscard: () => setNewOpen(false),
+    onSave: async () => {
+      await onCreatePlan({ preventDefault() {} } as FormEvent)
+    },
+    message: 'Ha alteracoes nao gravadas no novo plano. Deseja gravar antes de sair?',
   })
 
   const builtin = selected && BUILTIN_PLAN_KEYS.has(selected.key)
@@ -667,7 +703,7 @@ export function PlanModelsPage() {
       </div>
 
       {newOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => !newSaving && setNewOpen(false)}>
+        <div className="modal-backdrop" role="presentation" onClick={() => (!newSaving ? void attemptCloseNewPlan() : undefined)}>
           <div
             className="modal modal--plan-form"
             role="dialog"
@@ -684,7 +720,7 @@ export function PlanModelsPage() {
                 className="modal-plan__close"
                 aria-label="Fechar"
                 disabled={newSaving}
-                onClick={() => setNewOpen(false)}
+                onClick={() => void attemptCloseNewPlan()}
               >
                 <X size={22} strokeWidth={2} />
               </button>
@@ -733,7 +769,7 @@ export function PlanModelsPage() {
                 </p>
                 {newErr ? <p className="auth__error">{newErr}</p> : null}
                 <div className="modal-plan__footer">
-                  <button type="button" className="btn btn--ghost" disabled={newSaving} onClick={() => setNewOpen(false)}>
+                  <button type="button" className="btn btn--ghost" disabled={newSaving} onClick={() => void attemptCloseNewPlan()}>
                     Cancelar
                   </button>
                   <button type="submit" className="btn btn--primary" disabled={newSaving}>

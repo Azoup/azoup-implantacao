@@ -306,11 +306,27 @@ export interface DbTask {
   completedAt?: string | null
   /** Momento em que a tarefa passou a `cancelado`. */
   cancelledAt?: string | null
-  /** Motivo de cancelamento (quando aplicável), usado para separar no-show de cancelamento definitivo. */
+  /**
+   * Conclusão forçada manualmente, mesmo sem evento `realizado`. Quando true, exige `completedManualOverrideReason`.
+   * Auditável: usuário concluiu a tarefa antes de existir um atendimento registrado (override).
+   */
+  completedManualOverride?: boolean
+  /** Justificativa obrigatória quando `completedManualOverride=true`. */
+  completedManualOverrideReason?: string | null
+  /** Tarefa removida explicitamente do escopo (não é cancelamento de agenda, é cancelamento da tarefa em si). */
+  cancelledManually?: boolean
+  /**
+   * @deprecated Use `cancelledManually` + reasoning livre. Mantido enquanto a migração de cadeias roda.
+   */
   cancellationReason?: TaskCancellationReason | null
-  /** Id da tarefa original quando esta tarefa nasceu de reagendamento. */
+  /**
+   * @deprecated Modelo legado: tarefa nasceu como cópia de outra via reagendamento. Substituído por 1 Tarefa : N Eventos.
+   * Mantido até o cleanup pós-migração consolidadora.
+   */
   rescheduledFromTaskId?: string | null
-  /** Id da nova tarefa criada a partir desta tarefa cancelada/reagendada. */
+  /**
+   * @deprecated Modelo legado: ponteiro para a tarefa-cópia criada a partir desta. Substituído por novos eventos com mesma `taskId`.
+   */
   rescheduledToTaskId?: string | null
   /** Último `updated_at` do Postgres (migração opcional D_domain…). */
   remoteUpdatedAt?: string | null

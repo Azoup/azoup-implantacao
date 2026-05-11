@@ -27,7 +27,7 @@ import { formatDatePt, parseAppDate, weekdayTitlePt } from '../lib/dates'
 import { deriveKanbanColumnFromPlanState } from '../services/kanbanPhaseSync'
 import { useReconcileKanbanColumns } from '../hooks/useReconcileKanbanColumns'
 import { planPillClass, planSummaryLabel } from '../constants/customPlan'
-import { buildDashboardMetrics } from '../lib/metrics/deploymentMetrics'
+import { buildDashboardMetrics, filterProjectsByDashboardFilters } from '../lib/metrics/deploymentMetrics'
 import {
   endOfDay,
   endOfMonth,
@@ -56,7 +56,7 @@ import { PlanLabelRow } from '../components/PlanLabelChips'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
 import { updateEventValidated } from '../services/events'
-import type { DbEvent, DbProject, DbTask, TaskStatus } from '../db/types'
+import type { DbAnalyst, DbEvent, DbPhase, DbProject, DbTask, TaskStatus } from '../db/types'
 import { addManualTimeSession, startTimer, stopTimer } from '../services/timeSessions'
 import { setTaskStatus } from '../services/tasks'
 import {
@@ -72,7 +72,8 @@ import { deriveProjectFreshnessBySla, projectFreshnessLabel } from '../services/
 
 type DashboardProjectSort = { key: 'name' | 'startDate'; direction: 'asc' | 'desc' }
 type AgendaTaskOutcome = 'keep' | 'pendente' | 'em_andamento' | 'concluida'
-const DASHBOARD_PROJECTS_COLLAPSED_LIMIT = 5
+/** Quantidade de cartões quando a lista está recolhida (antes de "Mostrar tudo"). */
+const DASHBOARD_ONGOING_PROJECTS_COLLAPSED_COUNT = 1
 
 type OngoingProjectCardData = {
   id: string
@@ -99,6 +100,105 @@ type OngoingProjectCardData = {
   freshnessLabel: string
   freshnessStatus: ReturnType<typeof deriveProjectFreshnessBySla>['status']
   lastCheckinLabel: string
+}
+
+function buildDashboardOngoingProjectCards(params: {
+  sourceProjects: DbProject[]
+  analysts: DbAnalyst[]
+  phases: DbPhase[]
+  tasks: DbTask[]
+  events: DbEvent[]
+}): OngoingProjectCardData[] {
+  const { sourceProjects, analysts, phases, tasks, events } = params
+  const analystById = new Map(analysts.map((analyst) => [analyst.id, analyst]))
+  const tasksByProject = new Map<string, (typeof tasks)>()
+  const phasesByProject = new Map<string, (typeof phases)>()
+  const eventsByProject = new Map<string, (typeof events)>()
+
+  for (const task of tasks) {
+    const current = tasksByProject.get(task.projectId)
+    if (current) current.push(task)
+    else tasksByProject.set(task.projectId, [task])
+  }
+  for (const phase of phases) {
+    const current = phasesByProject.get(phase.projectId)
+    if (current) current.push(phase)
+    else phasesByProject.set(phase.projectId, [phase])
+  }
+  for (const event of events) {
+    if (!event.projectId) continue
+    const current = eventsByProject.get(event.projectId)
+    if (current) current.push(event)
+    else eventsByProject.set(event.projectId, [event])
+  }
+
+  return sourceProjects
+    .filter((project) => project.status === 'ativo')
+    .filter((project) => deriveKanbanColumnFromPlanState(project, phases, tasks) !== 'finalizados')
+    .map((project) => {
+      const projectTasks = (tasksByProject.get(project.id) ?? []).filter((task) => !task.isInformational)
+      const allProjectTasks = tasksByProject.get(project.id) ?? []
+      const projectPhases = [...(phasesByProject.get(project.id) ?? [])].sort((a, b) => a.orderIndex - b.orderIndex)
+      const projectEvents = eventsByProject.get(project.id) ?? []
+      const analyst = project.analystId ? analystById.get(project.analystId) : undefined
+
+      const doneTaskCount = projectTasks.filter((task) => task.status === 'concluida').length
+      const estimatedHours = projectTasks.reduce((sum, task) => sum + Math.max(0, Number(task.estimatedHours) || 0), 0)
+      const currentPhase =
+        projectPhases.find((phase) => phase.status === 'ativa') ??
+        projectPhases.find((phase) => phase.status !== 'concluida') ??
+        projectPhases.at(-1) ??
+        null
+      const lastLabel = getLastCompletedPlanLabel(allProjectTasks, project.id)
+      const activeLabel = getActivePlanLabel(allProjectTasks, project.id, phases)
+      const lastCompletedEvent = projectEvents
+        .filter((event) => event.status === 'realizado')
+        .sort((a, b) => new Date(b.endTime ?? b.startTime).getTime() - new Date(a.endTime ?? a.startTime).getTime())
+        .at(0)
+      const latestDoneTask = projectTasks
+        .filter((task) => task.status === 'concluida')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .at(0)
+      const milestoneLabel = lastCompletedEvent
+        ? `Marco: ${lastCompletedEvent.title}`
+        : latestDoneTask
+          ? `Tarefa concluída: ${latestDoneTask.code}`
+          : 'Sem marco concluído'
+
+      const resolveCodeColor = (code: string): string | null => {
+        const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
+        const phase = Number.isFinite(major) && major >= 0 ? projectPhases[major] : null
+        return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
+      }
+      const freshnessStatus = deriveProjectFreshnessBySla(project).status
+
+      return {
+        id: project.id,
+        sortStartMs: parseAppDate(project.startDate ?? project.createdAt).getTime(),
+        projectName: project.projectName,
+        projectLink: `/projetos/${project.id}`,
+        analystName: analyst?.name ?? 'Sem responsável',
+        analystColor: analyst?.color ?? 'var(--accent)',
+        analystAvatarUrl: analyst?.avatarUrl ?? null,
+        hasAnalyst: !!analyst,
+        planClassName: planPillClass(project.planType),
+        planName: planSummaryLabel(project.planType),
+        usedHoursLabel: formatDurationHmFromHours(project.hoursUsed),
+        expectedHoursLabel: formatDurationHmFromHours(estimatedHours > 0 ? estimatedHours : project.hoursContracted),
+        currentPhaseName: currentPhase?.name ?? 'Fase não definida',
+        milestoneLabel,
+        lastLabel,
+        activeLabel,
+        resolveCodeColor,
+        progressPercent: projectProgressPercent(tasks, project.id),
+        doneTaskCount,
+        totalTaskCount: projectTasks.length,
+        startDateLabel: formatDatePt(project.startDate ?? project.createdAt),
+        freshnessLabel: projectFreshnessLabel(freshnessStatus),
+        freshnessStatus,
+        lastCheckinLabel: project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM HH:mm') : '—',
+      }
+    })
 }
 
 function toDateInputFromIso(iso: string): string {
@@ -250,15 +350,35 @@ export function DashboardPage() {
     [now, dashboardFilters, periodRange, projects, phases, tasks, events, analysts],
   )
 
-  const scopedProjectIds = useMemo(() => new Set(metrics.scopedProjects.map((p) => p.id)), [metrics.scopedProjects])
-  const scopedTasks = useMemo(() => tasks.filter((t) => scopedProjectIds.has(t.projectId)), [tasks, scopedProjectIds])
-  const scopedEvents = useMemo(() => {
-    const taskToProject = new Map(scopedTasks.map((task) => [task.id, task.projectId]))
+  /**
+   * Escopo base dos KPIs (cards + drilldown): só filtros de facet (analista/status/plano/cliente).
+   * Não usa `periodRange` da consulta — senão projetos com início fora do preset ficam de fora e
+   * viradas/tarefas no recorte Hoje/semana/mês somem (o tempo correto é `kpiRange` + `isInKpiRange`).
+   */
+  const kpiFacetScopedProjects = useMemo(
+    () => filterProjectsByDashboardFilters(projects, dashboardFilters),
+    [projects, dashboardFilters],
+  )
+
+  const kpiBreakdownScopedProjects = useMemo(() => kpiFacetScopedProjects, [kpiFacetScopedProjects])
+
+  const kpiBreakdownScopedProjectIds = useMemo(
+    () => new Set(kpiBreakdownScopedProjects.map((p) => p.id)),
+    [kpiBreakdownScopedProjects],
+  )
+
+  const kpiBreakdownScopedTasks = useMemo(
+    () => tasks.filter((t) => kpiBreakdownScopedProjectIds.has(t.projectId)),
+    [tasks, kpiBreakdownScopedProjectIds],
+  )
+
+  const kpiBreakdownScopedEvents = useMemo(() => {
+    const taskToProject = new Map(kpiBreakdownScopedTasks.map((task) => [task.id, task.projectId]))
     return events.filter((ev) => {
       const projectId = ev.projectId ?? (ev.taskId ? taskToProject.get(ev.taskId) ?? null : null)
-      return !!projectId && scopedProjectIds.has(projectId)
+      return !!projectId && kpiBreakdownScopedProjectIds.has(projectId)
     })
-  }, [events, scopedProjectIds, scopedTasks])
+  }, [events, kpiBreakdownScopedProjectIds, kpiBreakdownScopedTasks])
 
   const kpiRange = useMemo(() => {
     if (kpiWindow === 'today') return { start: startOfDay(kpiAnchorDate), end: endOfDay(kpiAnchorDate) }
@@ -289,8 +409,9 @@ export function DashboardPage() {
   }, [kpiRange])
 
   const kpiScopedProjects = useMemo(
-    () => metrics.scopedProjects.filter((project) => isInKpiRange(project.startDate ?? project.createdAt)),
-    [metrics.scopedProjects, isInKpiRange],
+    () =>
+      kpiBreakdownScopedProjects.filter((project) => isInKpiRange(project.startDate ?? project.createdAt)),
+    [kpiBreakdownScopedProjects, isInKpiRange],
   )
 
   const kpiHasTimeWindow = kpiRange !== null
@@ -298,16 +419,25 @@ export function DashboardPage() {
   const kpiBreakdown = useMemo(
     () =>
       buildDashboardKpiBreakdown({
-        scopedProjects: metrics.scopedProjects,
+        facetScopedProjects: kpiFacetScopedProjects,
         kpiScopedProjects,
-        scopedTasks,
-        scopedEvents,
+        scopedTasks: kpiBreakdownScopedTasks,
+        scopedEvents: kpiBreakdownScopedEvents,
         phases,
         tasks,
         isInKpiRange,
         kpiHasTimeWindow,
       }),
-    [metrics.scopedProjects, kpiScopedProjects, scopedTasks, scopedEvents, phases, tasks, isInKpiRange, kpiHasTimeWindow],
+    [
+      kpiFacetScopedProjects,
+      kpiScopedProjects,
+      kpiBreakdownScopedTasks,
+      kpiBreakdownScopedEvents,
+      phases,
+      tasks,
+      isInKpiRange,
+      kpiHasTimeWindow,
+    ],
   )
   const kpiCards = useMemo(
     () => ({
@@ -365,6 +495,13 @@ export function DashboardPage() {
             compareTaskCode(a.code, b.code),
         )
       }
+      if (kpiDrilldown === 'tasks_cancelled') {
+        // Agora retorna lista de EVENTOS cancelados (não tarefas).
+        return [...(raw as DbEvent[])].sort(
+          (a, b) =>
+            new Date(b.endTime ?? b.startTime).getTime() - new Date(a.endTime ?? a.startTime).getTime(),
+        )
+      }
       return [...(raw as DbTask[])].sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
     }
     const evs = [...(raw as DbEvent[])]
@@ -382,7 +519,7 @@ export function DashboardPage() {
 
   const [projectSort, setProjectSort] = useState<DashboardProjectSort>({ key: 'name', direction: 'asc' })
   const [projectLayoutLegacy, setProjectLayoutLegacy] = useState(true)
-  const [projectsExpanded, setProjectsExpanded] = useState(true)
+  const [ongoingProjectsExpanded, setOngoingProjectsExpanded] = useState(false)
   const [agendaLinkTab, setAgendaLinkTab] = useState<'all' | 'withLink'>('all')
   const [expandedAgendaEventId, setExpandedAgendaEventId] = useState<string | null>(null)
   const [editingAgendaEventId, setEditingAgendaEventId] = useState<string | null>(null)
@@ -454,100 +591,34 @@ export function DashboardPage() {
     }
   }, [todayAgendaEvents, taskById])
 
-  const ongoingProjectCards = useMemo<OngoingProjectCardData[]>(() => {
-    const analystById = new Map(analysts.map((analyst) => [analyst.id, analyst]))
-    const tasksByProject = new Map<string, (typeof tasks)>()
-    const phasesByProject = new Map<string, (typeof phases)>()
-    const eventsByProject = new Map<string, (typeof events)>()
+  /** Resumo: todos os projetos ativos em andamento — independente de período/KPI da barra superior. */
+  const ongoingProjectCardsSummary = useMemo(
+    () =>
+      buildDashboardOngoingProjectCards({
+        sourceProjects: projects,
+        analysts,
+        phases,
+        tasks,
+        events,
+      }),
+    [analysts, events, projects, phases, tasks],
+  )
 
-    for (const task of tasks) {
-      const current = tasksByProject.get(task.projectId)
-      if (current) current.push(task)
-      else tasksByProject.set(task.projectId, [task])
-    }
-    for (const phase of phases) {
-      const current = phasesByProject.get(phase.projectId)
-      if (current) current.push(phase)
-      else phasesByProject.set(phase.projectId, [phase])
-    }
-    for (const event of events) {
-      if (!event.projectId) continue
-      const current = eventsByProject.get(event.projectId)
-      if (current) current.push(event)
-      else eventsByProject.set(event.projectId, [event])
-    }
-
-    return metrics.scopedProjects
-      .filter((project) => project.status === 'ativo')
-      .filter((project) => deriveKanbanColumnFromPlanState(project, phases, tasks) !== 'finalizados')
-      .map((project) => {
-        const projectTasks = (tasksByProject.get(project.id) ?? []).filter((task) => !task.isInformational)
-        const allProjectTasks = tasksByProject.get(project.id) ?? []
-        const projectPhases = [...(phasesByProject.get(project.id) ?? [])].sort((a, b) => a.orderIndex - b.orderIndex)
-        const projectEvents = eventsByProject.get(project.id) ?? []
-        const analyst = project.analystId ? analystById.get(project.analystId) : undefined
-
-        const doneTaskCount = projectTasks.filter((task) => task.status === 'concluida').length
-        const estimatedHours = projectTasks.reduce((sum, task) => sum + Math.max(0, Number(task.estimatedHours) || 0), 0)
-        const currentPhase =
-          projectPhases.find((phase) => phase.status === 'ativa') ??
-          projectPhases.find((phase) => phase.status !== 'concluida') ??
-          projectPhases.at(-1) ??
-          null
-        const lastLabel = getLastCompletedPlanLabel(allProjectTasks, project.id)
-        const activeLabel = getActivePlanLabel(allProjectTasks, project.id, phases)
-        const lastCompletedEvent = projectEvents
-          .filter((event) => event.status === 'realizado')
-          .sort((a, b) => new Date(b.endTime ?? b.startTime).getTime() - new Date(a.endTime ?? a.startTime).getTime())
-          .at(0)
-        const latestDoneTask = projectTasks
-          .filter((task) => task.status === 'concluida')
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-          .at(0)
-        const milestoneLabel = lastCompletedEvent
-          ? `Marco: ${lastCompletedEvent.title}`
-          : latestDoneTask
-            ? `Tarefa concluída: ${latestDoneTask.code}`
-            : 'Sem marco concluído'
-
-        const resolveCodeColor = (code: string): string | null => {
-          const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
-          const phase = Number.isFinite(major) && major >= 0 ? projectPhases[major] : null
-          return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
-        }
-        const freshnessStatus = deriveProjectFreshnessBySla(project).status
-
-        return {
-          id: project.id,
-          sortStartMs: parseAppDate(project.startDate ?? project.createdAt).getTime(),
-          projectName: project.projectName,
-          projectLink: `/projetos/${project.id}`,
-          analystName: analyst?.name ?? 'Sem responsável',
-          analystColor: analyst?.color ?? 'var(--accent)',
-          analystAvatarUrl: analyst?.avatarUrl ?? null,
-          hasAnalyst: !!analyst,
-          planClassName: planPillClass(project.planType),
-          planName: planSummaryLabel(project.planType),
-          usedHoursLabel: formatDurationHmFromHours(project.hoursUsed),
-          expectedHoursLabel: formatDurationHmFromHours(estimatedHours > 0 ? estimatedHours : project.hoursContracted),
-          currentPhaseName: currentPhase?.name ?? 'Fase não definida',
-          milestoneLabel,
-          lastLabel,
-          activeLabel,
-          resolveCodeColor,
-          progressPercent: projectProgressPercent(tasks, project.id),
-          doneTaskCount,
-          totalTaskCount: projectTasks.length,
-          startDateLabel: formatDatePt(project.startDate ?? project.createdAt),
-          freshnessLabel: projectFreshnessLabel(freshnessStatus),
-          freshnessStatus,
-          lastCheckinLabel: project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM HH:mm') : '—',
-        }
-      })
-  }, [analysts, events, metrics.scopedProjects, phases, tasks])
+  /** Aba Consulta: mesma carta, mas apenas projetos no recorte da consulta (facet + período). */
+  const ongoingProjectCardsQuery = useMemo(
+    () =>
+      buildDashboardOngoingProjectCards({
+        sourceProjects: metrics.scopedProjects,
+        analysts,
+        phases,
+        tasks,
+        events,
+      }),
+    [analysts, events, metrics.scopedProjects, phases, tasks],
+  )
 
   const sortedOngoingProjectCards = useMemo(() => {
-    const list = [...ongoingProjectCards]
+    const list = [...ongoingProjectCardsSummary]
     if (projectSort.key === 'name') {
       list.sort((a, b) =>
         projectSort.direction === 'asc'
@@ -560,12 +631,17 @@ export function DashboardPage() {
       )
     }
     return list
-  }, [ongoingProjectCards, projectSort])
-  const hasMoreOngoingProjects = sortedOngoingProjectCards.length > DASHBOARD_PROJECTS_COLLAPSED_LIMIT
-  const visibleOngoingProjectCards = projectsExpanded
+  }, [ongoingProjectCardsSummary, projectSort])
+
+  const visibleOngoingProjectCards = ongoingProjectsExpanded
     ? sortedOngoingProjectCards
-    : sortedOngoingProjectCards.slice(0, DASHBOARD_PROJECTS_COLLAPSED_LIMIT)
-  const hiddenOngoingProjectCount = Math.max(0, sortedOngoingProjectCards.length - DASHBOARD_PROJECTS_COLLAPSED_LIMIT)
+    : sortedOngoingProjectCards.slice(0, DASHBOARD_ONGOING_PROJECTS_COLLAPSED_COUNT)
+  const ongoingProjectsHasMore =
+    sortedOngoingProjectCards.length > DASHBOARD_ONGOING_PROJECTS_COLLAPSED_COUNT && !ongoingProjectsExpanded
+  const ongoingProjectsCanCollapse =
+    ongoingProjectsExpanded && sortedOngoingProjectCards.length > DASHBOARD_ONGOING_PROJECTS_COLLAPSED_COUNT
+  const ongoingProjectsFooterVisible =
+    sortedOngoingProjectCards.length > DASHBOARD_ONGOING_PROJECTS_COLLAPSED_COUNT || ongoingProjectsCanCollapse
 
   const planOptions = useMemo(() => {
     const values = new Set<string>()
@@ -1033,10 +1109,10 @@ export function DashboardPage() {
                   <article className="dashboard-cc__card">
                     <h3>Projetos filtrados ({metrics.scopedProjects.length})</h3>
                     <div className="dashboard-proj-list">
-                      {ongoingProjectCards.length === 0 ? (
+                      {ongoingProjectCardsQuery.length === 0 ? (
                         <p className="dashboard-empty dashboard-empty--soft">Sem projetos ativos neste recorte.</p>
                       ) : (
-                        ongoingProjectCards.map(renderOngoingProjectCard)
+                        ongoingProjectCardsQuery.map(renderOngoingProjectCard)
                       )}
                     </div>
                   </article>
@@ -1057,7 +1133,36 @@ export function DashboardPage() {
                     </p>
                     <div className="dashboard-cc__kpi-detail-stack" role="list">
                       {sortedKpiDrilldownList.length === 0 ? (
-                        <p className="dashboard-empty dashboard-empty--soft">Nenhuma tarefa neste recorte.</p>
+                        <p className="dashboard-empty dashboard-empty--soft">
+                          {kpiDrilldown === 'tasks_cancelled'
+                            ? 'Nenhuma agenda cancelada neste recorte.'
+                            : 'Nenhuma tarefa neste recorte.'}
+                        </p>
+                      ) : kpiDrilldown === 'tasks_cancelled' ? (
+                        (sortedKpiDrilldownList as DbEvent[]).map((ev) => {
+                          const pid = ev.projectId ?? (ev.taskId ? taskIdToProjectId.get(ev.taskId) ?? null : null)
+                          const p = pid ? projectById.get(pid) : undefined
+                          const occurredIso = ev.endTime ?? ev.startTime
+                          const occurredAt = new Date(occurredIso)
+                          const linkTo = pid ? `/projetos/${pid}` : '#'
+                          return (
+                            <Link
+                              key={ev.id}
+                              role="listitem"
+                              to={linkTo}
+                              className="dashboard-cc__kpi-detail-row dashboard-cc__kpi-detail-row--link"
+                            >
+                              <strong>{ev.title}</strong>
+                              <span>{p?.projectName ?? 'Projeto'}</span>
+                              <span>
+                                {occurredAt.toLocaleDateString('pt-BR')} ·{' '}
+                                {Number.isFinite(ev.loggedHours) && (ev.loggedHours ?? 0) > 0
+                                  ? `${ev.loggedHours}h consumidas`
+                                  : 'sem consumo'}
+                              </span>
+                            </Link>
+                          )
+                        })
                       ) : (
                         (sortedKpiDrilldownList as DbTask[]).map((t) => {
                           const p = projectById.get(t.projectId)
@@ -1255,7 +1360,7 @@ export function DashboardPage() {
               id="dashboard-ongoing-projects-list"
               className={
                 'dashboard-proj-list' +
-                (projectsExpanded ? ' dashboard-proj-list--expanded' : ' dashboard-proj-list--collapsed')
+                (ongoingProjectsExpanded ? ' dashboard-proj-list--expanded' : ' dashboard-proj-list--collapsed')
               }
             >
               {sortedOngoingProjectCards.length === 0 ? (
@@ -1264,32 +1369,39 @@ export function DashboardPage() {
                 visibleOngoingProjectCards.map(renderOngoingProjectCard)
               )}
             </div>
-            {hasMoreOngoingProjects ? (
+            {ongoingProjectsFooterVisible ? (
               <div className="dashboard-proj-list__footer">
                 <span className="dashboard-proj-list__count">
-                  {projectsExpanded
+                  {ongoingProjectsExpanded
                     ? `Mostrando todos (${sortedOngoingProjectCards.length})`
                     : `Mostrando ${visibleOngoingProjectCards.length} de ${sortedOngoingProjectCards.length}`}
                 </span>
-                <button
-                  type="button"
-                  className="project-sortbar__toggle dashboard-proj-list__toggle"
-                  aria-controls="dashboard-ongoing-projects-list"
-                  aria-expanded={projectsExpanded}
-                  onClick={() => setProjectsExpanded((current) => !current)}
-                >
-                  {projectsExpanded ? (
-                    <>
+                <div className="dashboard-proj-list__footer-actions">
+                  {ongoingProjectsCanCollapse ? (
+                    <button
+                      type="button"
+                      className="project-sortbar__toggle dashboard-proj-list__toggle"
+                      aria-controls="dashboard-ongoing-projects-list"
+                      aria-expanded={ongoingProjectsExpanded}
+                      onClick={() => setOngoingProjectsExpanded(false)}
+                    >
                       Mostrar menos
                       <ChevronUp size={14} strokeWidth={2.2} />
-                    </>
-                  ) : (
-                    <>
-                      Mostrar todos ({hiddenOngoingProjectCount})
+                    </button>
+                  ) : null}
+                  {ongoingProjectsHasMore ? (
+                    <button
+                      type="button"
+                      className="project-sortbar__toggle dashboard-proj-list__toggle"
+                      aria-controls="dashboard-ongoing-projects-list"
+                      aria-expanded={ongoingProjectsExpanded}
+                      onClick={() => setOngoingProjectsExpanded(true)}
+                    >
+                      Mostrar tudo ({sortedOngoingProjectCards.length - visibleOngoingProjectCards.length})
                       <ChevronDown size={14} strokeWidth={2.2} />
-                    </>
-                  )}
-                </button>
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </section>
