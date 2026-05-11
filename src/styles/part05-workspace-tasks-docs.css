@@ -922,6 +922,17 @@
   color: var(--text);
 }
 
+.pd-kpi--cancelled {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-elevated));
+}
+.pd-kpi--cancelled .pd-kpi__label {
+  color: color-mix(in srgb, var(--danger) 55%, var(--text-muted));
+}
+.pd-kpi--cancelled .pd-kpi__value {
+  color: color-mix(in srgb, var(--danger) 82%, var(--text));
+}
+
 .pd-kpi__progress {
   display: flex;
   align-items: center;
@@ -998,6 +1009,88 @@
   border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   color: var(--text);
 }
+
+.pd-freeze-log {
+  margin: 0.75rem 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, #22d3ee 28%, var(--border));
+  background: color-mix(in srgb, #22d3ee 6%, var(--surface));
+}
+.pd-freeze-log__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.pd-freeze-log__intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.pd-freeze-log__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.pd-freeze-log__item {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+  border: 1px solid var(--border);
+}
+.pd-freeze-log__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+.pd-freeze-log__badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.pd-freeze-log__badge.is-freeze {
+  color: color-mix(in srgb, #0891b2 92%, var(--text));
+  border-color: color-mix(in srgb, #22d3ee 40%, var(--border));
+  background: color-mix(in srgb, #22d3ee 12%, transparent);
+}
+.pd-freeze-log__badge.is-unfreeze {
+  color: color-mix(in srgb, var(--success) 88%, var(--text));
+  border-color: color-mix(in srgb, var(--success) 36%, var(--border));
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+}
+.pd-freeze-log__time {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.pd-freeze-log__reason {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+.pd-freeze-log__by {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+}
+.pd-action-btn--freeze-on {
+  color: color-mix(in srgb, #22d3ee 88%, var(--text-muted));
+  border-color: color-mix(in srgb, #22d3ee 38%, var(--border));
+  background: color-mix(in srgb, #22d3ee 10%, var(--surface));
+}
+.pd-action-btn--freeze-on:hover {
+  color: color-mix(in srgb, #67e8f9 90%, var(--text));
+  border-color: color-mix(in srgb, #22d3ee 48%, var(--border));
+}
+
 .pd-kpi--freshness.is-neutro {
   border-color: var(--border);
 }

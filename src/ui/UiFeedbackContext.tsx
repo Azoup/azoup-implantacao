@@ -191,12 +191,6 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H0',location:'UiFeedbackContext.tsx:mount',message:'UiFeedbackProvider mounted',data:{ok:true},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }, [])
-
-  useEffect(() => {
     const lastByTable = new Map<string, number>()
     const toFriendlySyncMessage = (table: string, raw: string): string => {
       const msg = String(raw || '')
@@ -212,9 +206,6 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
       const ce = ev as CustomEvent<SyncFailureDetail>
       const d = ce.detail
       if (!d?.table || !d.message) return
-      // #region agent log
-      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H2',location:'UiFeedbackContext.tsx:syncFailureListener',message:'SYNC_FAILURE_EVENT received',data:{table:d.table,operation:d.operation,message:d.message},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       const now = Date.now()
       const prev = lastByTable.get(d.table) ?? 0
       if (now - prev < 25_000) return
@@ -228,9 +219,6 @@ export function UiFeedbackProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onUnhandledRejection = (ev: PromiseRejectionEvent) => {
       const reason = ev.reason instanceof Error ? ev.reason.message : String(ev.reason ?? 'Erro desconhecido')
-      // #region agent log
-      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H3',location:'UiFeedbackContext.tsx:onUnhandledRejection',message:'Unhandled rejection captured',data:{reason},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       pushRuntimeDiagnostic({
         source: 'window.unhandledrejection',
         level: 'error',

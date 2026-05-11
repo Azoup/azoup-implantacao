@@ -1,5 +1,6 @@
 import { db } from '../db/database'
-import type { DbProject, KanbanColumn, PlanTypeKey } from '../db/types'
+import type { DbProject, KanbanColumn, PlanTypeKey, ProjectClientType } from '../db/types'
+import { DEFAULT_PROJECT_CLIENT_TYPE, normalizeProjectClientType } from '../lib/projectClientType'
 import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
@@ -60,6 +61,8 @@ export type CreateProjectPayload = Pick<
   ownerId: string
   createdBy: string
   kanbanColumn?: KanbanColumn
+  /** Padrão `generico` se omitido. */
+  clientType?: ProjectClientType
 }
 
 export type CreateCustomProjectPayload = Omit<CreateProjectPayload, 'planKey'> & {
@@ -79,6 +82,7 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
   const row: DbProject = {
     id: projectId,
     projectName: opts.projectName.trim(),
+    clientType: normalizeProjectClientType(opts.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE),
     planType: CUSTOM_PLAN_TYPE,
     hoursContracted: hrs,
     hoursUsed: 0,
@@ -121,6 +125,11 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
     },
     lastManualCheckinAt: null,
     lastManualCheckinBy: null,
+    manualAttentionNote: null,
+    manualAttentionAt: null,
+    manualAttentionBy: null,
+    freezeTimeline: [],
+    cancelledAt: null,
   }
 
   const build = async () => {
@@ -169,6 +178,7 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
   const row: DbProject = {
     id: projectId,
     projectName: opts.projectName.trim(),
+    clientType: normalizeProjectClientType(opts.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE),
     planType: opts.planKey,
     hoursContracted: plan.hoursContracted,
     hoursUsed: 0,
@@ -210,6 +220,11 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
     },
     lastManualCheckinAt: null,
     lastManualCheckinBy: null,
+    manualAttentionNote: null,
+    manualAttentionAt: null,
+    manualAttentionBy: null,
+    freezeTimeline: [],
+    cancelledAt: null,
   }
 
   const buildGraphInDexie = async () => {

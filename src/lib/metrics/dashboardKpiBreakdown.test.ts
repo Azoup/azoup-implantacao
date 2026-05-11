@@ -24,11 +24,13 @@ const baseTask = (overrides: Partial<DbTask>): DbTask => ({
 const baseProject = (overrides: Partial<DbProject>): DbProject => ({
   id: 'p1',
   projectName: 'P1',
+  clientType: 'generico',
   planType: 'basic',
   hoursContracted: 10,
   hoursUsed: 0,
   startDate: '2025-01-15T00:00:00.000Z',
   dueDate: null,
+  cancelledAt: null,
   status: 'ativo',
   ownerId: 'u1',
   analystId: 'a1',
@@ -58,6 +60,10 @@ const baseProject = (overrides: Partial<DbProject>): DbProject => ({
   planSnapshot: { mode: 'custom', modelId: null, key: 'custom', name: 'X', hoursContracted: 10, phaseCount: 1, taskCount: 1 },
   lastManualCheckinAt: null,
   lastManualCheckinBy: null,
+  manualAttentionNote: null,
+  manualAttentionAt: null,
+  manualAttentionBy: null,
+  freezeTimeline: [],
   ...overrides,
 })
 
@@ -268,25 +274,28 @@ describe('buildDashboardKpiBreakdown — Projetos em andamento', () => {
     phases: [] as DbPhase[],
   }
 
-  it('conta projeto ativo com fase incompleta; exclui pausado e finalizado', () => {
+  it('conta em andamento e inadimplente com fase incompleta; exclui congelado e finalizado', () => {
     const projAtivo = baseProject({ id: 'pa', status: 'ativo' })
-    const projPausado = baseProject({ id: 'pp', status: 'pausado' })
+    const projIna = baseProject({ id: 'pi', status: 'inadimplente' })
+    const projCongelado = baseProject({ id: 'pp', status: 'congelado' })
     const projFin = baseProject({ id: 'pf', status: 'finalizado' })
-    const phase = basePhase({ projectId: 'pa', orderIndex: 0 })
-    const taskOpen = baseTask({ id: 't-open', projectId: 'pa', phaseId: 'ph1', status: 'pendente' })
+    const phaseA = basePhase({ id: 'ph1', projectId: 'pa', orderIndex: 0 })
+    const phaseI = basePhase({ id: 'phi', projectId: 'pi', orderIndex: 0 })
+    const taskOpenA = baseTask({ id: 't-open', projectId: 'pa', phaseId: 'ph1', status: 'pendente' })
+    const taskOpenI = baseTask({ id: 't-in', projectId: 'pi', phaseId: 'phi', status: 'pendente' })
 
     const b = buildDashboardKpiBreakdown({
       ...emptyBreakdownParams,
-      facetScopedProjects: [projAtivo, projPausado, projFin],
+      facetScopedProjects: [projAtivo, projIna, projCongelado, projFin],
       kpiScopedProjects: [],
-      scopedTasks: [taskOpen],
-      tasks: [taskOpen],
+      scopedTasks: [taskOpenA, taskOpenI],
+      tasks: [taskOpenA, taskOpenI],
       scopedEvents: [],
-      phases: [phase],
+      phases: [phaseA, phaseI],
       isInKpiRange: () => true,
       kpiHasTimeWindow: false,
     })
-    expect(b.projectsOngoing.map((p) => p.id)).toEqual(['pa'])
+    expect(b.projectsOngoing.map((p) => p.id).sort()).toEqual(['pa', 'pi'])
   })
 
   it('exclui ativo cuja coluna derivada é finalizados (plano todo concluído)', () => {
@@ -339,10 +348,17 @@ describe('buildDashboardKpiBreakdown — Projetos em andamento', () => {
 })
 
 describe('isProjectOperationalOngoing', () => {
-  it('retorna false para pausado mesmo com tarefas abertas', () => {
-    const proj = baseProject({ status: 'pausado' })
+  it('retorna false para congelado mesmo com tarefas abertas', () => {
+    const proj = baseProject({ status: 'congelado' })
     const phase = basePhase({ orderIndex: 0 })
     const task = baseTask({ status: 'pendente' })
     expect(isProjectOperationalOngoing(proj, [phase], [task])).toBe(false)
+  })
+
+  it('retorna true para inadimplente com tarefas abertas', () => {
+    const proj = baseProject({ id: 'pi', status: 'inadimplente' })
+    const phase = basePhase({ projectId: 'pi', orderIndex: 0 })
+    const task = baseTask({ projectId: 'pi', phaseId: 'ph1', status: 'pendente' })
+    expect(isProjectOperationalOngoing(proj, [phase], [task])).toBe(true)
   })
 })

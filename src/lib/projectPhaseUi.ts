@@ -5,8 +5,9 @@ export type PhaseSegmentState = 'done' | 'current' | 'future'
 
 export function statusLabelPt(status: ProjectStatus): string {
   const m: Record<ProjectStatus, string> = {
-    ativo: 'Ativo',
-    pausado: 'Pausado',
+    ativo: 'Em andamento',
+    inadimplente: 'Inadimplente',
+    congelado: 'Congelado',
     finalizado: 'Finalizado',
     cancelado: 'Cancelado',
   }

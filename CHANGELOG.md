@@ -1,5 +1,121 @@
 # Changelog
 
+## v3.11.9 (2026-05-11)
+
+- **Projetos — alerta operacional:** no ícone `(!)` do card, **popover em atalho** (`createPortal`) com o mesmo fluxo do modal (ver texto, editar, remover, mín. 12 caracteres), **sem abrir** “Editar projeto”; opção **Abrir edição completa…** leva ao modal. Persistência via `applyManualAttentionOnlyPatch` (Dexie + `updateProjectPartialInSupabase` + auditoria).
+
+## v3.11.8 (2026-05-11)
+
+- **Projetos — sincronização pendente:** no **3.º toque** no ícone de reenvio (`RotateCcw`), abre confirmação para **limpar a fila** local (sem novo POST) ou **continuar tentando**; tooltip indica quantos toques faltam. Nova API `discardPendingProjectGraphSync` no bridge. O **403 / RLS** continua exigindo ajuste nas policies ou vínculo do usuário no Supabase — limpar a fila só interrompe as tentativas automáticas na sessão.
+
+## v3.11.7 (2026-05-11)
+
+- **Projetos — alerta manual:** ícone do filtro e ícone ativo no card passam de **círculo** para **quadrado com cantos arredondados** (mesmo raio dos outros controles: `var(--vt-toolbar-control-radius)` na barra, `9px` nos ícones do card), mantendo borda **pontilhada** vermelha.
+
+## v3.11.6 (2026-05-11)
+
+- **Alerta manual — visual:** filtro `(!)` na barra de Projetos com **círculo** e borda **pontilhada** vermelha; cards com alerta (grade Projetos e kanban Visão geral) com **borda pontilhada** em vermelho em vez do anel sólido por `box-shadow`; ícone de alerta no **rodapé do card** ativo com contorno **vermelho pontilhado** e formato circular (antes amarelo sólido).
+
+## v3.11.5 (2026-05-11)
+
+- **Cards de projeto:** badge de **situação** com `text-transform: uppercase` e `letter-spacing` alinhado aos chips de filtro (Projetos, Visão geral, detalhe do projeto).
+
+## v3.11.4 (2026-05-11)
+
+- **Projetos — barra de filtros:** layout em **duas faixas** (ordenar/analistas | plano/tipo de cliente; depois situação + alerta manual | busca + pendências), **separador** fino entre analistas e chips de plano, **grid** na segunda linha para alinhar busca à direita; **tipografia** dos chips unificada (`--vt-toolbar-chip-fs` / letter-spacing); ícone de **alerta manual** com borda **sólida** e estados hover/selecionado mais limpos; ajustes de **padding**, **raio** e breakpoint (~960px / ~640px).
+
+## v3.11.3 (2026-05-11)
+
+- **Modal Editar projeto:** alerta operacional manual virou **ícone** (`CircleAlert`) — **vermelho** quando há texto (similar ao destaque ciano do congelar na grade). **Hover** ou **clique** abre **popover** com o texto, **Editar texto**, **Remover** (com confirmação) ou fluxo para escrever novo alerta; **Aplicar** mantém a regra de mínimo 12 caracteres. Popover em **`position: fixed`** para não ser cortado pelo scroll do modal.
+
+## v3.11.2 (2026-05-11)
+
+- **Projetos — barra de filtros:** chips de situação em **MAIÚSCULAS** alinhados aos planos; toolbar mais **compacta** (altura 32px, gaps menores); **“Com alerta manual”** vira só **ícone** (`CircleAlert`) com `aria-label`; limpar filtros vira **botão X**; **Pendências** vira ícone + número com tooltip/aria descrevendo o recorte; **busca** e **ordenar (A Z)** com fonte/altura alinhadas à toolbar.
+
+## v3.11.1 (2026-05-11)
+
+- **UI — tipo de cliente GENÉRICO:** paleta **âmbar/amarelo** (em contraste com o roxo da CONFECÇÃO) nos chips da página Projetos, nos badges dos cards e no tema escuro.
+
+## v3.11.0 (2026-05-11)
+
+- **Projetos — data de cancelamento:** campo `cancelledAt` (Dexie v25 + Supabase [`025_projects_cancelled_at.sql`](supabase/sql/025_projects_cancelled_at.sql)); ao marcar **Cancelado** no modal de edição ou ao mover para **Cancelados** na Visão geral, **data editável** com padrão **hoje**; no detalhe do projeto, **Cancelar** abre o mesmo tipo de fluxo (data + motivo mín. 8 caracteres) e grava motivo nas observações internas.
+- **Grade Projetos / Kanban:** linha **Data de cancelamento** nos cards cancelados; cartões cancelados com visual mais **“negativo”** (saturação/brilho, borda e faixa de destaque).
+- **Detalhe do projeto:** KPI **Data de cancelamento** quando a situação é cancelada.
+
+## v3.10.2 (2026-05-11)
+
+- **Projetos:** o subtítulo do cabeçalho mostra **projetos filtrados vs total** quando há busca ou chip de filtro ativo (ex.: `10 projetos filtrados de 66 cadastrados`); sem filtros, mantém o texto único de cadastros.
+
+## v3.10.1 (2026-05-11)
+
+- **Sync Supabase:** erros 400 (schema/CHECK) passam a orientar migrations (`023` freeze_timeline, `019`/`022`/`024` status); log do console usa texto legível em vez de `[object Object]`.
+
+## v3.10.0 (2026-05-11)
+
+- **Projetos — situação Inadimplente:** novo valor `inadimplente` no status (Supabase [`024_projects_status_inadimplente.sql`](supabase/sql/024_projects_status_inadimplente.sql)); entra nos fluxos operacionais como **Em andamento** para KPIs/listas “em andamento”, com **borda quente** (laranja/vermelho) nos cards e badge dedicada.
+- **Nomenclatura:** `ativo` exibido como **Em andamento**; legado `inativo` normalizado para **`cancelado`** (Dexie + ponte Supabase); sem sinônimo “inativo” na UI.
+- **Cancelado:** cards com **tom apagado** (saturação/brilho) e **borda âmbar**; badge de cancelado passa a **âmbar** (distinto do vermelho de inadimplência).
+- **Congelado:** mantém **borda/badge ciano** (“gelo”).
+- **Testes:** cobertura de `normalizeRemoteProjectStatus` e KPI “projetos em andamento” incluindo inadimplente.
+
+## v3.9.0 (2026-05-11)
+
+- **Projetos — congelar pela grade:** ícone de **floco de neve** no card (Projetos) e atalho **Congelar / Descongelar** no detalhe; projeto **congelado** destaca o ícone em **ciano**; **descongelar** pede confirmação + justificativa (mín. 8 caracteres); **congelar** pede motivo. Eventos ficam em **`freeze_timeline`** no projeto (Postgres `freeze_timeline` jsonb + Dexie v23) e o detalhe exibe o **histórico**; também grava no **log de auditoria**.
+
+## v3.8.4 (2026-05-11)
+
+- **Projetos — situação:** ao salvar edição com **Ativo** ou **Congelado**, o app não força mais **Cancelado** só porque o kanban ainda estava em `cancelados` (`normalizeProjectPlacement` dava prioridade à coluna). Agora dá para **reativar** ou **congelar** de novo após um cancelamento acidental.
+- **Projetos — cancelamento:** ao escolher **Cancelado** no modal de edição, abre o fluxo **com justificativa** (mín. 8 caracteres, como no kanban) e grava uma linha nas **observações internas**; cancelar o diálogo mantém a situação anterior.
+
+## v3.8.3 (2026-05-11)
+
+- **Projetos — edição:** no modal, projeto **plano avulso** (`custom`) mostrava o primeiro plano do catálogo (ex.: Basic) porque a opção “Plano avulso” só existia no fluxo de criação; em edição a opção correta passa a aparecer e `planType` legado `avulso` é normalizado para `custom`.
+
+## v3.8.2 (2026-05-11)
+
+- **UI — tipo de cliente:** cores mais fortes e distintas para as tags **CONFECÇÃO** (violeta) e **GENÉRICO** (azul céu) nos cards, no kanban e no detalhe; filtros na página Projetos ganham o mesmo par de cores e destaque ao selecionar.
+
+## v3.8.1 (2026-05-11)
+
+- **Projetos — alerta manual:** ícone **atenção** (`CircleAlert`) ao lado do check-in no card, no mesmo estilo de botão; com alerta ativo o botão ganha destaque **warning**; clique abre a edição do projeto com rolagem e foco no campo **Alerta operacional**.
+
+## v3.8.0 (2026-05-11)
+
+- **Projetos — frescor removido:** “Frescor”/classificações SLA (Neutro/Em dia/Atenção/Atrasado/Crítico) saem da UI; passa a exibir apenas **status de check-in** via **`Atualizado em:`**.
+- **Pendências de check-in:** lista agora apenas projetos **sem check-in há mais de 7 dias**.
+- **AI assistente:** alerta de “sem atualização” passa a usar staleness de check-in (em vez de frescor SLA).
+- **Código:** adicionada `src/services/projectCheckin.ts` para calcular staleness de check-in.
+
+## v3.7.0 (2026-05-11)
+
+- **Projetos — status:** unifica `pausado` e `congelado` em **apenas `congelado`** (UI: remove seleção/filtros de Pausado; Dexie upgrade converte dados antigos; Supabase migration converte registros e atualiza `CHECK`).
+- **Supabase:** [`022_projects_pausado_merged_to_congelado.sql`](supabase/sql/022_projects_pausado_merged_to_congelado.sql).
+
+## v3.6.1 (2026-05-11)
+
+- **CNPJ (produção / Vercel):** consulta “Buscar dados” passa sempre por `/api/brasilapi` e `/api/receitaws` (mesma origem); [`vercel.json`](vercel.json) ganha rewrites para esses prefixos, eliminando falhas por CORS e o fallback via `allorigins` que também era bloqueado no browser.
+
+## v3.6.0 (2026-05-11)
+
+- **Projetos — tipo do cliente:** campo `client_type` (`confeccao` | `generico`) em Postgres, Dexie e sync; seleção no cadastro/edição; chips na grade Projetos, no kanban da Visão geral e no cabeçalho do detalhe; filtros multi-chip **CONFECÇÃO** / **GENÉRICO**; busca por nome ou por texto do tipo (inclui sinônimos).
+- **Supabase:** migration [`021_projects_client_type.sql`](supabase/sql/021_projects_client_type.sql).
+
+## v3.5.1 (2026-05-11)
+
+- **Supabase / sync:** `refreshSupabaseDexieCache` só roda com `auth.getSession()` válido, coalesce chamadas concorrentes e o bootstrap Dexie (`initializeSupabaseDexieBridge`) deixa de disparar refresh completo duplicado antes do `AuthContext` validar o perfil — reduz rajadas de GET e 403 em `/rest/v1/labels` por requisição sem JWT estável.
+- **Supabase (SQL):** [`020_labels_authenticated_grants.sql`](supabase/sql/020_labels_authenticated_grants.sql) reforça `GRANT` em `public.labels` para `authenticated` em projetos onde isso faltou.
+
+## v3.5.0 (2026-05-11)
+
+- **Projetos — status Congelado:** novo valor `congelado` em `ProjectStatus` (Postgres + Dexie + sync), badge e borda “gelo” nos cards da grade Projetos e no kanban da Visão geral; filtro por situação na barra de Projetos.
+- **Projetos — alerta operacional manual:** campos `manual_attention_note` / `_at` / `_by` (texto não vazio = alerta ativo); edição no modal de projeto com validação mínima de 12 caracteres, limpar com confirmação; pill **Alerta** + destaque vermelho no card (distinto do frescor SLA “Atenção”); filtro **Com alerta manual**; detalhe do projeto mostra situação e alerta.
+- **Supabase:** migration [`019_projects_congelado_manual_attention.sql`](supabase/sql/019_projects_congelado_manual_attention.sql) (CHECK de `status` + colunas de alerta).
+
+## v3.4.6 (2026-05-11)
+
+- **Check-in manual:** PATCH para `projects` passa a incluir `last_manual_checkin_at` / `last_manual_checkin_by` sempre que o patch traz esses campos (antes, sem `VITE_SYNC_PROJECT_MANUAL_CHECKIN=1`, o corpo ia vazio, a nuvem não atualizava e o próximo sync apagava o valor no IndexedDB após F5).
+- **Dev:** removidos `fetch` de debug para `127.0.0.1:7771` em `UiFeedbackContext` e `SettingsPage` (evita `ERR_CONNECTION_REFUSED` no console).
+
 ## v3.4.5 (2026-05-11)
 
 - **Navegador:** título da aba e texto de carregamento inicial passam a **Implantação - Azoup** (alinha `index.html`, `APP_BROWSER_DOCUMENT_TITLE` e `main.tsx`).

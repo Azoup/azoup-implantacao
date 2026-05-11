@@ -13,6 +13,8 @@ import {
   targetPhaseArrayIndex,
 } from '../lib/planPhaseKanban'
 import { taskStatusDexiePatch } from '../lib/taskStatusDexie'
+import { dateInputToIsoNoon } from '../lib/brazilFormat'
+import { toDateInputValue } from '../lib/dates'
 import { normalizeProjectPlacement } from './projectGovernance'
 import { syncLabelsForProject } from './labels'
 
@@ -97,6 +99,7 @@ export async function applyManualKanbanColumnMove(
   projectId: string,
   to: KanbanColumn,
   justification: string,
+  opts?: { cancelledAtIso?: string | null },
 ): Promise<void> {
   const project = await db.projects.get(projectId)
   if (!project) throw new Error('Projeto não encontrado.')
@@ -113,8 +116,13 @@ export async function applyManualKanbanColumnMove(
 
   if (to === 'cancelados') {
     const norm = normalizeProjectPlacement({ status: 'cancelado', kanbanColumn: 'cancelados' })
+    const cancelledAt =
+      (opts?.cancelledAtIso && opts.cancelledAtIso.trim()) ||
+      dateInputToIsoNoon(toDateInputValue(new Date())) ||
+      new Date().toISOString()
     const patch = {
       ...norm,
+      cancelledAt,
       internalNotes: appendKanbanNote(project.internalNotes, line),
     }
     if (isSupabaseConfigured()) {
@@ -197,6 +205,7 @@ export async function applyManualKanbanColumnMove(
     await db.projects.update(projectId, {
       status: norm.status,
       kanbanColumn: norm.kanbanColumn,
+      cancelledAt: null,
       internalNotes: appendKanbanNote(cur.internalNotes, line),
     })
   })

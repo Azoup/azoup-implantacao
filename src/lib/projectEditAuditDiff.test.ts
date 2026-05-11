@@ -5,11 +5,13 @@ import { describeProjectPersistPatchDiff } from './projectEditAuditDiff'
 const baseProject = (): DbProject => ({
   id: 'p1',
   projectName: 'INNOVARE',
+  clientType: 'generico',
   planType: 'master',
   hoursContracted: 70,
   hoursUsed: 0,
   startDate: '2026-03-26T12:00:00.000Z',
   dueDate: '2026-07-03T12:00:00.000Z',
+  cancelledAt: null,
   status: 'ativo',
   ownerId: 'u1',
   analystId: 'a1',
@@ -47,6 +49,10 @@ const baseProject = (): DbProject => ({
   },
   lastManualCheckinAt: null,
   lastManualCheckinBy: null,
+  manualAttentionNote: null,
+  manualAttentionAt: null,
+  manualAttentionBy: null,
+  freezeTimeline: [],
 })
 
 describe('describeProjectPersistPatchDiff', () => {
@@ -54,6 +60,7 @@ describe('describeProjectPersistPatchDiff', () => {
     const b = baseProject()
     const patch = {
       projectName: b.projectName,
+      clientType: b.clientType,
       analystId: b.analystId,
       startDate: b.startDate,
       dueDate: b.dueDate,
@@ -81,6 +88,14 @@ describe('describeProjectPersistPatchDiff', () => {
       startDate: '2026-03-26T15:00:00.000Z',
     }
     expect(describeProjectPersistPatchDiff(b, patch)).toBeNull()
+  })
+
+  it('detects manual alert note change', () => {
+    const b = baseProject()
+    const patch = { manualAttentionNote: 'Cliente sem retorno ha duas semanas.' }
+    const d = describeProjectPersistPatchDiff(b, patch)
+    expect(d).toContain('Alerta operacional')
+    expect(d).toContain('Cliente sem retorno')
   })
 
   it('resolves analyst names when map provided', () => {

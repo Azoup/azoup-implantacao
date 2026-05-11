@@ -42,6 +42,7 @@ export async function seedDemoUnivestProject(): Promise<void> {
 
   await createProjectFromPlan({
     projectName: 'UNIVEST Uberaba — ERP Confecção (Juliana)',
+    clientType: 'confeccao',
     planKey: 'pro',
     analystId,
     ownerId: user.id,

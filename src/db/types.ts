@@ -23,7 +23,7 @@ export type PermissionScope =
   | 'portal.agenda.view'
   | 'portal.forms.fill'
 
-export type ProjectStatus = 'ativo' | 'pausado' | 'finalizado' | 'cancelado'
+export type ProjectStatus = 'ativo' | 'inadimplente' | 'congelado' | 'finalizado' | 'cancelado'
 
 /** Chave única do modelo no catálogo (basic, pro, master ou slug customizado). */
 export type PlanTypeKey = string
@@ -185,15 +185,32 @@ export interface DbPlanTask {
   sortOrder: number
 }
 
+/** Unidade de negócio do cliente no escopo do projeto (classificação operacional). */
+export type ProjectClientType = 'confeccao' | 'generico'
+
+/** Evento persistido ao congelar ou descongelar pela grade/detalhe (histórico no projeto). */
+export type ProjectFreezeEventKind = 'freeze' | 'unfreeze'
+
+export interface ProjectFreezeEvent {
+  kind: ProjectFreezeEventKind
+  at: string
+  by: string
+  reason: string
+}
+
 export interface DbProject {
   id: string
   /** Nome comercial do projeto / como aparece nos quadros */
   projectName: string
+  /** Tipo de cliente / negócio (ex.: confecção vs. genérico). */
+  clientType: ProjectClientType
   planType: PlanTypeKey
   hoursContracted: number
   hoursUsed: number
   startDate: string | null
   dueDate: string | null
+  /** Data operacional do cancelamento (ISO ou YYYY-MM-DD; alinhado ao `startDate` no app). Null se não cancelado ou legado sem data. */
+  cancelledAt: string | null
   status: ProjectStatus
   ownerId: string
   analystId: string | null
@@ -234,6 +251,12 @@ export interface DbProject {
   lastManualCheckinAt: string | null
   /** Usuário que registrou o último check-in manual. */
   lastManualCheckinBy: string | null
+  /** Texto não vazio = alerta operacional ativo (distinto do frescor SLA "Atenção"). */
+  manualAttentionNote: string | null
+  manualAttentionAt: string | null
+  manualAttentionBy: string | null
+  /** Histórico append-only de congelar / descongelar (motivo + data; também audit log). */
+  freezeTimeline: ProjectFreezeEvent[]
 }
 
 /** Catálogo: modelo de plano. `mode` omitido = catálogo (compatível com dados antigos). */

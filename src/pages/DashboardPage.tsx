@@ -51,6 +51,8 @@ import type {
   DashboardQuerySubTab,
 } from '../types/dashboard'
 import { projectProgressPercent } from '../lib/projectProgress'
+import { statusLabelPt } from '../lib/projectPhaseUi'
+import { isDashboardOperationalStatus } from '../lib/projectStatus'
 import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } from '../lib/planLabelDisplay'
 import { PlanLabelRow } from '../components/PlanLabelChips'
 import { AnalystAvatar } from '../components/AnalystAvatar'
@@ -68,7 +70,6 @@ import {
 import { compareTaskCode } from '../lib/taskCode'
 import { DashboardKpiDrilldownBanner } from '../components/dashboard/DashboardKpiDrilldownBanner'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
-import { deriveProjectFreshnessBySla, projectFreshnessLabel } from '../services/projectFreshness'
 
 type DashboardProjectSort = { key: 'name' | 'startDate'; direction: 'asc' | 'desc' }
 type AgendaTaskOutcome = 'keep' | 'pendente' | 'em_andamento' | 'concluida'
@@ -97,8 +98,6 @@ type OngoingProjectCardData = {
   doneTaskCount: number
   totalTaskCount: number
   startDateLabel: string
-  freshnessLabel: string
-  freshnessStatus: ReturnType<typeof deriveProjectFreshnessBySla>['status']
   lastCheckinLabel: string
 }
 
@@ -133,7 +132,7 @@ function buildDashboardOngoingProjectCards(params: {
   }
 
   return sourceProjects
-    .filter((project) => project.status === 'ativo')
+    .filter((project) => isDashboardOperationalStatus(project.status))
     .filter((project) => deriveKanbanColumnFromPlanState(project, phases, tasks) !== 'finalizados')
     .map((project) => {
       const projectTasks = (tasksByProject.get(project.id) ?? []).filter((task) => !task.isInformational)
@@ -170,8 +169,6 @@ function buildDashboardOngoingProjectCards(params: {
         const phase = Number.isFinite(major) && major >= 0 ? projectPhases[major] : null
         return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
       }
-      const freshnessStatus = deriveProjectFreshnessBySla(project).status
-
       return {
         id: project.id,
         sortStartMs: parseAppDate(project.startDate ?? project.createdAt).getTime(),
@@ -194,8 +191,6 @@ function buildDashboardOngoingProjectCards(params: {
         doneTaskCount,
         totalTaskCount: projectTasks.length,
         startDateLabel: formatDatePt(project.startDate ?? project.createdAt),
-        freshnessLabel: projectFreshnessLabel(freshnessStatus),
-        freshnessStatus,
         lastCheckinLabel: project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM HH:mm') : '—',
       }
     })
@@ -247,14 +242,6 @@ function kpiWindowDescriptionPt(w: DashboardKpiWindow): string {
   if (w === 'week') return 'Essa semana'
   if (w === 'month') return 'Esse mês'
   return 'Total'
-}
-
-function projectStatusLabelPt(status: DbProject['status']): string {
-  if (status === 'ativo') return 'Ativo'
-  if (status === 'pausado') return 'Pausado'
-  if (status === 'finalizado') return 'Finalizado'
-  if (status === 'cancelado') return 'Cancelado'
-  return status
 }
 
 function eventStatusPt(ev: DbEvent): string {
@@ -902,13 +889,7 @@ export function DashboardPage() {
           </div>
         ) : null}
         <div className="dashboard-proj-card__meta">
-          <span className={'proj-card__badge proj-card__badge--freshness is-' + project.freshnessStatus}>
-            {project.freshnessLabel}
-          </span>
-          <span className="dashboard-proj-card__dot" aria-hidden>
-            ·
-          </span>
-          <span className="dashboard-proj-card__phase">Check-in: {project.lastCheckinLabel}</span>
+          <span className="dashboard-proj-card__phase">Atualizado em: {project.lastCheckinLabel}</span>
         </div>
       </article>
     )
@@ -1010,8 +991,9 @@ export function DashboardPage() {
                         onChange={(e) => setFilterStatus(e.target.value as DashboardFilters['status'])}
                       >
                         <option value="all">Todos</option>
-                        <option value="ativo">Ativo</option>
-                        <option value="pausado">Pausado</option>
+                        <option value="ativo">Em andamento</option>
+                        <option value="inadimplente">Inadimplente</option>
+                        <option value="congelado">Congelado</option>
                         <option value="finalizado">Finalizado</option>
                         <option value="cancelado">Cancelado</option>
                       </select>
@@ -1096,7 +1078,7 @@ export function DashboardPage() {
                           >
                             <strong>{p.projectName}</strong>
                             <span>
-                              Status: {projectStatusLabelPt(p.status)}
+                              Status: {statusLabelPt(p.status)}
                               <span aria-hidden> · </span>
                               Início: {formatDatePt(p.startDate ?? p.createdAt, 'dd/MM/yyyy')}
                             </span>

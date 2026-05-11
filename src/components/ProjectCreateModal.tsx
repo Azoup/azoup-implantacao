@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Building2, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react'
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Building2, CircleAlert, Loader2, MapPin, Rocket, Sparkles } from 'lucide-react'
 import type {
   DbAnalyst,
   DbPlanModel,
@@ -7,6 +7,7 @@ import type {
   DbUser,
   KanbanColumn,
   PlanTypeKey,
+  ProjectClientType,
   ProjectStatus,
 } from '../db/types'
 import { db } from '../db/database'
@@ -24,7 +25,7 @@ import {
   withDexieSupabaseSyncMuted,
 } from '../sync/supabaseDexieBridge'
 import { dispatchSyncFailure } from '../sync/syncFailure'
-import { CUSTOM_PLAN_TYPE } from '../constants/customPlan'
+import { CUSTOM_PLAN_TYPE, isCustomPlanType, normalizePlanTypeKey } from '../constants/customPlan'
 import { createCustomProject, createProjectFromPlan } from '../services/project'
 import { getUserForAudit, writeAuditLog } from '../services/auditLogs'
 import { describeProjectPersistPatchDiff } from '../lib/projectEditAuditDiff'
@@ -37,6 +38,11 @@ import { fetchCepViaViaCep } from '../services/viacep'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { AiFormatModal } from './AiFormatModal'
 import { toDateInputValue } from '../lib/dates'
+import {
+  DEFAULT_PROJECT_CLIENT_TYPE,
+  PROJECT_CLIENT_TYPE_SELECT_OPTIONS,
+} from '../lib/projectClientType'
+import { statusLabelPt } from '../lib/projectPhaseUi'
 
 function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
   const fallback = isEdit ? 'Erro ao salvar projeto.' : 'Erro ao criar projeto.'
@@ -132,6 +138,8 @@ type Props = {
   /** Se definido, modal em modo edição (não recria tarefas). */
   projectToEdit?: DbProject | null
   onDirtyChange?: (dirty: boolean) => void
+  /** Ao abrir em edição, rola até o alerta manual e abre o popover (ver/editar). */
+  focusManualAttentionOnOpen?: boolean
 }
 
 export function ProjectCreateModal({
@@ -143,13 +151,19 @@ export function ProjectCreateModal({
   initialKanbanColumn,
   projectToEdit = null,
   onDirtyChange,
+  focusManualAttentionOnOpen = false,
 }: Props) {
-  const { requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
+  const { requestConfirm, requestDestructiveWithReason, toastMutationSuccess, toastMutationError } = useUiFeedback()
   const bodyRef = useRef<HTMLDivElement>(null)
+  const manualAttentionWrapRef = useRef<HTMLDivElement>(null)
+  const manualAttentionEditTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const manualAttentionOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const manualAttentionCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const plansRef = useRef(plans)
   plansRef.current = plans
 
   const [projectName, setProjectName] = useState('')
+  const [clientType, setClientType] = useState<ProjectClientType>(DEFAULT_PROJECT_CLIENT_TYPE)
   const [planKey, setPlanKey] = useState<PlanTypeKey>('master')
   /** Teto de horas (plano avulso — política híbrida B). */
   const [customContractHours, setCustomContractHours] = useState(40)
@@ -179,6 +193,22 @@ export function ProjectCreateModal({
   const [secondaryRazaoSocial, setSecondaryRazaoSocial] = useState('')
   const [modulesDescription, setModulesDescription] = useState('')
   const [projectStatus, setProjectStatus] = useState<ProjectStatus>('ativo')
+  /** Somente edição + situação Cancelado: data negocial (input `yyyy-MM-dd`). */
+  const [projectCancelledAtInput, setProjectCancelledAtInput] = useState('')
+  /** Somente edição: texto do alerta operacional (distinto do frescor SLA na grade). */
+  const [manualAttentionNoteDraft, setManualAttentionNoteDraft] = useState('')
+  const [manualAlertPopoverOpen, setManualAlertPopoverOpen] = useState(false)
+  const [manualAlertPopoverMode, setManualAlertPopoverMode] = useState<'view' | 'edit'>('view')
+  const [manualAlertEditBuffer, setManualAlertEditBuffer] = useState('')
+  const [manualAlertPopoverErr, setManualAlertPopoverErr] = useState<string | null>(null)
+  /** Com true, o popover não fecha só ao sair com o mouse (clique fora, Esc ou botão). */
+  const [manualAlertPopoverStick, setManualAlertPopoverStick] = useState(false)
+  /** Posição `fixed` para o popover não ser cortado pelo scroll do modal. */
+  const [manualAlertPopoverPos, setManualAlertPopoverPos] = useState<{
+    top: number
+    left: number
+    width: number
+  } | null>(null)
 
   const [cnpjLoading, setCnpjLoading] = useState(false)
   const [cepLoading, setCepLoading] = useState(false)
@@ -197,7 +227,8 @@ export function ProjectCreateModal({
     const edit = projectToEdit
     if (edit) {
       setProjectName(edit.projectName)
-      setPlanKey(edit.planType)
+      setClientType(edit.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE)
+      setPlanKey((normalizePlanTypeKey(edit.planType) || edit.planType) as PlanTypeKey)
       setAnalystId(edit.analystId ?? '')
       setStartDate(isoToDateInput(edit.startDate))
       setDueDate(isoToDateInput(edit.dueDate))
@@ -221,13 +252,41 @@ export function ProjectCreateModal({
       setSecondaryRazaoSocial(edit.secondaryRazaoSocial ?? '')
       setModulesDescription(edit.modulesDescription ?? '')
       setProjectStatus(edit.status)
+      setProjectCancelledAtInput(
+        edit.status === 'cancelado'
+          ? isoToDateInput(edit.cancelledAt) || toDateInputValue(new Date())
+          : '',
+      )
+      setManualAttentionNoteDraft(edit.manualAttentionNote ?? '')
       setCustomContractHours(Math.max(0, Math.round(edit.hoursContracted)))
       setErr(null)
       setLookupHint(null)
+      setManualAlertPopoverOpen(false)
+      setManualAlertPopoverMode('view')
+      setManualAlertPopoverStick(false)
+      setManualAlertPopoverErr(null)
+      if (focusManualAttentionOnOpen) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = manualAttentionWrapRef.current
+            if (!el) return
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+            const has = (edit.manualAttentionNote ?? '').trim().length > 0
+            setManualAlertPopoverOpen(true)
+            setManualAlertPopoverStick(true)
+            setManualAlertPopoverMode(has ? 'view' : 'edit')
+            setManualAlertEditBuffer(edit.manualAttentionNote ?? '')
+            requestAnimationFrame(() => {
+              if (!has) manualAttentionEditTextareaRef.current?.focus()
+            })
+          })
+        })
+      }
       return
     }
     const p = plansRef.current
     setProjectName('')
+    setClientType(DEFAULT_PROJECT_CLIENT_TYPE)
     setPlanKey(p[0]?.key ?? 'master')
     setAnalystId('')
     setStartDate(toDateInputValue(new Date()))
@@ -252,10 +311,93 @@ export function ProjectCreateModal({
     setSecondaryRazaoSocial('')
     setModulesDescription('')
     setProjectStatus('ativo')
+    setProjectCancelledAtInput('')
+    setManualAttentionNoteDraft('')
     setCustomContractHours(40)
     setErr(null)
     setLookupHint(null)
-  }, [open, projectToEdit])
+    setManualAlertPopoverOpen(false)
+    setManualAlertPopoverMode('view')
+    setManualAlertPopoverStick(false)
+    setManualAlertPopoverErr(null)
+  }, [open, projectToEdit, focusManualAttentionOnOpen])
+
+  useEffect(() => {
+    return () => {
+      if (manualAttentionOpenTimerRef.current) clearTimeout(manualAttentionOpenTimerRef.current)
+      if (manualAttentionCloseTimerRef.current) clearTimeout(manualAttentionCloseTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!manualAlertPopoverOpen || !manualAlertPopoverStick) return
+    const onDocMouseDown = (e: MouseEvent) => {
+      const w = manualAttentionWrapRef.current
+      if (w && !w.contains(e.target as Node)) {
+        setManualAlertPopoverOpen(false)
+        setManualAlertPopoverStick(false)
+        setManualAlertPopoverMode('view')
+        setManualAlertPopoverErr(null)
+        setManualAlertPopoverPos(null)
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [manualAlertPopoverOpen, manualAlertPopoverStick])
+
+  useEffect(() => {
+    if (!manualAlertPopoverOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setManualAlertPopoverOpen(false)
+      setManualAlertPopoverStick(false)
+      setManualAlertPopoverMode('view')
+      setManualAlertPopoverErr(null)
+      setManualAlertPopoverPos(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [manualAlertPopoverOpen])
+
+  useLayoutEffect(() => {
+    if (!manualAlertPopoverOpen) {
+      setManualAlertPopoverPos(null)
+      return
+    }
+    const update = () => {
+      const wrap = manualAttentionWrapRef.current
+      if (!wrap) return
+      const r = wrap.getBoundingClientRect()
+      const width = Math.min(360, Math.max(260, window.innerWidth - r.left - 16))
+      const margin = 8
+      const estHeight = 320
+      let top = r.bottom + margin
+      if (top + estHeight > window.innerHeight - margin) {
+        top = Math.max(margin, r.top - estHeight - margin)
+      }
+      setManualAlertPopoverPos({ top, left: r.left, width })
+    }
+    update()
+    const bodyEl = bodyRef.current
+    bodyEl?.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      bodyEl?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [
+    manualAlertPopoverOpen,
+    manualAlertPopoverMode,
+    manualAttentionNoteDraft,
+    manualAlertEditBuffer,
+  ])
+
+  const clearManualAttentionHoverTimers = useCallback(() => {
+    if (manualAttentionOpenTimerRef.current) clearTimeout(manualAttentionOpenTimerRef.current)
+    if (manualAttentionCloseTimerRef.current) clearTimeout(manualAttentionCloseTimerRef.current)
+    manualAttentionOpenTimerRef.current = null
+    manualAttentionCloseTimerRef.current = null
+  }, [])
 
   useEffect(() => {
     if (planKey === CUSTOM_PLAN_TYPE) return
@@ -267,6 +409,7 @@ export function ProjectCreateModal({
     () =>
       JSON.stringify({
         projectName,
+        clientType,
         planKey,
         customContractHours,
         analystId,
@@ -292,9 +435,12 @@ export function ProjectCreateModal({
         secondaryRazaoSocial,
         modulesDescription,
         projectStatus,
+        projectCancelledAtInput,
+        manualAttentionNoteDraft,
       }),
     [
       projectName,
+      clientType,
       planKey,
       customContractHours,
       analystId,
@@ -320,6 +466,8 @@ export function ProjectCreateModal({
       secondaryRazaoSocial,
       modulesDescription,
       projectStatus,
+      projectCancelledAtInput,
+      manualAttentionNoteDraft,
     ],
   )
 
@@ -418,6 +566,18 @@ export function ProjectCreateModal({
       customHoursForPatch = nextH
     }
 
+    if (projectToEdit) {
+      const noteTrim = manualAttentionNoteDraft.trim()
+      if (noteTrim.length > 0 && noteTrim.length < 12) {
+        setErr('Alerta operacional: use pelo menos 12 caracteres ou deixe o campo em branco.')
+        return
+      }
+      if (projectStatus === 'cancelado' && !dateInputToIsoNoon(projectCancelledAtInput)) {
+        setErr('Informe a data de cancelamento.')
+        return
+      }
+    }
+
     setSaving(true)
     try {
       const cnpj = cnpjDigits.length === 14 ? cnpjDigits : null
@@ -425,6 +585,7 @@ export function ProjectCreateModal({
       const secondaryCnpj = secondaryCnpjDigits.length === 14 ? secondaryCnpjDigits : null
       const common = {
         projectName: name,
+        clientType,
         analystId: analystId || null,
         startDate: dateInputToIsoNoon(startDate) ?? projectToEdit?.startDate ?? new Date().toISOString(),
         dueDate: dateInputToIsoNoon(dueDate || null),
@@ -451,11 +612,32 @@ export function ProjectCreateModal({
       }
 
       if (projectToEdit) {
+        const noteTrim = manualAttentionNoteDraft.trim()
+        const prevNote = (projectToEdit.manualAttentionNote ?? '').trim()
+        let manualAttentionAt = projectToEdit.manualAttentionAt
+        let manualAttentionBy = projectToEdit.manualAttentionBy
+        if (noteTrim !== prevNote) {
+          if (noteTrim.length > 0) {
+            manualAttentionAt = new Date().toISOString()
+            manualAttentionBy = user.id
+          } else {
+            manualAttentionAt = null
+            manualAttentionBy = null
+          }
+        }
         const placement = normalizeProjectPlacement({
           status: projectStatus,
           kanbanColumn: projectToEdit.kanbanColumn,
         })
-        const patch: Record<string, unknown> = { ...common, ...placement }
+        const patch: Record<string, unknown> = {
+          ...common,
+          ...placement,
+          manualAttentionNote: noteTrim.length > 0 ? noteTrim : null,
+          manualAttentionAt,
+          manualAttentionBy,
+          cancelledAt:
+            projectStatus === 'cancelado' ? dateInputToIsoNoon(projectCancelledAtInput) ?? null : null,
+        }
         if (projectToEdit.planType === CUSTOM_PLAN_TYPE && customHoursForPatch !== undefined) {
           patch.hoursContracted = customHoursForPatch
           patch.planSnapshot = {
@@ -524,6 +706,38 @@ export function ProjectCreateModal({
     } finally {
       setSaving(false)
     }
+  }
+
+  async function onProjectStatusIntentChange(next: ProjectStatus) {
+    if (!projectToEdit) {
+      setProjectStatus(next)
+      if (next !== 'cancelado') setProjectCancelledAtInput('')
+      return
+    }
+    if (next === 'cancelado' && projectToEdit.status !== 'cancelado') {
+      const reason = await requestDestructiveWithReason({
+        title: 'Cancelar projeto',
+        message:
+          'O projeto será marcado como Cancelado e o cartão passará para a coluna Cancelados na visão kanban. ' +
+          'É necessário registrar um motivo (mínimo 8 caracteres).',
+        reasonLabel: 'Motivo do cancelamento',
+        reasonPlaceholder: 'Ex.: Cliente desistiu; contrato encerrado.',
+        reasonMinLength: 8,
+        confirmLabel: 'Confirmar cancelamento',
+        cancelLabel: 'Voltar',
+      })
+      if (reason === null) return
+      const line = `\n[${new Date().toISOString()}] Situação: Cancelado (edição do projeto). Motivo: ${reason.trim()}`
+      setInternalNotes((prev) => {
+        const base = (prev ?? '').trimEnd()
+        return base ? `${base}${line}` : line.trim()
+      })
+      setProjectCancelledAtInput(toDateInputValue(new Date()))
+      setProjectStatus('cancelado')
+      return
+    }
+    setProjectStatus(next)
+    if (next !== 'cancelado') setProjectCancelledAtInput('')
   }
 
   async function onSubmit(e: FormEvent) {
@@ -767,9 +981,22 @@ export function ProjectCreateModal({
                   />
                 </label>
                 <label className="field field--span2">
+                  <span>Tipo do cliente (negócio)</span>
+                  <select value={clientType} onChange={(e) => setClientType(e.target.value as ProjectClientType)}>
+                    {PROJECT_CLIENT_TYPE_SELECT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="field__hint muted">
+                    Classifica a unidade de negócio do cliente neste projeto (Confecção ou Genérico).
+                  </span>
+                </label>
+                <label className="field field--span2">
                   <span>Plano contratado</span>
                   <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} disabled={isEdit}>
-                    {!isEdit ? (
+                    {!isEdit || isCustomPlanType(projectToEdit?.planType) ? (
                       <option value={CUSTOM_PLAN_TYPE}>
                         Plano avulso — fases e tarefas no projeto · teto de horas configurável
                       </option>
@@ -819,13 +1046,265 @@ export function ProjectCreateModal({
                 {isEdit ? (
                   <label className="field field--span2">
                     <span>Situação do projeto</span>
-                    <select value={projectStatus} onChange={(e) => setProjectStatus(e.target.value as ProjectStatus)}>
-                      <option value="ativo">Ativo</option>
-                      <option value="pausado">Pausado</option>
-                      <option value="finalizado">Finalizado</option>
-                      <option value="cancelado">Cancelado</option>
+                    <select
+                      value={projectStatus}
+                      onChange={(e) => void onProjectStatusIntentChange(e.target.value as ProjectStatus)}
+                    >
+                      <option value="ativo">{statusLabelPt('ativo')}</option>
+                      <option value="inadimplente">{statusLabelPt('inadimplente')}</option>
+                      <option value="congelado">{statusLabelPt('congelado')}</option>
+                      <option value="finalizado">{statusLabelPt('finalizado')}</option>
+                      <option value="cancelado">{statusLabelPt('cancelado')}</option>
                     </select>
+                    <span className="field__hint muted">
+                      Em andamento = operação normal. Inadimplente = destaque na grade (cobrança). Congelado: paralisacao
+                      operacional (gelo). Cancelado: confirmação e motivo (mín. 8 caracteres), registrado nas observações
+                      internas; nomenclatura unica: sempre Cancelado (sem inativo).
+                    </span>
                   </label>
+                ) : null}
+                {isEdit && projectStatus === 'cancelado' ? (
+                  <label className="field field--span2">
+                    <span>Data de cancelamento</span>
+                    <input
+                      type="date"
+                      value={projectCancelledAtInput}
+                      onChange={(e) => setProjectCancelledAtInput(e.target.value)}
+                      required
+                    />
+                    <span className="field__hint muted">
+                      Padrão ao marcar como cancelado: hoje. Ajuste se o encerramento ocorreu em outro dia.
+                    </span>
+                  </label>
+                ) : null}
+                {isEdit ? (
+                  <div className="field field--span2 project-create-modal__manual-alert-field">
+                    <div className="project-create-modal__manual-alert-row">
+                      <span className="project-create-modal__manual-alert-label" id="manual-alert-label">
+                        Alerta operacional (manual)
+                      </span>
+                      <div
+                        ref={manualAttentionWrapRef}
+                        className="project-create-modal__manual-alert-wrap"
+                        onMouseEnter={() => {
+                          clearManualAttentionHoverTimers()
+                          manualAttentionOpenTimerRef.current = setTimeout(() => {
+                            setManualAlertPopoverErr(null)
+                            setManualAlertPopoverOpen(true)
+                            setManualAlertPopoverMode('view')
+                            setManualAlertEditBuffer(manualAttentionNoteDraft)
+                          }, 160)
+                        }}
+                        onMouseLeave={() => {
+                          clearManualAttentionHoverTimers()
+                          manualAttentionCloseTimerRef.current = setTimeout(() => {
+                            if (!manualAlertPopoverStick) {
+                              setManualAlertPopoverOpen(false)
+                              setManualAlertPopoverMode('view')
+                              setManualAlertPopoverErr(null)
+                              setManualAlertPopoverPos(null)
+                            }
+                          }, 220)
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className={`project-create-modal__manual-alert-trigger${manualAttentionNoteDraft.trim() ? ' is-active' : ''}`}
+                          aria-expanded={manualAlertPopoverOpen}
+                          aria-haspopup="dialog"
+                          aria-labelledby="manual-alert-label"
+                          aria-label={
+                            manualAttentionNoteDraft.trim()
+                              ? 'Alerta operacional ativo — ver ou editar'
+                              : 'Sem alerta operacional — definir alerta'
+                          }
+                          title={
+                            manualAttentionNoteDraft.trim()
+                              ? manualAttentionNoteDraft.trim()
+                              : 'Alerta manual (opcional)'
+                          }
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            clearManualAttentionHoverTimers()
+                            if (manualAlertPopoverOpen && manualAlertPopoverStick) {
+                              setManualAlertPopoverOpen(false)
+                              setManualAlertPopoverStick(false)
+                              setManualAlertPopoverMode('view')
+                              setManualAlertPopoverErr(null)
+                              setManualAlertPopoverPos(null)
+                              return
+                            }
+                            if (manualAlertPopoverOpen) {
+                              setManualAlertPopoverStick(true)
+                              return
+                            }
+                            const has = manualAttentionNoteDraft.trim().length > 0
+                            setManualAlertPopoverStick(true)
+                            setManualAlertPopoverOpen(true)
+                            setManualAlertPopoverErr(null)
+                            setManualAlertPopoverMode(has ? 'view' : 'edit')
+                            setManualAlertEditBuffer(manualAttentionNoteDraft)
+                            requestAnimationFrame(() => {
+                              if (!has) manualAttentionEditTextareaRef.current?.focus()
+                            })
+                          }}
+                        >
+                          <CircleAlert size={18} strokeWidth={2.15} absoluteStrokeWidth aria-hidden />
+                        </button>
+                        {manualAlertPopoverOpen ? (
+                          <div
+                            className="project-create-modal__manual-alert-popover"
+                            role="dialog"
+                            aria-labelledby="manual-alert-popover-title"
+                            onMouseDownCapture={() => setManualAlertPopoverStick(true)}
+                            style={
+                              manualAlertPopoverPos
+                                ? {
+                                    position: 'fixed',
+                                    top: manualAlertPopoverPos.top,
+                                    left: manualAlertPopoverPos.left,
+                                    width: manualAlertPopoverPos.width,
+                                    zIndex: 4000,
+                                    opacity: 1,
+                                  }
+                                : { position: 'fixed', opacity: 0, pointerEvents: 'none', left: -9999, top: 0 }
+                            }
+                          >
+                            <p className="project-create-modal__manual-alert-popover-title" id="manual-alert-popover-title">
+                              Alerta operacional
+                            </p>
+                            {manualAlertPopoverMode === 'view' && manualAttentionNoteDraft.trim() ? (
+                              <>
+                                <p className="project-create-modal__manual-alert-popover-text">
+                                  {manualAttentionNoteDraft.trim()}
+                                </p>
+                                <div className="project-create-modal__manual-alert-popover-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn--ghost btn--sm"
+                                    disabled={saving}
+                                    onClick={() => {
+                                      setManualAlertEditBuffer(manualAttentionNoteDraft)
+                                      setManualAlertPopoverMode('edit')
+                                      setManualAlertPopoverErr(null)
+                                      requestAnimationFrame(() => manualAttentionEditTextareaRef.current?.focus())
+                                    }}
+                                  >
+                                    Editar texto
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn--ghost btn--sm btn--danger"
+                                    disabled={saving}
+                                    onClick={async () => {
+                                      const ok = await requestConfirm({
+                                        title: 'Remover alerta',
+                                        message: 'Remover o alerta operacional manual deste projeto?',
+                                        confirmLabel: 'Remover',
+                                        cancelLabel: 'Manter',
+                                      })
+                                      if (!ok) return
+                                      setManualAttentionNoteDraft('')
+                                      setManualAlertPopoverOpen(false)
+                                      setManualAlertPopoverStick(false)
+                                      setManualAlertPopoverMode('view')
+                                      setManualAlertPopoverErr(null)
+                                      setManualAlertPopoverPos(null)
+                                    }}
+                                  >
+                                    Remover
+                                  </button>
+                                </div>
+                              </>
+                            ) : null}
+                            {manualAlertPopoverMode === 'view' && !manualAttentionNoteDraft.trim() ? (
+                              <div className="project-create-modal__manual-alert-popover-actions project-create-modal__manual-alert-popover-actions--stack">
+                                <p className="muted project-create-modal__manual-alert-popover-empty">
+                                  Nenhum alerta. Opcional — mínimo 12 caracteres se definir.
+                                </p>
+                                <button
+                                  type="button"
+                                  className="btn btn--sm"
+                                  disabled={saving}
+                                  onClick={() => {
+                                    setManualAlertEditBuffer('')
+                                    setManualAlertPopoverMode('edit')
+                                    setManualAlertPopoverErr(null)
+                                    requestAnimationFrame(() => manualAttentionEditTextareaRef.current?.focus())
+                                  }}
+                                >
+                                  Escrever alerta
+                                </button>
+                              </div>
+                            ) : null}
+                            {manualAlertPopoverMode === 'edit' ? (
+                              <>
+                                <textarea
+                                  ref={manualAttentionEditTextareaRef}
+                                  className="project-create-modal__manual-alert-popover-textarea"
+                                  rows={4}
+                                  value={manualAlertEditBuffer}
+                                  onChange={(e) => {
+                                    setManualAlertEditBuffer(e.target.value)
+                                    setManualAlertPopoverErr(null)
+                                  }}
+                                  placeholder="Motivo visível na grade (tooltip). Mínimo 12 caracteres ou deixe em branco."
+                                />
+                                {manualAlertPopoverErr ? (
+                                  <p className="auth__error project-create-modal__manual-alert-popover-err">
+                                    {manualAlertPopoverErr}
+                                  </p>
+                                ) : null}
+                                <div className="project-create-modal__manual-alert-popover-actions">
+                                  <button
+                                    type="button"
+                                    className="btn btn--sm"
+                                    disabled={saving}
+                                    onClick={() => {
+                                      const t = manualAlertEditBuffer.trim()
+                                      if (t.length > 0 && t.length < 12) {
+                                        setManualAlertPopoverErr('Use pelo menos 12 caracteres ou deixe em branco.')
+                                        return
+                                      }
+                                      setManualAttentionNoteDraft(manualAlertEditBuffer.trim() ? manualAlertEditBuffer : '')
+                                      setManualAlertPopoverErr(null)
+                                      setManualAlertPopoverMode('view')
+                                    }}
+                                  >
+                                    Aplicar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn--ghost btn--sm"
+                                    disabled={saving}
+                                    onClick={() => {
+                                      setManualAlertEditBuffer(manualAttentionNoteDraft)
+                                      setManualAlertPopoverErr(null)
+                                      if (manualAttentionNoteDraft.trim()) {
+                                        setManualAlertPopoverMode('view')
+                                      } else {
+                                        setManualAlertPopoverOpen(false)
+                                        setManualAlertPopoverStick(false)
+                                        setManualAlertPopoverMode('view')
+                                        setManualAlertPopoverPos(null)
+                                      }
+                                    }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <span className="field__hint muted">
+                      Ícone vermelho = alerta ativo (tooltip na grade). Diferente do check-in automático (Em dia / Atenção /
+                      Atrasado).
+                    </span>
+                  </div>
                 ) : null}
                 <label className="field field--span2">
                   <span>Analista responsável</span>

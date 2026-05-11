@@ -19,7 +19,7 @@ export type DashboardAlertRow = {
 const MIN_LOGGED_HOURS = 0.01
 
 function isOngoingProject(p: DbProject, phases: DbPhase[], tasks: DbTask[]): boolean {
-  if (p.status !== 'ativo') return false
+  if (p.status !== 'ativo' && p.status !== 'inadimplente') return false
   const col = deriveKanbanColumnFromPlanState(p, phases, tasks)
   return col !== 'finalizados' && col !== 'cancelados'
 }

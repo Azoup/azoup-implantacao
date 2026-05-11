@@ -6,11 +6,13 @@ function mkProject(partial: Partial<DbProject>): DbProject {
   return {
     id: partial.id ?? crypto.randomUUID(),
     projectName: partial.projectName ?? 'Projeto Teste',
+    clientType: partial.clientType ?? 'generico',
     planType: 'basic',
     hoursContracted: partial.hoursContracted ?? 100,
     hoursUsed: partial.hoursUsed ?? 20,
     startDate: null,
     dueDate: null,
+    cancelledAt: null,
     status: 'ativo',
     ownerId: 'owner-1',
     analystId: null,
@@ -40,6 +42,10 @@ function mkProject(partial: Partial<DbProject>): DbProject {
     planSnapshot: { key: 'basic', modelId: 'basic', name: 'Basic', hoursContracted: 100, phaseCount: 1, taskCount: 1 },
     lastManualCheckinAt: partial.lastManualCheckinAt ?? null,
     lastManualCheckinBy: null,
+    manualAttentionNote: partial.manualAttentionNote ?? null,
+    manualAttentionAt: partial.manualAttentionAt ?? null,
+    manualAttentionBy: partial.manualAttentionBy ?? null,
+    freezeTimeline: partial.freezeTimeline ?? [],
   }
 }
 

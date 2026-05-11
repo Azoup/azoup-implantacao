@@ -327,9 +327,6 @@ export function SettingsPage() {
     const allScopesGranted = ALL_PERMISSION_SCOPES.every((scope) => draftSnapshot.includes(scope))
     const shouldPromoteToAdmin =
       !!editingPermissionUser && editingPermissionUser.userType !== 'client' && allScopesGranted
-    // #region agent log
-    fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:start',message:'Saving permissions started',data:{targetId,scopeCount:draftSnapshot.length,allScopesGranted,shouldPromoteToAdmin},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     setPermissionsSaving(true)
     setErr(null)
     try {
@@ -338,9 +335,6 @@ export function SettingsPage() {
         p_permissions: draftSnapshot,
       })
       if (error) {
-        // #region agent log
-        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:rpcError',message:'admin_set_profile_permissions failed',data:{targetId,error:error.message},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         const msg = formatSupabaseError(error, 'Não foi possível salvar permissões.')
         setErr(msg)
         throw new Error(msg)
@@ -348,9 +342,6 @@ export function SettingsPage() {
       if (shouldPromoteToAdmin) {
         const { error: roleErr } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', targetId)
         if (roleErr) {
-          // #region agent log
-          fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:roleUpdateError',message:'Role promotion failed',data:{targetId,error:roleErr.message},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
           const msg = formatSupabaseError(
             roleErr,
             'Permissões salvas, mas não foi possível promover o perfil para admin.',
@@ -358,9 +349,6 @@ export function SettingsPage() {
           setErr(msg)
           throw new Error(msg)
         }
-        // #region agent log
-        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H1',location:'SettingsPage.tsx:savePermissions:roleUpdated',message:'Role promoted to admin',data:{targetId},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
       }
       await loadUsersFromSupabase()
       setRemoteUsers((prev) => {
@@ -377,9 +365,6 @@ export function SettingsPage() {
       })
       const { error: sessErr } = await supabase.auth.refreshSession()
       if (sessErr) {
-        // #region agent log
-        fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H4',location:'SettingsPage.tsx:savePermissions:refreshSessionError',message:'refreshSession failed after permissions save',data:{targetId,error:sessErr.message},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         console.warn('[Settings] refreshSession após salvar permissões:', sessErr)
       }
       try {

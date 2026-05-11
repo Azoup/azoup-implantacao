@@ -22,6 +22,9 @@ import type {
 } from '../db/types'
 import { ALL_PERMISSION_SCOPES } from '../auth/permissions'
 import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
+import { normalizeProjectClientType } from '../lib/projectClientType'
+import { normalizeRemoteProjectStatus } from '../lib/projectStatus'
+import { parseFreezeTimeline } from '../lib/projectFreezeTimeline'
 import { broadcastDexieSyncHint } from './crossTabSync'
 import { dispatchSyncFailure } from './syncFailure'
 import { bumpSyncCursor, isIncrementalRemoteTable, setSyncCursor } from './syncCursors'
@@ -85,6 +88,9 @@ const TABLES_GUARD_EMPTY_REMOTE = new Set<string>([
 ])
 
 const FORCE_CACHE_REFRESH_KEY = 'vyntask_force_empty_remote_cache.v1'
+
+/** Coalesce chamadas concorrentes a um único refresh (evita rajadas de GET /labels etc.). */
+let refreshSupabaseDexieCacheInFlight: Promise<void> | null = null
 const PENDING_PROJECT_GRAPH_SYNC_KEY = 'vyntask_pending_project_graph_sync.v1'
 /** Evita loop agressivo de retry no focus/online quando a nuvem está instável. */
 const PENDING_PROJECT_SYNC_COOLDOWN_MS = 90_000
@@ -242,6 +248,11 @@ function dequeuePendingProjectGraphSync(projectId: string): void {
   writePendingProjectGraphSyncItems(items)
 }
 
+/** Remove o projeto da fila local de reenvio ao Supabase, sem nova tentativa (útil após RLS/403 ou quando já corrigiu fora do app). */
+export function discardPendingProjectGraphSync(projectId: string): void {
+  dequeuePendingProjectGraphSync(projectId)
+}
+
 function isOptionalTableError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const e = err as { code?: string; message?: string }
@@ -334,6 +345,44 @@ function formatProjectSyncErrorMessage(args: {
   return `${code}|op=${operation}|type=${type}|reason=${reason}|action=${action}`
 }
 
+/** PostgREST às vezes devolve `message` como objeto; evita `[object Object]` em logs e classificação. */
+function syncErrPart(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (v instanceof Error) return v.message
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v)
+    } catch {
+      return String(v)
+    }
+  }
+  return String(v)
+}
+
+function syncErrFingerprint(err: unknown): string {
+  if (err == null) return ''
+  if (err instanceof Error) return err.message
+  if (typeof err === 'string') return err
+  if (typeof err === 'object') {
+    const o = err as Record<string, unknown>
+    const code = syncErrPart(o.code)
+    const message = syncErrPart(o.message)
+    const details = syncErrPart(o.details)
+    const hint = syncErrPart(o.hint)
+    const status = typeof o.status === 'number' ? `http=${o.status}` : ''
+    const joined = [code, message, details, hint, status].filter(Boolean).join(' | ')
+    if (joined) return joined
+    try {
+      return JSON.stringify(err)
+    } catch {
+      return String(err)
+    }
+  }
+  return String(err)
+}
+
 function classifyProjectSyncError(err: unknown): {
   type: ProjectSyncFailureType
   reason: string
@@ -342,9 +391,9 @@ function classifyProjectSyncError(err: unknown): {
 } {
   const e = err as { message?: string; code?: string; status?: number; details?: string; hint?: string }
   const code = String(e?.code ?? '').toUpperCase()
-  const message = String(e?.message ?? '')
-  const details = String(e?.details ?? '')
-  const hint = String(e?.hint ?? '')
+  const message = syncErrPart(e?.message)
+  const details = syncErrPart(e?.details)
+  const hint = syncErrPart(e?.hint)
   const status = typeof e?.status === 'number' ? e.status : null
   const body = `${message} ${details} ${hint}`.toLowerCase()
   const errName = String((e as { name?: unknown }).name ?? '')
@@ -405,6 +454,49 @@ function classifyProjectSyncError(err: unknown): {
       type: 'conflict',
       reason: 'Conflito de dados na escrita.',
       action: 'Atualize os dados locais e tente novamente.',
+      canRetry: false,
+    }
+  }
+  /** 400 comum: coluna ausente (`freeze_timeline`) ou CHECK de `status` desatualizado no remoto. */
+  if (status === 400 || code === '23514' || code === '42703' || code === 'PGRST204') {
+    const summary = `${message} ${details} ${hint}`.trim().slice(0, 420)
+    const isCheck =
+      code === '23514' ||
+      body.includes('check constraint') ||
+      body.includes('projects_status_check') ||
+      body.includes('violates check constraint')
+    const isMissingColumn =
+      code === '42703' ||
+      code === 'PGRST204' ||
+      body.includes('freeze_timeline') ||
+      body.includes('schema cache') ||
+      (body.includes('column') && (body.includes('does not exist') || body.includes('unknown'))) ||
+      body.includes('could not find') ||
+      body.includes('unrecognized')
+    if (isMissingColumn) {
+      return {
+        type: 'unknown',
+        reason: summary || 'Requisição inválida (400): possível coluna ausente ou schema cache desatualizado.',
+        action:
+          'No Supabase → SQL Editor: execute `023_projects_freeze_timeline.sql` (coluna `freeze_timeline`). ' +
+          'Se ainda falhar, confira migrations `019`–`022` e `024` em `supabase/sql` do repositório.',
+        canRetry: false,
+      }
+    }
+    if (isCheck) {
+      return {
+        type: 'unknown',
+        reason: summary || 'Violação de CHECK no campo status (ou tipo incompatível).',
+        action:
+          'No SQL Editor: alinhe o CHECK de `projects.status` com o app — em ordem típica `019`, `022` e `024_projects_status_inadimplente.sql`.',
+        canRetry: false,
+      }
+    }
+    return {
+      type: 'unknown',
+      reason: summary || 'Bad Request (400) do PostgREST.',
+      action:
+        'Inspecione o corpo JSON do erro na aba Network do navegador; compare com as migrations em `supabase/sql`.',
       canRetry: false,
     }
   }
@@ -490,7 +582,7 @@ async function runProjectSyncWrite(
         durationMs,
         attempts,
         maxAttempts: PROJECT_SYNC_MAX_ATTEMPTS,
-        errorMessage: err instanceof Error ? err.message : String(err),
+        errorMessage: syncErrFingerprint(err),
       })
       if (attempts < PROJECT_SYNC_MAX_ATTEMPTS && info.canRetry) {
         await sleep(retryDelayMs(attempts))
@@ -518,7 +610,7 @@ async function raceProjectWrite<T>(promise: Promise<T>, opLabel: string): Promis
         reject(
           new Error(
             `Tempo esgotado (${PROJECT_WRITE_TIMEOUT_MS / 1000}s) ao ${opLabel}. ` +
-              'Verifique rede, se o projeto Supabase está ativo (não pausado) e se as policies RLS permitem esta alteração.',
+              'Verifique rede, se o projeto Supabase está ativo (não congelado) e se as policies RLS permitem esta alteração.',
           ),
         )
       }, PROJECT_WRITE_TIMEOUT_MS)
@@ -547,6 +639,9 @@ function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<str
   }
   if (Object.prototype.hasOwnProperty.call(patch, 'dueDate')) {
     o.due_date = toPgDateOnly(patch.dueDate ?? null)
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'cancelledAt')) {
+    o.cancelled_at = toPgDateOnly(patch.cancelledAt ?? null)
   }
   set('status', 'status', patch.status)
   set('ownerId', 'owner_id', patch.ownerId)
@@ -577,9 +672,20 @@ function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<str
   if (Object.prototype.hasOwnProperty.call(patch, 'planSnapshot')) {
     o.plan_snapshot = patch.planSnapshot
   }
-  if (shouldSyncProjectManualCheckinToSupabase()) {
+  /** `registerProjectManualCheckin` manda só check-in: precisa ir ao PostgREST mesmo sem `VITE_SYNC_PROJECT_MANUAL_CHECKIN`, senão o pull sobrescreve o Dexie com null. */
+  const patchTouchesManualCheckin =
+    Object.prototype.hasOwnProperty.call(patch, 'lastManualCheckinAt') ||
+    Object.prototype.hasOwnProperty.call(patch, 'lastManualCheckinBy')
+  if (shouldSyncProjectManualCheckinToSupabase() || patchTouchesManualCheckin) {
     set('lastManualCheckinAt', 'last_manual_checkin_at', patch.lastManualCheckinAt)
     set('lastManualCheckinBy', 'last_manual_checkin_by', patch.lastManualCheckinBy)
+  }
+  set('manualAttentionNote', 'manual_attention_note', patch.manualAttentionNote)
+  set('manualAttentionAt', 'manual_attention_at', patch.manualAttentionAt)
+  set('manualAttentionBy', 'manual_attention_by', patch.manualAttentionBy)
+  set('clientType', 'client_type', patch.clientType)
+  if (Object.prototype.hasOwnProperty.call(patch, 'freezeTimeline')) {
+    o.freeze_timeline = patch.freezeTimeline
   }
   return o
 }
@@ -615,6 +721,7 @@ export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
     hours_used: v.hoursUsed,
     start_date: toPgDateOnly(v.startDate),
     due_date: toPgDateOnly(v.dueDate),
+    cancelled_at: toPgDateOnly(v.cancelledAt ?? null),
     status: v.status,
     owner_id: v.ownerId,
     analyst_id: v.analystId,
@@ -648,6 +755,11 @@ export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
           last_manual_checkin_by: v.lastManualCheckinBy,
         }
       : {}),
+    manual_attention_note: v.manualAttentionNote,
+    manual_attention_at: v.manualAttentionAt,
+    manual_attention_by: v.manualAttentionBy,
+    client_type: v.clientType,
+    freeze_timeline: v.freezeTimeline ?? [],
   }
 }
 
@@ -997,12 +1109,14 @@ const defs: BridgeDef<unknown>[] = [
     fromRemote: (r): DbProject => ({
       id: String(r.id),
       projectName: String(r.project_name ?? ''),
+      clientType: normalizeProjectClientType((r as { client_type?: unknown }).client_type),
       planType: String(r.plan_type ?? ''),
       hoursContracted: toNumber(r.hours_contracted),
       hoursUsed: toNumber(r.hours_used),
       startDate: toStringOrNull(r.start_date),
       dueDate: toStringOrNull(r.due_date),
-      status: String(r.status ?? 'ativo') as DbProject['status'],
+      cancelledAt: toStringOrNull((r as { cancelled_at?: unknown }).cancelled_at),
+      status: normalizeRemoteProjectStatus(String(r.status ?? 'ativo')),
       ownerId: String(r.owner_id ?? ''),
       analystId: toStringOrNull(r.analyst_id),
       createdBy: String(r.created_by ?? ''),
@@ -1041,6 +1155,10 @@ const defs: BridgeDef<unknown>[] = [
       remoteUpdatedAt: toStringOrNull(r.updated_at),
       lastManualCheckinAt: toStringOrNull((r as { last_manual_checkin_at?: unknown }).last_manual_checkin_at),
       lastManualCheckinBy: toStringOrNull((r as { last_manual_checkin_by?: unknown }).last_manual_checkin_by),
+      manualAttentionNote: toStringOrNull((r as { manual_attention_note?: unknown }).manual_attention_note),
+      manualAttentionAt: toStringOrNull((r as { manual_attention_at?: unknown }).manual_attention_at),
+      manualAttentionBy: toStringOrNull((r as { manual_attention_by?: unknown }).manual_attention_by),
+      freezeTimeline: parseFreezeTimeline((r as { freeze_timeline?: unknown }).freeze_timeline),
     }),
     toRemote: (x) => dbProjectToSupabaseRow(x as DbProject),
   },
@@ -1417,9 +1535,6 @@ async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown)
         profileRole = (profile as { role?: string } | null)?.role ?? null
         profileStatus = (profile as { status?: string } | null)?.status ?? null
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7771/ingest/ced2954a-7cb6-4d8d-ae61-f349b908d868',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'077059'},body:JSON.stringify({sessionId:'077059',runId:'pre-fix',hypothesisId:'H5',location:'supabaseDexieBridge.ts:upsertRemoteWithRetry:projectsFail',message:'Project upsert failed after retries',data:{lastMsg,uid,profileRole,profileStatus,profileErr},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       pushRuntimeDiagnostic({
         source: 'dexie-bridge',
         level: 'warn',
@@ -1565,8 +1680,7 @@ async function hydrateUsersFromProfiles() {
   })
 }
 
-export async function refreshSupabaseDexieCache(): Promise<void> {
-  if (!supabase) return
+async function executeRefreshSupabaseDexieCache(): Promise<void> {
   installHooks()
   pushSyncMute()
   try {
@@ -1615,6 +1729,30 @@ export async function refreshSupabaseDexieCache(): Promise<void> {
   }
 }
 
+/** Sincroniza o IndexedDB com o Postgres; exige sessão (evita 403 em papéis sem privilégio na API). */
+export async function refreshSupabaseDexieCache(): Promise<void> {
+  const client = supabase
+  if (!client) return
+  const {
+    data: { session },
+  } = await client.auth.getSession()
+  if (!session?.user) return
+
+  if (refreshSupabaseDexieCacheInFlight) return refreshSupabaseDexieCacheInFlight
+
+  const flightBox: { current: Promise<void> | null } = { current: null }
+  const run = (async () => {
+    try {
+      await executeRefreshSupabaseDexieCache()
+    } finally {
+      if (refreshSupabaseDexieCacheInFlight === flightBox.current) refreshSupabaseDexieCacheInFlight = null
+    }
+  })()
+  flightBox.current = run
+  refreshSupabaseDexieCacheInFlight = run
+  return run
+}
+
 export async function initializeSupabaseDexieBridge(): Promise<void> {
   if (!supabase) return
   installHooks()
@@ -1622,7 +1760,7 @@ export async function initializeSupabaseDexieBridge(): Promise<void> {
     data: { session },
   } = await supabase.auth.getSession()
   if (!session?.user) return
-  await refreshSupabaseDexieCache()
+  // Refresh completo fica a cargo do AuthContext após validar perfil ativo (evita refresh duplicado e GET sem JWT estável).
   await flushPendingProjectGraphSyncQueue()
   if (!pendingProjectGraphListenerInstalled && typeof window !== 'undefined') {
     pendingProjectGraphListenerInstalled = true

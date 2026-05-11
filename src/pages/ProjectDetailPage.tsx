@@ -33,6 +33,7 @@ import {
   RotateCcw,
   Send,
   ShieldAlert,
+  Snowflake,
   Sparkles,
   Tag,
   Trash2,
@@ -64,10 +65,12 @@ import {
 } from '../lib/stableDexieEmpty'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
-import { formatDatePt } from '../lib/dates'
+import { dateInputToIsoNoon } from '../lib/brazilFormat'
+import { formatDatePt, toDateInputValue } from '../lib/dates'
 import { phaseNameShort } from '../lib/phaseDisplay'
 import { projectProgressPercent } from '../lib/projectProgress'
-import { getPhaseSegments } from '../lib/projectPhaseUi'
+import { getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
+import { projectClientTypeLabelPt } from '../lib/projectClientType'
 import { effectiveTaskIsInformational } from '../lib/effectiveTaskInformational'
 import { buildCustomPlanBlueprintBlocks, buildLabelsTabSections, type PlanBlueprintBlock } from '../lib/labelsTabFromPlan'
 import { planLabelTabPillStyle, planLabelColorsFromCode, planPhaseAccentHex } from '../lib/planLabelDisplay'
@@ -120,11 +123,8 @@ import {
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { formatDurationHMS, useRunningTimerSession } from '../hooks/useRunningTimerSession'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
-import {
-  deriveProjectFreshnessBySla,
-  projectFreshnessLabel,
-} from '../services/projectFreshness'
 import { registerProjectManualCheckin } from '../services/project'
+import { applyProjectFreezeToggle } from '../services/projectFreeze'
 import type {
   DbComment,
   DbDocAttachment,
@@ -278,6 +278,10 @@ export function ProjectDetailPage() {
   const [docLinkLabelDraft, setDocLinkLabelDraft] = useState('')
   const [deleteProjectOpen, setDeleteProjectOpen] = useState(false)
   const [deleteProjectBusy, setDeleteProjectBusy] = useState(false)
+  const [cancelProjectOpen, setCancelProjectOpen] = useState(false)
+  const [cancelProjectDateYmd, setCancelProjectDateYmd] = useState('')
+  const [cancelProjectReason, setCancelProjectReason] = useState('')
+  const [cancelProjectBusy, setCancelProjectBusy] = useState(false)
   const [manualCompleteTask, setManualCompleteTask] = useState<DbTask | null>(null)
   const [manualCompleteBusy, setManualCompleteBusy] = useState(false)
   const [docEditingId, setDocEditingId] = useState<string | null>(null)
@@ -295,6 +299,7 @@ export function ProjectDetailPage() {
   const [planTaskModalVariant, setPlanTaskModalVariant] = useState<'standard' | 'catalogAdHoc'>('standard')
   const [_syncTick, setSyncTick] = useState(0)
   const [projectSyncBusy, setProjectSyncBusy] = useState(false)
+  const [freezeQuickBusy, setFreezeQuickBusy] = useState(false)
 
   const aiDocInput = aiDocTarget === 'edit' ? docEditDraft : docDraft
 
@@ -496,7 +501,6 @@ export function ProjectDetailPage() {
 
   const proj: DbProject = project
   const projectCloudSyncMeta = getProjectCloudSyncMeta(proj.id)
-  const freshnessStatus = deriveProjectFreshnessBySla(proj).status
   const syncStatusLabel =
     projectCloudSyncMeta.state === 'synced'
       ? 'Nuvem sincronizada'
@@ -522,6 +526,31 @@ export function ProjectDetailPage() {
     if (!ok) return
     await registerProjectManualCheckin(proj.id, me.id)
     toast('Check-in manual registrado.')
+  }
+
+  async function onFreezeHeaderClick() {
+    if (!canEditProjects || freezeQuickBusy) return
+    const wasFrozen = proj.status === 'congelado'
+    setFreezeQuickBusy(true)
+    try {
+      const r = await applyProjectFreezeToggle({
+        projectId: proj.id,
+        actorUserId: me.id,
+        projectLabel: proj.projectName,
+        dialogs: { requestConfirm, requestDestructiveWithReason },
+      })
+      if (r === 'ineligible') {
+        toastError(
+          'Só dá para congelar projeto em andamento ou inadimplente, ou descongelar um congelado. Finalizados e cancelados não usam este atalho.',
+        )
+        return
+      }
+      if (r === 'applied') {
+        toast(wasFrozen ? 'Projeto descongelado (em andamento).' : 'Projeto congelado.')
+      }
+    } finally {
+      setFreezeQuickBusy(false)
+    }
   }
 
   function mapTaskToPlanModal(t: DbTask): DbPlanTask {
@@ -602,26 +631,50 @@ export function ProjectDetailPage() {
     }
   }
 
-  async function onCancelProject() {
-    if (!canEditProjects) return
-    const ok = await requestConfirm({
-      title: 'Cancelar projeto',
-      message: 'Marcar este projeto como cancelado?',
-      confirmLabel: 'Marcar como cancelado',
-      cancelLabel: 'Voltar',
-      danger: true,
-    })
-    if (!ok) return
-    const cancelPatch = { status: 'cancelado' as const, kanbanColumn: 'cancelados' as KanbanColumn }
-    if (isSupabaseConfigured()) {
-      await withDexieSupabaseSyncMuted(async () => {
-        await updateProjectPartialInSupabase(proj.id, cancelPatch)
-        await db.projects.update(proj.id, cancelPatch)
-      })
-    } else {
-      await db.projects.update(proj.id, cancelPatch)
+  function openCancelProjectDialog() {
+    setCancelProjectDateYmd(toDateInputValue(new Date()))
+    setCancelProjectReason('')
+    setCancelProjectOpen(true)
+  }
+
+  async function confirmCancelProjectFromDetail() {
+    if (!canEditProjects || cancelProjectBusy) return
+    const reason = cancelProjectReason.trim()
+    if (reason.length < 8) {
+      toastError('Informe o motivo com pelo menos 8 caracteres.')
+      return
     }
-    navigate('/projetos', { replace: true })
+    const caIso = dateInputToIsoNoon(cancelProjectDateYmd)
+    if (!caIso) {
+      toastError('Informe a data de cancelamento.')
+      return
+    }
+    setCancelProjectBusy(true)
+    try {
+      const line = `\n[${new Date().toISOString()}] Projeto cancelado (detalhe). Motivo: ${reason}`
+      const baseNotes = (proj.internalNotes ?? '').trimEnd()
+      const cancelPatch = {
+        status: 'cancelado' as const,
+        kanbanColumn: 'cancelados' as KanbanColumn,
+        cancelledAt: caIso,
+        internalNotes: baseNotes ? `${baseNotes}${line}` : line.trim(),
+      }
+      if (isSupabaseConfigured()) {
+        await withDexieSupabaseSyncMuted(async () => {
+          await updateProjectPartialInSupabase(proj.id, cancelPatch)
+          await db.projects.update(proj.id, cancelPatch)
+        })
+      } else {
+        await db.projects.update(proj.id, cancelPatch)
+      }
+      setCancelProjectOpen(false)
+      toast('Projeto marcado como cancelado.')
+      navigate('/projetos', { replace: true })
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Não foi possível cancelar o projeto.')
+    } finally {
+      setCancelProjectBusy(false)
+    }
   }
 
   async function onDeleteProject() {
@@ -937,8 +990,9 @@ export function ProjectDetailPage() {
             <span className={'pd-sync-pill is-' + projectCloudSyncMeta.state} title={syncStatusTitle}>
               {syncStatusLabel}
             </span>
-            <span className={'pd-sync-pill pd-sync-pill--freshness is-' + freshnessStatus}>
-              Frescor: {projectFreshnessLabel(freshnessStatus)}
+            <span className="pd-sync-pill" title="Atualizado em (último check-in manual)">
+              Atualizado em:{' '}
+              {proj.lastManualCheckinAt ? formatDatePt(proj.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}
             </span>
             <span
               className={planPillClass(proj.planType)}
@@ -946,6 +1000,23 @@ export function ProjectDetailPage() {
             >
               {planName}
             </span>
+            <span
+              className={'proj-card__badge proj-card__badge--client-type is-' + (proj.clientType ?? 'generico')}
+              title="Tipo do cliente (negócio)"
+            >
+              {projectClientTypeLabelPt(proj.clientType)}
+            </span>
+            <span className={'proj-card__badge proj-card__badge--status is-' + proj.status}>
+              {statusLabelPt(proj.status)}
+            </span>
+            {(proj.manualAttentionNote ?? '').trim() ? (
+              <span
+                className="proj-card__badge proj-card__badge--op-alert"
+                title={(proj.manualAttentionNote ?? '').trim()}
+              >
+                Alerta operacional
+              </span>
+            ) : null}
             <span
               className={'pd-analyst-badge' + (projectAnalyst ? '' : ' pd-analyst-badge--solo')}
               title={projectAnalyst ? `Analista: ${projectAnalyst.name}` : 'Sem analista'}
@@ -1011,6 +1082,29 @@ export function ProjectDetailPage() {
           </button>
           <button
             type="button"
+            className={
+              'btn btn--ghost pd-action-btn' + (proj.status === 'congelado' ? ' pd-action-btn--freeze-on' : '')
+            }
+            onClick={() => void onFreezeHeaderClick()}
+            disabled={
+              !canEditProjects ||
+              freezeQuickBusy ||
+              proj.status === 'finalizado' ||
+              proj.status === 'cancelado'
+            }
+            title={
+              proj.status === 'finalizado' || proj.status === 'cancelado'
+                ? 'Indisponível para finalizado ou cancelado'
+                : proj.status === 'congelado'
+                  ? 'Descongelar (ativo) — confirmação e motivo'
+                  : 'Congelar — pede motivo (histórico no projeto)'
+            }
+          >
+            <Snowflake {...ic} aria-hidden />
+            {proj.status === 'congelado' ? 'Descongelar' : 'Congelar'}
+          </button>
+          <button
+            type="button"
             className="btn btn--ghost pd-action-btn"
             onClick={() => setEditOpen(true)}
             disabled={!canEditProjects}
@@ -1021,7 +1115,7 @@ export function ProjectDetailPage() {
           <button
             type="button"
             className="btn btn--ghost pd-action-btn pd-action-btn--warn"
-            onClick={onCancelProject}
+            onClick={openCancelProjectDialog}
             disabled={!canEditProjects}
           >
             <XCircle {...ic} aria-hidden />
@@ -1059,12 +1153,18 @@ export function ProjectDetailPage() {
           <span className="pd-kpi__label">Saldo de horas</span>
           <span className="pd-kpi__value">{formatDurationHmFromHours(saldo)}</span>
         </div>
-        <div className={'pd-kpi pd-kpi--freshness is-' + freshnessStatus}>
-          <span className="pd-kpi__label">Último check-in manual</span>
+        <div className="pd-kpi">
+          <span className="pd-kpi__label">Atualizado em:</span>
           <span className="pd-kpi__value">
             {proj.lastManualCheckinAt ? formatDatePt(proj.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : 'Não registrado'}
           </span>
         </div>
+        {proj.status === 'cancelado' ? (
+          <div className="pd-kpi pd-kpi--cancelled">
+            <span className="pd-kpi__label">Data de cancelamento</span>
+            <span className="pd-kpi__value">{proj.cancelledAt ? formatDatePt(proj.cancelledAt) : '—'}</span>
+          </div>
+        ) : null}
         {isCustomPlan ? (
           <div className="pd-kpi">
             <span className="pd-kpi__label">Soma das previsões</span>
@@ -1093,6 +1193,32 @@ export function ProjectDetailPage() {
           </Link>
         ) : null}
       </div>
+
+      {(proj.freezeTimeline ?? []).length > 0 ? (
+        <section className="pd-freeze-log" aria-label="Histórico de congelamento">
+          <h2 className="pd-freeze-log__title">Histórico de congelamento</h2>
+          <p className="pd-freeze-log__intro muted">
+            Motivos e horários registrados ao usar o atalho de gelo na grade ou aqui no detalhe (também há entrada no log
+            de auditoria).
+          </p>
+          <ul className="pd-freeze-log__list">
+            {[...(proj.freezeTimeline ?? [])].reverse().map((ev, idx) => (
+              <li key={`${ev.at}-${idx}`} className="pd-freeze-log__item">
+                <div className="pd-freeze-log__head">
+                  <span className={'pd-freeze-log__badge is-' + ev.kind}>
+                    {ev.kind === 'freeze' ? 'Congelado' : 'Descongelado'}
+                  </span>
+                  <time className="pd-freeze-log__time" dateTime={ev.at}>
+                    {formatDatePt(ev.at, 'dd/MM/yyyy HH:mm')}
+                  </time>
+                </div>
+                <p className="pd-freeze-log__reason">{ev.reason}</p>
+                <p className="pd-freeze-log__by muted">Por {userNameById.get(ev.by) ?? ev.by}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="pd-tabs" role="tablist" aria-label="Seções do projeto">
         <button
@@ -2191,6 +2317,60 @@ export function ProjectDetailPage() {
         onClose={() => setAiDocTarget(null)}
         onApply={onApplyAiDoc}
       />
+
+      {cancelProjectOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => (!cancelProjectBusy ? setCancelProjectOpen(false) : undefined)}>
+          <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Cancelar projeto</h2>
+            <p className="muted">
+              O projeto será marcado como <strong>Cancelado</strong> e o cartão irá para a coluna Cancelados na visão
+              geral.
+            </p>
+            <label className="field">
+              <span>Data de cancelamento</span>
+              <input
+                type="date"
+                value={cancelProjectDateYmd}
+                onChange={(e) => setCancelProjectDateYmd(e.target.value)}
+                disabled={cancelProjectBusy}
+              />
+              <span className="field__hint muted">Padrão: hoje. Ajuste se o encerramento foi em outro dia.</span>
+            </label>
+            <label className="field">
+              <span>Motivo (obrigatório, mín. 8 caracteres)</span>
+              <textarea
+                rows={3}
+                value={cancelProjectReason}
+                onChange={(e) => setCancelProjectReason(e.target.value)}
+                placeholder="Ex.: Cliente encerrou contrato; não haverá implantação."
+                disabled={cancelProjectBusy}
+              />
+            </label>
+            <div className="modal__actions">
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={cancelProjectBusy}
+                onClick={() => setCancelProjectOpen(false)}
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger"
+                disabled={
+                  cancelProjectBusy ||
+                  cancelProjectReason.trim().length < 8 ||
+                  !cancelProjectDateYmd.trim()
+                }
+                onClick={() => void confirmCancelProjectFromDetail()}
+              >
+                {cancelProjectBusy ? 'Gravando…' : 'Confirmar cancelamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ProjectCreateModal
         open={editOpen}

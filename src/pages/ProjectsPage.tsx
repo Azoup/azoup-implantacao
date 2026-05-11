@@ -1,18 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowDownAZ,
+  Ban,
   CalendarDays,
   CheckCheck,
   ChevronDown,
+  CircleAlert,
   ChevronUp,
   Clock,
   Pencil,
   Plus,
   RotateCcw,
   Search,
+  Snowflake,
   Trash2,
   X,
 } from 'lucide-react'
@@ -34,7 +38,7 @@ import { getActivePlanLabel, getLastCompletedPlanLabel, planPhaseAccentHex } fro
 import { PlanLabelRow } from '../components/PlanLabelChips'
 import { AnalystAvatar } from '../components/AnalystAvatar'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
-import type { DbProject, KanbanColumn } from '../db/types'
+import type { DbProject, KanbanColumn, ProjectClientType, ProjectStatus } from '../db/types'
 import { formatDurationHFromHours } from '../lib/durationFormat'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
@@ -51,18 +55,35 @@ import {
   planSummaryLabel,
 } from '../constants/customPlan'
 import {
+  discardPendingProjectGraphSync,
   flushPendingProjectGraphSyncByProject,
   getProjectCloudSyncMeta,
   getPendingProjectGraphSyncIds,
 } from '../sync/supabaseDexieBridge'
 import { registerProjectManualCheckin } from '../services/project'
-import { deriveProjectFreshnessBySla, projectFreshnessLabel } from '../services/projectFreshness'
+import { applyManualAttentionOnlyPatch } from '../services/projectManualAttentionQuick'
+import { applyProjectFreezeToggle } from '../services/projectFreeze'
+import { isProjectCheckinStale } from '../services/projectCheckin'
 import { formatDatePt } from '../lib/dates'
+import { projectClientTypeLabelPt, projectClientTypeSearchBlob } from '../lib/projectClientType'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
+const STATUS_FILTER_CHIPS: { status: ProjectStatus; label: string }[] = [
+  { status: 'ativo', label: 'EM ANDAMENTO' },
+  { status: 'inadimplente', label: 'INADIMPLENTE' },
+  { status: 'congelado', label: 'CONGELADO' },
+  { status: 'finalizado', label: 'FINALIZADO' },
+  { status: 'cancelado', label: 'CANCELADO' },
+]
+
+const CLIENT_TYPE_FILTER_CHIPS: { type: ProjectClientType; label: string }[] = [
+  { type: 'confeccao', label: 'CONFECÇÃO' },
+  { type: 'generico', label: 'GENÉRICO' },
+]
+
 export function ProjectsPage() {
-  const { toast, toastError, requestConfirm } = useUiFeedback()
+  const { toast, toastError, requestConfirm, requestDestructiveWithReason } = useUiFeedback()
   const { user } = useAuth()
   const location = useLocation()
   const openedRef = useRef(false)
@@ -77,16 +98,91 @@ export function ProjectsPage() {
   const [projectModalDirty, setProjectModalDirty] = useState(false)
   const [createKanbanColumn, setCreateKanbanColumn] = useState<KanbanColumn>('novos')
   const [editingProject, setEditingProject] = useState<DbProject | null>(null)
+  const [focusManualAttentionInModal, setFocusManualAttentionInModal] = useState(false)
   const [projectSort, setProjectSort] = useState<ProjectSortConfig>(() => readProjectSortConfig())
   const [projectNameSearch, setProjectNameSearch] = useState('')
   const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
   const [selectedPlanTypes, setSelectedPlanTypes] = useState<string[]>([])
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<ProjectStatus[]>([])
+  const [selectedClientTypes, setSelectedClientTypes] = useState<ProjectClientType[]>([])
+  const [filterManualAlertOnly, setFilterManualAlertOnly] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [syncRefreshing, setSyncRefreshing] = useState<Record<string, boolean>>({})
   const [_syncTick, setSyncTick] = useState(0)
   const [_checkinTick, setCheckinTick] = useState(0)
   const [pendingModalOpen, setPendingModalOpen] = useState(false)
+  const [freezeBusyId, setFreezeBusyId] = useState<string | null>(null)
+  /** Toques consecutivos no “Reenviar” por projeto; no 3º oferece limpar a fila. */
+  const syncRetryCountRef = useRef<Record<string, number>>({})
+  const [syncRetryUi, setSyncRetryUi] = useState(0)
+
+  /** Atalho: alerta operacional no card (popover), sem abrir o modal completo. */
+  const [attentionQuick, setAttentionQuick] = useState<{
+    projectId: string
+    mode: 'view' | 'edit'
+    editBuffer: string
+    err: string | null
+  } | null>(null)
+  const attentionAnchorRef = useRef<HTMLButtonElement | null>(null)
+  const attentionPopoverRef = useRef<HTMLDivElement | null>(null)
+  const attentionEditRef = useRef<HTMLTextAreaElement | null>(null)
+  const [attentionPos, setAttentionPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [attentionSaving, setAttentionSaving] = useState(false)
+
+  const closeAttentionQuick = useCallback(() => {
+    setAttentionQuick(null)
+    setAttentionPos(null)
+    attentionAnchorRef.current = null
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!attentionQuick) {
+      setAttentionPos(null)
+      return
+    }
+    const update = () => {
+      const anchor = attentionAnchorRef.current
+      if (!anchor) return
+      const r = anchor.getBoundingClientRect()
+      const width = Math.min(360, Math.max(260, window.innerWidth - r.left - 16))
+      const margin = 8
+      const estHeight = 300
+      let top = r.bottom + margin
+      if (top + estHeight > window.innerHeight - margin) {
+        top = Math.max(margin, r.top - estHeight - margin)
+      }
+      setAttentionPos({ top, left: r.left, width })
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [attentionQuick, attentionQuick?.mode, attentionQuick?.editBuffer])
+
+  useEffect(() => {
+    if (!attentionQuick) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeAttentionQuick()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [attentionQuick, closeAttentionQuick])
+
+  useEffect(() => {
+    if (!attentionQuick) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (attentionPopoverRef.current?.contains(t)) return
+      if (attentionAnchorRef.current?.contains(t)) return
+      closeAttentionQuick()
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [attentionQuick, closeAttentionQuick])
+
+  useEffect(() => {
+    if (open) closeAttentionQuick()
+  }, [open, closeAttentionQuick])
 
   useRegisterUnsavedChanges({
     enabled: open,
@@ -105,10 +201,63 @@ export function ProjectsPage() {
       selectedPlanTypes.length === 0
         ? analystFiltered
         : analystFiltered.filter((p) => selectedPlanTypes.includes(normalizePlanTypeKey(p.planType)))
+    const clientTypeFiltered =
+      selectedClientTypes.length === 0
+        ? planFiltered
+        : planFiltered.filter((p) => selectedClientTypes.includes(p.clientType ?? 'generico'))
+    const statusFiltered =
+      selectedStatusFilters.length === 0
+        ? clientTypeFiltered
+        : clientTypeFiltered.filter((p) => selectedStatusFilters.includes(p.status))
+    const attentionFiltered = filterManualAlertOnly
+      ? statusFiltered.filter((p) => (p.manualAttentionNote ?? '').trim().length > 0)
+      : statusFiltered
     const q = projectNameSearch.trim().toLowerCase()
-    if (!q) return planFiltered
-    return planFiltered.filter((p) => p.projectName.toLowerCase().includes(q))
-  }, [projects, projectSort, projectNameSearch, selectedAnalystIds, selectedPlanTypes])
+    if (!q) return attentionFiltered
+    return attentionFiltered.filter((p) => {
+      if (p.projectName.toLowerCase().includes(q)) return true
+      return projectClientTypeSearchBlob(p).includes(q)
+    })
+  }, [
+    projects,
+    projectSort,
+    projectNameSearch,
+    selectedAnalystIds,
+    selectedPlanTypes,
+    selectedClientTypes,
+    selectedStatusFilters,
+    filterManualAlertOnly,
+  ])
+
+  const hasProjectFiltersActive = useMemo(
+    () =>
+      projectNameSearch.trim().length > 0 ||
+      selectedAnalystIds.length > 0 ||
+      selectedPlanTypes.length > 0 ||
+      selectedClientTypes.length > 0 ||
+      selectedStatusFilters.length > 0 ||
+      filterManualAlertOnly,
+    [
+      projectNameSearch,
+      selectedAnalystIds,
+      selectedPlanTypes,
+      selectedClientTypes,
+      selectedStatusFilters,
+      filterManualAlertOnly,
+    ],
+  )
+
+  const projectsCountSubtitle = useMemo(() => {
+    const total = projects.length
+    const filtered = visibleProjects.length
+    if (!hasProjectFiltersActive) {
+      return `${total} projeto(s) cadastrado(s)`
+    }
+    if (filtered === 1) {
+      return `1 projeto filtrado de ${total} ${total === 1 ? 'cadastrado' : 'cadastrados'}`
+    }
+    return `${filtered} projetos filtrados de ${total} cadastrados`
+  }, [projects.length, visibleProjects.length, hasProjectFiltersActive])
 
   useEffect(() => {
     const st = location.state as { openNew?: boolean; kanbanColumn?: KanbanColumn } | null
@@ -116,6 +265,7 @@ export function ProjectsPage() {
     if (st?.openNew && !openedRef.current) {
       if (st.kanbanColumn) setCreateKanbanColumn(st.kanbanColumn)
       setEditingProject(null)
+      setFocusManualAttentionInModal(false)
       setOpen(true)
       openedRef.current = true
     }
@@ -127,11 +277,8 @@ export function ProjectsPage() {
   }, [])
 
   const pendingIds = new Set(getPendingProjectGraphSyncIds())
-  const pendingFreshnessProjects = useMemo(() => {
-    return visibleProjects.filter((project) => {
-      const status = deriveProjectFreshnessBySla(project).status
-      return status === 'atrasado' || status === 'critico' || status === 'neutro'
-    })
+  const pendingCheckinProjects = useMemo(() => {
+    return visibleProjects.filter((project) => isProjectCheckinStale(project, 7))
   }, [visibleProjects])
 
   async function onManualCheckin(projectId: string, projectName: string) {
@@ -146,6 +293,31 @@ export function ProjectsPage() {
     await registerProjectManualCheckin(projectId, user.id)
     setCheckinTick((n) => n + 1)
     toast('Check-in manual registrado.')
+  }
+
+  async function onFreezeQuickToggle(p: DbProject) {
+    if (!canEditProjects || !user || freezeBusyId) return
+    const wasFrozen = p.status === 'congelado'
+    setFreezeBusyId(p.id)
+    try {
+      const r = await applyProjectFreezeToggle({
+        projectId: p.id,
+        actorUserId: user.id,
+        projectLabel: p.projectName,
+        dialogs: { requestConfirm, requestDestructiveWithReason },
+      })
+      if (r === 'ineligible') {
+        toastError(
+          'Só dá para congelar projeto em andamento ou inadimplente, ou descongelar um congelado. Finalizados e cancelados não usam este atalho.',
+        )
+        return
+      }
+      if (r === 'applied') {
+        toast(wasFrozen ? 'Projeto descongelado (em andamento).' : 'Projeto congelado.')
+      }
+    } finally {
+      setFreezeBusyId(null)
+    }
   }
 
   async function onDelete(id: string) {
@@ -177,6 +349,20 @@ export function ProjectsPage() {
     }
   }
 
+  async function persistAttentionQuickSave(project: DbProject, noteRaw: string) {
+    if (!user) return
+    setAttentionSaving(true)
+    try {
+      await applyManualAttentionOnlyPatch(project, user.id, noteRaw, analysts)
+      toast('Alerta operacional atualizado.')
+      closeAttentionQuick()
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Não foi possível salvar o alerta.')
+    } finally {
+      setAttentionSaving(false)
+    }
+  }
+
   if (!user) return null
   const canEditProjects = hasScope(user, 'projects.edit')
 
@@ -185,7 +371,7 @@ export function ProjectsPage() {
       <header className="page__header page__header--split">
         <div>
           <h1 className="page__title">Projetos</h1>
-          <p className="page__subtitle">{projects.length} projeto(s) cadastrado(s)</p>
+          <p className="page__subtitle">{projectsCountSubtitle}</p>
         </div>
         {canEditProjects ? (
           <button
@@ -193,6 +379,7 @@ export function ProjectsPage() {
             className="btn btn--ghost proj-page__new"
             onClick={() => {
               setEditingProject(null)
+              setFocusManualAttentionInModal(false)
               setCreateKanbanColumn('novos')
               setOpen(true)
             }}
@@ -204,6 +391,7 @@ export function ProjectsPage() {
       </header>
 
       <div className="projects-page__toolbar">
+        <div className="projects-page__toolbar-primary">
         <div className="project-sortbar" aria-label="Ordenação de projetos">
           <button
             type="button"
@@ -278,13 +466,16 @@ export function ProjectsPage() {
           {selectedAnalystIds.length > 0 ? (
             <button
               type="button"
-              className="projects-page__analyst-clear"
+              className="projects-page__toolbar-clear"
+              aria-label="Limpar filtro de analistas"
+              title="Limpar analistas"
               onClick={() => setSelectedAnalystIds([])}
             >
-              Limpar analistas
+              <X size={14} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
             </button>
           ) : null}
         </div>
+        <span className="projects-page__toolbar-divider" aria-hidden="true" />
         <div className="projects-page__plan-filter" role="group" aria-label="Filtrar por plano">
           {PLAN_FILTER_OPTIONS.map((plan) => {
             const selected = selectedPlanTypes.includes(plan.key)
@@ -308,19 +499,106 @@ export function ProjectsPage() {
           {selectedPlanTypes.length > 0 ? (
             <button
               type="button"
-              className="projects-page__plan-clear"
+              className="projects-page__toolbar-clear"
+              aria-label="Limpar filtro de planos"
+              title="Limpar planos"
               onClick={() => setSelectedPlanTypes([])}
             >
-              Limpar planos
+              <X size={14} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
             </button>
           ) : null}
         </div>
-        <label className="projects-page__search" aria-label="Buscar projeto por nome">
+        <div className="projects-page__client-type-filter" role="group" aria-label="Filtrar por tipo do cliente">
+          {CLIENT_TYPE_FILTER_CHIPS.map(({ type, label }) => {
+            const selected = selectedClientTypes.includes(type)
+            return (
+              <button
+                key={type}
+                type="button"
+                className={
+                  'projects-page__client-type-chip is-' + type + (selected ? ' is-selected' : '')
+                }
+                aria-pressed={selected}
+                onClick={() =>
+                  setSelectedClientTypes((prev) =>
+                    prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+                  )
+                }
+                title={selected ? `Remover filtro: ${label}` : `Filtrar: ${label}`}
+              >
+                {label}
+              </button>
+            )
+          })}
+          {selectedClientTypes.length > 0 ? (
+            <button
+              type="button"
+              className="projects-page__toolbar-clear"
+              aria-label="Limpar filtro de tipo de cliente"
+              title="Limpar tipo de cliente"
+              onClick={() => setSelectedClientTypes([])}
+            >
+              <X size={14} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        </div>
+        <div className="projects-page__toolbar-secondary">
+        <div className="projects-page__toolbar-filters">
+        <div className="projects-page__status-filter" role="group" aria-label="Filtrar por situação do projeto">
+          {STATUS_FILTER_CHIPS.map(({ status, label }) => {
+            const selected = selectedStatusFilters.includes(status)
+            return (
+              <button
+                key={status}
+                type="button"
+                className={'projects-page__status-chip' + (selected ? ' is-selected' : '')}
+                aria-pressed={selected}
+                onClick={() =>
+                  setSelectedStatusFilters((prev) =>
+                    prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
+                  )
+                }
+                title={selected ? `Remover filtro: ${label}` : `Filtrar: ${label}`}
+              >
+                {label}
+              </button>
+            )
+          })}
+          {selectedStatusFilters.length > 0 ? (
+            <button
+              type="button"
+              className="projects-page__toolbar-clear"
+              aria-label="Limpar filtro de situação"
+              title="Limpar situação"
+              onClick={() => setSelectedStatusFilters([])}
+            >
+              <X size={14} strokeWidth={2.25} absoluteStrokeWidth aria-hidden />
+            </button>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className={'projects-page__alert-filter' + (filterManualAlertOnly ? ' is-selected' : '')}
+          aria-pressed={filterManualAlertOnly}
+          aria-label={
+            filterManualAlertOnly
+              ? 'Remover filtro: somente com alerta operacional manual'
+              : 'Filtrar: somente com alerta operacional manual'
+          }
+          title="Somente projetos com alerta operacional manual"
+          onClick={() => setFilterManualAlertOnly((v) => !v)}
+        >
+          <CircleAlert size={16} strokeWidth={2.1} absoluteStrokeWidth aria-hidden />
+        </button>
+        </div>
+        <div className="projects-page__toolbar-trailing">
+        <label className="projects-page__search" aria-label="Buscar projetos por nome ou tipo de cliente">
           <Search size={15} strokeWidth={2} />
           <input
             className="input projects-page__search-input"
             type="text"
-            placeholder="Buscar por nome do projeto..."
+            placeholder="Nome do projeto, CONFECÇÃO, GENÉRICO…"
             value={projectNameSearch}
             onChange={(e) => setProjectNameSearch(e.target.value)}
           />
@@ -337,13 +615,18 @@ export function ProjectsPage() {
         </label>
         <button
           type="button"
-          className="btn btn--ghost btn--sm projects-page__pending-btn"
+          className="projects-page__pending-btn"
           onClick={() => setPendingModalOpen(true)}
-          title="Ver pendências por status de frescor"
+          title={`Pendências de check-in (> 7 dias): ${pendingCheckinProjects.length} projeto(s)`}
+          aria-label={`Abrir pendências de check-in: ${pendingCheckinProjects.length} projeto(s) sem check-in há mais de sete dias`}
         >
-          <AlertTriangle size={14} strokeWidth={2} />
-          Pendências ({pendingFreshnessProjects.length})
+          <AlertTriangle size={15} strokeWidth={2} aria-hidden />
+          <span className="projects-page__pending-count" aria-hidden>
+            {pendingCheckinProjects.length}
+          </span>
         </button>
+        </div>
+        </div>
       </div>
 
       {visibleProjects.length === 0 ? (
@@ -364,6 +647,7 @@ export function ProjectsPage() {
                   className="btn btn--primary"
                   onClick={() => {
                     setEditingProject(null)
+                    setFocusManualAttentionInModal(false)
                     setCreateKanbanColumn('novos')
                     setOpen(true)
                   }}
@@ -404,9 +688,10 @@ export function ProjectsPage() {
                 ? 'Salvo localmente; sincronizando com a nuvem'
                 : 'Falha na sincronização; nova tentativa na fila'
           const syncStatusTitle = syncMeta.lastErrorCode ?? syncStatusLabel
-          const freshness = deriveProjectFreshnessBySla(p).status
           const projectStartIso = p.startDate ?? p.createdAt
           const projectStartLabel = formatDatePt(projectStartIso)
+          const cancelIso = p.cancelledAt
+          const cancelLabel = cancelIso ? formatDatePt(cancelIso) : '—'
 
           const resolveCodeColor = (code: string): string | null => {
             const major = Number.parseInt(code.split('.')[0] ?? '0', 10)
@@ -414,8 +699,15 @@ export function ProjectsPage() {
             return phase?.colorHex ?? (phase ? planPhaseAccentHex(phase.orderIndex) : null)
           }
 
+          const cardFrame =
+            'proj-card' +
+            (p.status === 'congelado' ? ' proj-card--frozen' : '') +
+            (p.status === 'inadimplente' ? ' proj-card--arrears' : '') +
+            (p.status === 'cancelado' ? ' proj-card--cancelled-muted' : '') +
+            ((p.manualAttentionNote ?? '').trim() ? ' proj-card--manual-alert' : '')
+
           return (
-            <article key={p.id} className="proj-card">
+            <article key={p.id} className={cardFrame}>
               <div className="proj-card__head">
                 <div className="proj-card__title-stack">
                   <h2 className="proj-card__title">
@@ -443,6 +735,22 @@ export function ProjectsPage() {
                       {projectStartLabel}
                     </time>
                   </p>
+                  {p.status === 'cancelado' ? (
+                    <p
+                      className="proj-card__start-line proj-card__cancel-line"
+                      aria-label={`Data de cancelamento: ${cancelLabel}`}
+                    >
+                      <Ban className="proj-card__start-icon" size={13} strokeWidth={2} aria-hidden />
+                      <span className="proj-card__start-kicker">Data de cancelamento</span>
+                      <time
+                        className="proj-card__cancel-date"
+                        dateTime={cancelIso ? cancelIso.slice(0, 10) : undefined}
+                        title="Data em que o projeto foi dado como cancelado (negocial)"
+                      >
+                        {cancelLabel}
+                      </time>
+                    </p>
+                  ) : null}
                 </div>
                 <div className="proj-card__badges">
                   {analyst ? (
@@ -467,6 +775,12 @@ export function ProjectsPage() {
                   <span className={planPillClass(p.planType)} title={`Plano: ${planName}`}>
                     {planName}
                   </span>
+                  <span
+                    className={'proj-card__badge proj-card__badge--client-type is-' + (p.clientType ?? 'generico')}
+                    title="Tipo do cliente (negócio)"
+                  >
+                    {projectClientTypeLabelPt(p.clientType)}
+                  </span>
                   <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
                     {statusLabelPt(p.status)}
                   </span>
@@ -476,9 +790,14 @@ export function ProjectsPage() {
                     aria-label={`Status de sincronização: ${syncStatusLabel}`}
                     title={syncStatusTitle}
                   />
-                  <span className={'proj-card__badge proj-card__badge--freshness is-' + freshness}>
-                    {projectFreshnessLabel(freshness)}
-                  </span>
+                  {(p.manualAttentionNote ?? '').trim() ? (
+                    <span
+                      className="proj-card__badge proj-card__badge--op-alert"
+                      title={(p.manualAttentionNote ?? '').trim()}
+                    >
+                      Alerta
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
@@ -515,7 +834,7 @@ export function ProjectsPage() {
                 </div>
                 <div className="proj-card__meta-item proj-card__meta-item--checkin">
                   <CheckCheck {...metaIcon} aria-hidden />
-                  <span>Check-in: {p.lastManualCheckinAt ? formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}</span>
+                  <span>Atualizado em: {p.lastManualCheckinAt ? formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}</span>
                 </div>
                 <div
                   className="proj-card__meta-item proj-card__meta-item--phase"
@@ -553,15 +872,50 @@ export function ProjectsPage() {
                       type="button"
                       className="btn btn--ghost btn--icon proj-card__icon-action"
                       aria-label="Sincronizar projeto com nuvem"
-                      title={getProjectCloudSyncMeta(p.id).lastErrorCode ? `Reenviar (${getProjectCloudSyncMeta(p.id).lastErrorCode})` : 'Sincronizar agora'}
+                      title={(() => {
+                        void syncRetryUi
+                        const meta = getProjectCloudSyncMeta(p.id)
+                        const base = meta.lastErrorCode ? `Reenviar (${meta.lastErrorCode})` : 'Sincronizar agora'
+                        const n = syncRetryCountRef.current[p.id] ?? 0
+                        if (n >= 1 && n < 3) {
+                          return `${base} — mais ${3 - n} toque(s) para poder limpar a fila sem reenviar`
+                        }
+                        return base
+                      })()}
                       disabled={!!syncRefreshing[p.id]}
                       onClick={() => {
                         void (async () => {
-                          setSyncRefreshing((prev) => ({ ...prev, [p.id]: true }))
+                          const pid = p.id
+                          const prev = syncRetryCountRef.current[pid] ?? 0
+                          const next = prev + 1
+
+                          if (next >= 3) {
+                            const clear = await requestConfirm({
+                              title: 'Parar de tentar sincronizar?',
+                              message:
+                                'Este projeto continua na fila de envio à nuvem (o último erro pode ser RLS/permissão). Deseja remover da fila? O app deixa de reenviar automaticamente; os dados seguem salvos neste navegador. Depois de ajustar o Supabase, use este botão de novo para tentar.',
+                              confirmLabel: 'Limpar da fila',
+                              cancelLabel: 'Continuar tentando',
+                            })
+                            const { [pid]: _removed, ...rest } = syncRetryCountRef.current
+                            syncRetryCountRef.current = rest
+                            setSyncRetryUi((x) => x + 1)
+                            if (clear === true) {
+                              discardPendingProjectGraphSync(pid)
+                              setSyncTick((n) => n + 1)
+                              toast('Fila de sincronização deste projeto foi limpa.')
+                              return
+                            }
+                          } else {
+                            syncRetryCountRef.current = { ...syncRetryCountRef.current, [pid]: next }
+                            setSyncRetryUi((x) => x + 1)
+                          }
+
+                          setSyncRefreshing((prev) => ({ ...prev, [pid]: true }))
                           try {
-                            await flushPendingProjectGraphSyncByProject(p.id)
+                            await flushPendingProjectGraphSyncByProject(pid)
                             setSyncTick((n) => n + 1)
-                            const meta = getProjectCloudSyncMeta(p.id)
+                            const meta = getProjectCloudSyncMeta(pid)
                             toast(
                               meta.state === 'synced'
                                 ? 'Nuvem confirmou o projeto.'
@@ -570,7 +924,12 @@ export function ProjectsPage() {
                           } catch (e) {
                             toastError(e instanceof Error ? e.message : 'Falha ao sincronizar projeto.')
                           } finally {
-                            setSyncRefreshing((prev) => ({ ...prev, [p.id]: false }))
+                            setSyncRefreshing((prev) => ({ ...prev, [pid]: false }))
+                            if (!getPendingProjectGraphSyncIds().includes(pid)) {
+                              const { [pid]: _r, ...rest } = syncRetryCountRef.current
+                              syncRetryCountRef.current = rest
+                              setSyncRetryUi((x) => x + 1)
+                            }
                           }
                         })()
                       }}
@@ -591,11 +950,70 @@ export function ProjectsPage() {
                     </button>
                     <button
                       type="button"
+                      className={
+                        'btn btn--ghost btn--icon proj-card__icon-action' +
+                        ((p.manualAttentionNote ?? '').trim() ? ' proj-card__icon-action--attention' : '')
+                      }
+                      aria-expanded={attentionQuick?.projectId === p.id}
+                      aria-haspopup="dialog"
+                      aria-controls={attentionQuick?.projectId === p.id ? 'proj-attention-quick-popover' : undefined}
+                      aria-label="Alerta operacional — atalho na grade"
+                      title={
+                        (p.manualAttentionNote ?? '').trim()
+                          ? `Alerta: ${(p.manualAttentionNote ?? '').trim()}`
+                          : 'Marcar ou editar alerta operacional (atalho; edição completa no lápis)'
+                      }
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (attentionQuick?.projectId === p.id) {
+                          closeAttentionQuick()
+                          return
+                        }
+                        attentionAnchorRef.current = e.currentTarget
+                        const has = (p.manualAttentionNote ?? '').trim().length > 0
+                        setAttentionQuick({
+                          projectId: p.id,
+                          mode: has ? 'view' : 'edit',
+                          editBuffer: p.manualAttentionNote ?? '',
+                          err: null,
+                        })
+                      }}
+                    >
+                      <CircleAlert size={15} strokeWidth={2.15} />
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        'btn btn--ghost btn--icon proj-card__icon-action' +
+                        (p.status === 'congelado' ? ' proj-card__icon-action--freeze-on' : '') +
+                        (p.status === 'finalizado' || p.status === 'cancelado'
+                          ? ' proj-card__icon-action--muted-disabled'
+                          : '')
+                      }
+                      aria-label={p.status === 'congelado' ? 'Descongelar projeto' : 'Congelar projeto'}
+                      title={
+                        p.status === 'finalizado' || p.status === 'cancelado'
+                          ? 'Indisponível para finalizado ou cancelado'
+                          : p.status === 'congelado'
+                            ? 'Descongelar (ativo) — confirmação e motivo'
+                            : 'Congelar — pede motivo (histórico no projeto)'
+                      }
+                      disabled={
+                        !!freezeBusyId || p.status === 'finalizado' || p.status === 'cancelado'
+                      }
+                      onClick={() => void onFreezeQuickToggle(p)}
+                    >
+                      <Snowflake size={15} strokeWidth={2.15} aria-hidden />
+                    </button>
+                    <button
+                      type="button"
                       className="btn btn--ghost btn--icon proj-card__icon-action"
                       aria-label="Editar projeto"
                       title="Editar projeto"
                       onClick={() => {
                         setEditingProject(p)
+                        setFocusManualAttentionInModal(false)
                         setOpen(true)
                       }}
                     >
@@ -622,11 +1040,172 @@ export function ProjectsPage() {
         </div>
       )}
 
+      {attentionQuick && attentionPos
+        ? createPortal(
+            (() => {
+              const cur = projects.find((x) => x.id === attentionQuick.projectId)
+              if (!cur) return null
+              return (
+                <div
+                  ref={attentionPopoverRef}
+                  id="proj-attention-quick-popover"
+                  className="project-create-modal__manual-alert-popover projects-page__attention-quick-popover"
+                  role="dialog"
+                  aria-labelledby="proj-attention-quick-title"
+                  style={{
+                    position: 'fixed',
+                    top: attentionPos.top,
+                    left: attentionPos.left,
+                    width: attentionPos.width,
+                    zIndex: 4200,
+                  }}
+                >
+                  <p className="project-create-modal__manual-alert-popover-title" id="proj-attention-quick-title">
+                    Alerta operacional
+                  </p>
+                  {attentionQuick.mode === 'view' && (cur.manualAttentionNote ?? '').trim() ? (
+                    <>
+                      <p className="project-create-modal__manual-alert-popover-text">
+                        {(cur.manualAttentionNote ?? '').trim()}
+                      </p>
+                      <div className="project-create-modal__manual-alert-popover-actions">
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          disabled={attentionSaving}
+                          onClick={() => {
+                            setAttentionQuick((s) =>
+                              s ? { ...s, mode: 'edit', editBuffer: cur.manualAttentionNote ?? '', err: null } : s,
+                            )
+                            requestAnimationFrame(() => attentionEditRef.current?.focus())
+                          }}
+                        >
+                          Editar texto
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm btn--danger"
+                          disabled={attentionSaving}
+                          onClick={async () => {
+                            const ok = await requestConfirm({
+                              title: 'Remover alerta',
+                              message: 'Remover o alerta operacional manual deste projeto?',
+                              confirmLabel: 'Remover',
+                              cancelLabel: 'Manter',
+                            })
+                            if (!ok) return
+                            await persistAttentionQuickSave(cur, '')
+                          }}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                  {attentionQuick.mode === 'view' && !(cur.manualAttentionNote ?? '').trim() ? (
+                    <div className="project-create-modal__manual-alert-popover-actions project-create-modal__manual-alert-popover-actions--stack">
+                      <p className="muted project-create-modal__manual-alert-popover-empty">
+                        Nenhum alerta. Opcional — mínimo 12 caracteres se definir.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn--sm"
+                        disabled={attentionSaving}
+                        onClick={() => {
+                          setAttentionQuick((s) => (s ? { ...s, mode: 'edit', editBuffer: '', err: null } : s))
+                          requestAnimationFrame(() => attentionEditRef.current?.focus())
+                        }}
+                      >
+                        Escrever alerta
+                      </button>
+                    </div>
+                  ) : null}
+                  {attentionQuick.mode === 'edit' ? (
+                    <>
+                      <textarea
+                        ref={attentionEditRef}
+                        className="project-create-modal__manual-alert-popover-textarea"
+                        rows={4}
+                        value={attentionQuick.editBuffer}
+                        onChange={(e) =>
+                          setAttentionQuick((s) => (s ? { ...s, editBuffer: e.target.value, err: null } : s))
+                        }
+                        placeholder="Motivo visível na grade (tooltip). Mínimo 12 caracteres ou deixe em branco."
+                      />
+                      {attentionQuick.err ? (
+                        <p className="auth__error project-create-modal__manual-alert-popover-err">{attentionQuick.err}</p>
+                      ) : null}
+                      <div className="project-create-modal__manual-alert-popover-actions">
+                        <button
+                          type="button"
+                          className="btn btn--sm"
+                          disabled={attentionSaving}
+                          onClick={async () => {
+                            const t = attentionQuick.editBuffer.trim()
+                            if (t.length > 0 && t.length < 12) {
+                              setAttentionQuick((s) =>
+                                s ? { ...s, err: 'Use pelo menos 12 caracteres ou deixe em branco.' } : s,
+                              )
+                              return
+                            }
+                            await persistAttentionQuickSave(cur, attentionQuick.editBuffer)
+                          }}
+                        >
+                          Aplicar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          disabled={attentionSaving}
+                          onClick={() => {
+                            const has = (cur.manualAttentionNote ?? '').trim()
+                            if (has) {
+                              setAttentionQuick((s) =>
+                                s
+                                  ? {
+                                      ...s,
+                                      mode: 'view',
+                                      err: null,
+                                      editBuffer: cur.manualAttentionNote ?? '',
+                                    }
+                                  : s,
+                              )
+                            } else {
+                              closeAttentionQuick()
+                            }
+                          }}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          disabled={attentionSaving}
+                          onClick={() => {
+                            setEditingProject(cur)
+                            setFocusManualAttentionInModal(true)
+                            setOpen(true)
+                            closeAttentionQuick()
+                          }}
+                        >
+                          Abrir edição completa…
+                        </button>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )
+            })(),
+            document.body,
+          )
+        : null}
+
       <ProjectCreateModal
         open={open}
         onClose={() => {
           setOpen(false)
           setEditingProject(null)
+          setFocusManualAttentionInModal(false)
           setProjectModalDirty(false)
         }}
         onDirtyChange={setProjectModalDirty}
@@ -635,6 +1214,7 @@ export function ProjectsPage() {
         analysts={analysts}
         initialKanbanColumn={createKanbanColumn}
         projectToEdit={editingProject}
+        focusManualAttentionOnOpen={focusManualAttentionInModal}
       />
 
       <ConfirmProjectDeleteModal
@@ -648,19 +1228,18 @@ export function ProjectsPage() {
         <div className="modal-backdrop" role="presentation" onClick={() => setPendingModalOpen(false)}>
           <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
             <h2 className="modal__title">Pendências de check-in</h2>
-            <p className="muted">Projetos em neutro, atrasado ou crítico precisam de acompanhamento manual.</p>
+            <p className="muted">Projetos sem check-in há mais de 7 dias precisam de acompanhamento manual.</p>
             <div className="dashboard-side-stack">
-              {pendingFreshnessProjects.length === 0 ? (
+              {pendingCheckinProjects.length === 0 ? (
                 <p className="muted">Nenhuma pendência no momento.</p>
               ) : (
-                pendingFreshnessProjects.map((project) => {
-                  const status = deriveProjectFreshnessBySla(project).status
+                pendingCheckinProjects.map((project) => {
                   return (
                     <div key={project.id} className="dashboard-cc__row">
                       <strong>{project.projectName}</strong>
-                      <span>{projectFreshnessLabel(status)}</span>
                       <small>
-                        Último check-in: {project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : '—'}
+                        Atualizado em:{' '}
+                        {project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : '—'}
                       </small>
                     </div>
                   )

@@ -9,10 +9,24 @@ export function normalizeProjectPlacement(input: {
 }): { status: ProjectStatus; kanbanColumn: KanbanColumn } {
   const { status, kanbanColumn } = input
 
-  if (status === 'finalizado' || kanbanColumn === 'finalizados') {
+  /** Situação explícita (ex.: formulário de edição) tem prioridade sobre colunas “terminais” antigas. */
+  if (status === 'finalizado') {
     return { status: 'finalizado', kanbanColumn: 'finalizados' }
   }
-  if (status === 'cancelado' || kanbanColumn === 'cancelados') {
+  if (status === 'cancelado') {
+    return { status: 'cancelado', kanbanColumn: 'cancelados' }
+  }
+  if (status === 'ativo' || status === 'inadimplente' || status === 'congelado') {
+    if (kanbanColumn === 'cancelados' || kanbanColumn === 'finalizados') {
+      return { status, kanbanColumn: 'novos' }
+    }
+    return { status, kanbanColumn }
+  }
+
+  if (kanbanColumn === 'finalizados') {
+    return { status: 'finalizado', kanbanColumn: 'finalizados' }
+  }
+  if (kanbanColumn === 'cancelados') {
     return { status: 'cancelado', kanbanColumn: 'cancelados' }
   }
   return { status, kanbanColumn }

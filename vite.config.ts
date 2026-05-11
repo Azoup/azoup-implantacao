@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Alinhar com `vercel.json`: a SPA chama `/api/brasilapi/...` e `/api/receitaws/...` (evita CORS em produção).
     proxy: {
       '/api/brasilapi': {
         target: 'https://brasilapi.com.br',

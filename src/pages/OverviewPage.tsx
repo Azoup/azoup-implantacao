@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
-import { GripVertical, Plus } from 'lucide-react'
+import { Ban, GripVertical, Plus } from 'lucide-react'
 import { db } from '../db/database'
 import {
   emptyAnalysts,
@@ -25,6 +25,10 @@ import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 import { planPillClass, planSummaryLabel } from '../constants/customPlan'
+import { statusLabelPt } from '../lib/projectPhaseUi'
+import { projectClientTypeLabelPt } from '../lib/projectClientType'
+import { dateInputToIsoNoon } from '../lib/brazilFormat'
+import { formatDatePt, toDateInputValue } from '../lib/dates'
 
 const iconSmall = { size: 16, strokeWidth: 2 } as const
 
@@ -69,6 +73,8 @@ export function OverviewPage() {
 
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
   const [justification, setJustification] = useState('')
+  /** Ao mover para Cancelados: data negocial gravada no projeto. */
+  const [cancelMoveDateYmd, setCancelMoveDateYmd] = useState('')
   const [modalError, setModalError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -97,6 +103,8 @@ export function OverviewPage() {
     if (from === to) return
     setModalError(null)
     setJustification('')
+    if (to === 'cancelados') setCancelMoveDateYmd(toDateInputValue(new Date()))
+    else setCancelMoveDateYmd('')
     setPendingMove({ projectId, projectName, from, to })
   }
 
@@ -105,9 +113,18 @@ export function OverviewPage() {
     setModalError(null)
     setSubmitting(true)
     try {
-      await applyManualKanbanColumnMove(pendingMove.projectId, pendingMove.to, justification)
+      const cancelIso =
+        pendingMove.to === 'cancelados' ? dateInputToIsoNoon(cancelMoveDateYmd) ?? undefined : undefined
+      if (pendingMove.to === 'cancelados' && !cancelIso) {
+        setModalError('Informe a data de cancelamento.')
+        return
+      }
+      await applyManualKanbanColumnMove(pendingMove.projectId, pendingMove.to, justification, {
+        cancelledAtIso: cancelIso,
+      })
       setPendingMove(null)
       setJustification('')
+      setCancelMoveDateYmd('')
     } catch (e) {
       setModalError(e instanceof Error ? e.message : 'Não foi possível mover.')
     } finally {
@@ -118,6 +135,7 @@ export function OverviewPage() {
   const cancelModal = useCallback(() => {
     setPendingMove(null)
     setJustification('')
+    setCancelMoveDateYmd('')
     setModalError(null)
   }, [])
 
@@ -128,7 +146,7 @@ export function OverviewPage() {
           <h1 className="page__title">Visão Geral</h1>
           <p className="page__subtitle">
             Colunas = fases do plano (0.x → Fase 00, 1.x → Fase 01, …); Concluídos só com todo o plano fechado ·{' '}
-            {activeCount} projeto(s) ativos
+            {activeCount} projeto(s) no quadro (exceto cancelados)
           </p>
         </div>
         {canEditProjects ? (
@@ -211,10 +229,16 @@ export function OverviewPage() {
                         return phase?.colorHex ?? null
                       }
                       const effective = effectiveKanbanByProject.get(p.id) ?? p.kanbanColumn
+                      const kFrame =
+                        'kanban-card' +
+                        (p.status === 'congelado' ? ' kanban-card--frozen' : '') +
+                        (p.status === 'inadimplente' ? ' kanban-card--arrears' : '') +
+                        (p.status === 'cancelado' ? ' kanban-card--cancelled-muted' : '') +
+                        ((p.manualAttentionNote ?? '').trim() ? ' kanban-card--manual-alert' : '')
                       return (
                         <article
                           key={p.id}
-                          className="kanban-card"
+                          className={kFrame}
                           draggable={canEditProjects}
                           onDragStart={(e) => {
                             if (!canEditProjects) return
@@ -257,7 +281,31 @@ export function OverviewPage() {
                             >
                               {planSummaryLabel(p.planType)}
                             </span>
+                            <span
+                              className={'proj-card__badge proj-card__badge--client-type is-' + (p.clientType ?? 'generico')}
+                              title="Tipo do cliente (negócio)"
+                            >
+                              {projectClientTypeLabelPt(p.clientType)}
+                            </span>
+                            <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
+                              {statusLabelPt(p.status)}
+                            </span>
+                            {(p.manualAttentionNote ?? '').trim() ? (
+                              <span
+                                className="proj-card__badge proj-card__badge--op-alert"
+                                title={(p.manualAttentionNote ?? '').trim()}
+                              >
+                                Alerta
+                              </span>
+                            ) : null}
                           </div>
+                          {p.status === 'cancelado' ? (
+                            <p className="kanban-card__cancel-strip" title="Data de cancelamento do projeto">
+                              <Ban size={12} strokeWidth={2} aria-hidden />
+                              <span>Data de cancelamento:</span>
+                              <strong>{p.cancelledAt ? formatDatePt(p.cancelledAt) : '—'}</strong>
+                            </p>
+                          ) : null}
                           <PlanLabelRow
                             last={lastLabel}
                             active={activeLabel}
@@ -344,6 +392,19 @@ export function OverviewPage() {
                 Isso mantém o quadro alinhado à subaba <strong>Fases e tarefas</strong> do projeto.
               </p>
             </div>
+            {pendingMove.to === 'cancelados' ? (
+              <label className="field">
+                <span>Data de cancelamento</span>
+                <input
+                  type="date"
+                  value={cancelMoveDateYmd}
+                  onChange={(e) => setCancelMoveDateYmd(e.target.value)}
+                />
+                <span className="muted" style={{ fontSize: '0.85rem', display: 'block', marginTop: '0.35rem' }}>
+                  Padrão: hoje. Ajuste se o cancelamento foi registrado em outro dia.
+                </span>
+              </label>
+            ) : null}
             <label className="field">
               <span>Justificativa (obrigatória, mín. 8 caracteres)</span>
               <textarea
@@ -351,7 +412,7 @@ export function OverviewPage() {
                 value={justification}
                 onChange={(e) => setJustification(e.target.value)}
                 placeholder="Ex.: Cliente pediu retorno à fase de vendas após pausa contratual."
-                autoFocus
+                autoFocus={pendingMove.to !== 'cancelados'}
               />
             </label>
             {modalError ? <p className="field__error">{modalError}</p> : null}
@@ -362,7 +423,11 @@ export function OverviewPage() {
               <button
                 type="button"
                 className="btn btn--primary"
-                disabled={submitting || justification.trim().length < 8}
+                disabled={
+                  submitting ||
+                  justification.trim().length < 8 ||
+                  (pendingMove.to === 'cancelados' && !cancelMoveDateYmd.trim())
+                }
                 onClick={() => void confirmMove()}
               >
                 {submitting ? 'Aplicando…' : 'Confirmar'}

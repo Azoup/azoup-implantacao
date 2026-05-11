@@ -1,11 +1,12 @@
 import type { DbEvent, DbPhase, DbProject, DbTask } from '../../db/types'
+import { isDashboardOperationalStatus } from '../projectStatus'
 import { deriveKanbanColumnFromPlanState } from '../../services/kanbanPhaseSync'
 import type { DashboardKpiDrilldownKey } from '../../types/dashboard'
 import { isCutoverEvent } from './cutoverClassifier'
 
-/** Projetos operacionais em curso: somente `ativo`, coluna derivada do plano ≠ finalizados/cancelados (alinhado ao board do dashboard). */
+/** Projetos operacionais em curso: `ativo` ou `inadimplente`, coluna derivada do plano ≠ finalizados/cancelados (alinhado ao board do dashboard). */
 export function isProjectOperationalOngoing(project: DbProject, phases: DbPhase[], tasks: DbTask[]): boolean {
-  if (project.status !== 'ativo') return false
+  if (!isDashboardOperationalStatus(project.status)) return false
   const col = deriveKanbanColumnFromPlanState(project, phases, tasks)
   return col !== 'finalizados' && col !== 'cancelados'
 }

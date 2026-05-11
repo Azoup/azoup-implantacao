@@ -41,21 +41,18 @@ type ReceitaWsCnpjJson = {
   message?: string
 }
 
-async function fetchJsonWithCorsFallback(endpoint: string): Promise<Response> {
-  try {
-    return await fetch(endpoint, { headers: { Accept: 'application/json' } })
-  } catch {
-    const fallbackUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`
-    return await fetch(fallbackUrl, { headers: { Accept: 'application/json' } })
-  }
+/**
+ * Mesma origem que a SPA: em dev o Vite proxia `/api/brasilapi` e `/api/receitaws`;
+ * na Vercel, `vercel.json` reescreve esses prefixos para os hosts externos (evita CORS no browser).
+ */
+function fetchCnpjJson(endpoint: string): Promise<Response> {
+  return fetch(endpoint, { headers: { Accept: 'application/json' } })
 }
 
 async function fetchFromBrasilApi(cnpjDigits: string): Promise<CnpjLookupResult> {
-  const endpoint = import.meta.env.DEV
-    ? `/api/brasilapi/api/cnpj/v1/${cnpjDigits}`
-    : `https://brasilapi.com.br/api/cnpj/v1/${cnpjDigits}`
+  const endpoint = `/api/brasilapi/api/cnpj/v1/${cnpjDigits}`
 
-  const res = await fetchJsonWithCorsFallback(endpoint)
+  const res = await fetchCnpjJson(endpoint)
   if (res.status === 429) {
     throw new Error('BRASILAPI_RATE_LIMIT')
   }
@@ -83,11 +80,9 @@ async function fetchFromBrasilApi(cnpjDigits: string): Promise<CnpjLookupResult>
 }
 
 async function fetchFromReceitaWs(cnpjDigits: string): Promise<CnpjLookupResult> {
-  const endpoint = import.meta.env.DEV
-    ? `/api/receitaws/v1/cnpj/${cnpjDigits}`
-    : `https://www.receitaws.com.br/v1/cnpj/${cnpjDigits}`
+  const endpoint = `/api/receitaws/v1/cnpj/${cnpjDigits}`
 
-  const res = await fetchJsonWithCorsFallback(endpoint)
+  const res = await fetchCnpjJson(endpoint)
   if (!res.ok) {
     if (res.status === 404) throw new Error('CNPJ não encontrado na base consultada.')
     throw new Error('Falha ao consultar CNPJ na ReceitaWS.')

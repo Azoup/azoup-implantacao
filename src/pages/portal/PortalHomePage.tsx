@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Activity, CalendarClock, CheckCircle2, Clock3, FolderKanban, Target } from 'lucide-react'
 import { fetchMyPortalProjects, type PortalProject } from '../../services/clientPortal'
+import type { ProjectStatus } from '../../db/types'
 import { formatDatePt, parseAppDate } from '../../lib/dates'
+import { isDashboardOperationalStatus } from '../../lib/projectStatus'
 import { useUiFeedback } from '../../ui/UiFeedbackContext'
 
 export function PortalHomePage() {
@@ -32,7 +34,7 @@ export function PortalHomePage() {
 
   const summary = useMemo(() => {
     const total = projects.length
-    const ongoing = projects.filter((p) => p.status === 'ativo').length
+    const ongoing = projects.filter((p) => isDashboardOperationalStatus(p.status as ProjectStatus)).length
     const completed = projects.filter((p) => p.status === 'finalizado').length
     const hoursUsed = projects.reduce((acc, p) => acc + p.hoursUsed, 0)
     const hoursContracted = projects.reduce((acc, p) => acc + p.hoursContracted, 0)

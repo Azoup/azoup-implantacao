@@ -232,6 +232,7 @@ export async function seedTestProjects(): Promise<void> {
 
     const projectId = await createProjectFromPlan({
       projectName: def.name,
+      clientType: 'confeccao',
       planKey: def.planKey,
       ownerId: user.id,
       createdBy: user.id,

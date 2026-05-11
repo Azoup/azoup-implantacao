@@ -42,9 +42,11 @@ function sameNumber(a: unknown, b: unknown): boolean {
 
 const FIELD_LABEL: Record<string, string> = {
   projectName: 'Nome do projeto',
+  clientType: 'Tipo do cliente (negócio)',
   analystId: 'Analista responsável',
   startDate: 'Data de início',
   dueDate: 'Previsão de término',
+  cancelledAt: 'Data de cancelamento',
   status: 'Situação do projeto',
   kanbanColumn: 'Coluna do quadro',
   cnpj: 'CNPJ',
@@ -67,6 +69,7 @@ const FIELD_LABEL: Record<string, string> = {
   secondaryRazaoSocial: 'Razão social (CNPJ sec.)',
   modulesDescription: 'Módulos / escopo',
   hoursContracted: 'Horas contratadas',
+  manualAttentionNote: 'Alerta operacional',
 }
 
 const KANBAN_PT: Record<string, string> = {
@@ -80,10 +83,16 @@ const KANBAN_PT: Record<string, string> = {
 }
 
 const STATUS_PT: Record<string, string> = {
-  ativo: 'Ativo',
-  pausado: 'Pausado',
+  ativo: 'Em andamento',
+  inadimplente: 'Inadimplente',
+  congelado: 'Congelado',
   finalizado: 'Finalizado',
   cancelado: 'Cancelado',
+}
+
+const CLIENT_TYPE_PT: Record<string, string> = {
+  confeccao: 'CONFECÇÃO',
+  generico: 'GENÉRICO',
 }
 
 export type ProjectPersistPatchAuditOpts = {
@@ -112,10 +121,19 @@ export function describeProjectPersistPatchDiff(
   }
 
   for (const key of Object.keys(patch)) {
+    if (key === 'manualAttentionAt' || key === 'manualAttentionBy') continue
+
     if (key === 'planSnapshot') {
       const next = patch.planSnapshot
       if (JSON.stringify(before.planSnapshot) !== JSON.stringify(next)) {
         lines.push('Plano contratado (snapshot) alterado.')
+      }
+      continue
+    }
+
+    if (key === 'freezeTimeline') {
+      if (JSON.stringify(before.freezeTimeline ?? []) !== JSON.stringify(patch.freezeTimeline)) {
+        lines.push('Histórico de congelamento / descongelamento atualizado.')
       }
       continue
     }
@@ -125,7 +143,7 @@ export function describeProjectPersistPatchDiff(
     const oldVal = before[key as keyof DbProject] as unknown
     const newVal = patch[key]
 
-    if (key === 'startDate' || key === 'dueDate') {
+    if (key === 'startDate' || key === 'dueDate' || key === 'cancelledAt') {
       if (!sameCalendarDate(oldVal, newVal)) {
         pushChange(label, fmtDate(oldVal), fmtDate(newVal))
       }
@@ -150,6 +168,17 @@ export function describeProjectPersistPatchDiff(
       continue
     }
 
+    if (key === 'clientType') {
+      if (oldVal !== newVal) {
+        pushChange(
+          label,
+          CLIENT_TYPE_PT[String(oldVal)] ?? String(oldVal ?? '—'),
+          CLIENT_TYPE_PT[String(newVal)] ?? String(newVal ?? '—'),
+        )
+      }
+      continue
+    }
+
     if (key === 'kanbanColumn') {
       if (oldVal !== newVal) {
         pushChange(
@@ -168,7 +197,7 @@ export function describeProjectPersistPatchDiff(
       continue
     }
 
-    if (key === 'internalNotes' || key === 'modulesDescription') {
+    if (key === 'internalNotes' || key === 'modulesDescription' || key === 'manualAttentionNote') {
       if (!sameBlankableString(oldVal, newVal)) {
         lines.push(`${label} alterado.`)
         lines.push(`  Antes: ${clipLine(String(oldVal ?? ''))}`)

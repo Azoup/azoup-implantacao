@@ -558,6 +558,162 @@ export class VyntaskDB extends Dexie {
           }
         })
       })
+    this.version(20)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.manualAttentionNote === undefined) row.manualAttentionNote = null
+          if (row.manualAttentionAt === undefined) row.manualAttentionAt = null
+          if (row.manualAttentionBy === undefined) row.manualAttentionBy = null
+        })
+      })
+    this.version(21)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt, clientType',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.clientType === undefined) row.clientType = 'generico'
+        })
+      })
+
+    this.version(22)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt, clientType',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        // Unifica o status operacional: "pausado" -> "congelado".
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.status === 'pausado') row.status = 'congelado'
+        })
+      })
+
+    this.version(23)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt, clientType',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.freezeTimeline === undefined) row.freezeTimeline = []
+        })
+      })
+
+    this.version(24)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt, clientType',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.status === 'inativo') row.status = 'cancelado'
+        })
+      })
+
+    this.version(25)
+      .stores({
+        users: 'id, email, status, role',
+        analysts: 'id, active, name, profileId',
+        auditLogs: 'id, createdAt, action, entity, userId, userEmail',
+        planModels: 'id, key, active',
+        planPhases: 'id, planModelId, orderIndex',
+        planTasks: 'id, planPhaseId, sortOrder, code',
+        projects: 'id, status, analystId, kanbanColumn, createdAt, planType, cnpj, lastManualCheckinAt, clientType',
+        projectDeletionLogs: 'id, projectId, deletedByUserId, deletedAt',
+        projectContacts: 'id, projectId',
+        phases: 'id, projectId, orderIndex',
+        tasks: 'id, projectId, phaseId, status, code, dueDate, assignedTo,rescheduledFromTaskId,rescheduledToTaskId,cancellationReason,completedManualOverride,cancelledManually',
+        events: 'id, startTime, analystId, projectId, taskId, status',
+        timeLogs: 'id, taskId, userId, executionDate',
+        timeSessions: 'id, taskId, userId, analystId, startedAt, endedAt',
+        comments: 'id, createdAt, taskId, projectId, eventId, authorId',
+        labels: 'id, projectId, code',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('projects').toCollection().modify((row: Record<string, unknown>) => {
+          if (row.cancelledAt !== undefined) return
+          row.cancelledAt = null
+          if (row.status === 'cancelado' && row.createdAt) {
+            const ca = String(row.createdAt).slice(0, 10)
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ca)) row.cancelledAt = `${ca}T12:00:00.000Z`
+          }
+        })
+      })
   }
 }
 

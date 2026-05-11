@@ -3,7 +3,7 @@ import type { DbEvent, DbProject, DbTask, DbUser } from '../db/types'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { supabase } from '../lib/supabaseClient'
 import { getPrimaryScheduledEventForTask } from '../lib/taskSchedule'
-import { deriveProjectFreshnessBySla } from './projectFreshness'
+import { isProjectCheckinStale } from './projectCheckin'
 
 type MatchConfidence = 'alta' | 'media' | 'baixa'
 type AssistantSeverity = 'media' | 'alta' | 'critica'
@@ -150,12 +150,13 @@ function buildAlerts(project: DbProject, tasks: DbTask[], nextTask: AiProjectSna
     else if (pct >= 90) alerts.push({ tipo: 'risco_orcamento', severidade: 'alta', regraDisparada: 'Consumo de horas acima de 90%.' })
     else if (pct >= 80) alerts.push({ tipo: 'risco_orcamento', severidade: 'media', regraDisparada: 'Consumo de horas acima de 80%.' })
   }
-  const freshness = deriveProjectFreshnessBySla(project)
-  if (freshness.status === 'atrasado' || freshness.status === 'critico') {
+  const stale7 = isProjectCheckinStale(project, 7)
+  if (stale7) {
+    const stale14 = isProjectCheckinStale(project, 14)
     alerts.push({
       tipo: 'sem_atualizacao',
-      severidade: freshness.status === 'critico' ? 'critica' : 'alta',
-      regraDisparada: 'Projeto sem check-in recente.',
+      severidade: stale14 ? 'critica' : 'alta',
+      regraDisparada: stale14 ? 'Projeto com check-in ausente há muito tempo.' : 'Projeto sem check-in recente.',
     })
   }
   if (!nextTask) {
