@@ -44,7 +44,7 @@ const BUILTIN_ORDER: PlanTypeKey[] = ['basic', 'pro', 'master']
 const EMPTY_TEMPLATE = '__empty__'
 
 export function PlanModelsPage() {
-  const { toastError, requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
+  const { requestConfirm, toastMutationSuccess, toastMutationError } = useUiFeedback()
   const { user } = useAuth()
   const canEditPlanModels = hasScope(user, 'planModels.edit')
   const plans = useLiveQuery(() => db.planModels.toArray(), []) ?? emptyPlanModels
@@ -206,7 +206,7 @@ export function PlanModelsPage() {
         toastMutationSuccess({ action: 'create', target: 'Fase', gender: 'f' })
       }
     },
-    [selectedId, phaseEditing, canEditPlanModels, detail.phases],
+    [selectedId, phaseEditing, canEditPlanModels, detail.phases, toastMutationSuccess],
   )
 
   const openNewTask = useCallback(

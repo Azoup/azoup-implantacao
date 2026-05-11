@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.4.4 (2026-05-11)
+
+- **CI:** ESLint em `PlanModelsPage` — remoção de `toastError` não usado e dependência `toastMutationSuccess` em `onPhaseSave` (`react-hooks/exhaustive-deps`).
+
 ## v3.4.3 (2026-05-11)
 
 - **Projetos:** no card da grade, linha discreta **Início** + data (ícone calendário) logo abaixo do nome; usa `start_date` do projeto e, se ausente, a data de cadastro (`created_at`) como fallback.
