@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db/database'
@@ -56,16 +56,16 @@ export function WelcomeFormsPage() {
   const { user } = useAuth()
   const canPreviewPortal = Boolean(user && hasScope(user, 'portal.forms.fill'))
 
-  const projects =
-    useLiveQuery(
-      () =>
-        db.projects.toArray().then((rows) =>
-          [...rows].sort((a, b) =>
-            (a.projectName ?? '').localeCompare(b.projectName ?? '', 'pt-BR', { sensitivity: 'base' }),
-          ),
+  const projectsLive = useLiveQuery(
+    () =>
+      db.projects.toArray().then((rows) =>
+        [...rows].sort((a, b) =>
+          (a.projectName ?? '').localeCompare(b.projectName ?? '', 'pt-BR', { sensitivity: 'base' }),
         ),
-      [],
-    ) ?? []
+      ),
+    [],
+  )
+  const projects = useMemo(() => projectsLive ?? [], [projectsLive])
   const [projectId, setProjectId] = useState('')
   const [tab, setTab] = useState<TabKey>('editor')
   const [templateId, setTemplateId] = useState<string | null>(null)
