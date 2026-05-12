@@ -2,38 +2,34 @@
 
 > **Legado (Alfa/Beta):** entradas de versão **anteriores a v1.0.0** descrevem o ciclo de desenvolvimento sob o nome de código **VynTask** (fases Alfa/Beta). O texto abaixo foi **preservado** como histórico. A linha de produto atual é **Implantação Azoup**, com **semver** (`major.minor.patch`) e notas categorizadas (BUG FIX, MELHORIA, NOVA FUNÇÃO, etc.).
 
-## v1.0.2 (2026-05-12)
+## v1.1.1 (2026-05-12)
 
 ### BUG FIX
 
-- **Notas de atualização:** horário de publicação formatado sempre em **Brasília** (`America/Sao_Paulo`), em vez do fuso local do navegador.
+- **Formulários** (`/formularios`): lista de projetos ordenada em memória em vez de `orderBy('projectName')` no Dexie (o índice `projectName` não existe na store `projects`), eliminando o erro ao abrir a página.
 
-### MELHORIA
+## v1.1.0 (2026-05-12)
 
-- Sidebar e cabeçalho da página: rótulo **Notas de atualização** (URL `/atualizacoes` inalterada).
-
-## v1.0.1 (2026-05-12)
-
-### MELHORIA
-
-- Repositório e scripts alinhados ao nome **Implantação Azoup** (`package.json`, `.bat`, chaves de sessão/UI e comentários SQL). **Sem mudança obrigatória** na Vercel além do deploy; no Supabase, **bucket** e **funções** com id legado `vyntask` permanecem até migração manual (ver notas no `README` em `supabase/`).
-
-## v1.0.0 (2026-05-12)
-
-Versão inicial da linha **Implantação Azoup**. Mesmo número em `package.json` (`1.0.0`), interface e tags de release (`v1.0.0`).
+Entrega **diária** (várias mudanças agrupadas numa única versão). Política: versionar ao fechar o dia ou quando você pedir release para subir no Git — não a cada prompt.
 
 ### NOVA FUNÇÃO
 
-- Página **Notas de atualização** (`/atualizacoes`) com notas legíveis, data/hora de publicação, etiqueta (`tag`) de versão e selos por tipo de mudança.
+- Página **Notas de atualização** (`/atualizacoes`): histórico, etiqueta de release, categorias e filtros (busca, etiqueta, intervalo de datas em Brasília, tipo de mudança).
+- Página **Formulários** (`/formularios`): editor do formulário de boas-vindas por projeto (perguntas + link Google opcional), listagem de respostas sincronizadas do Supabase e pré-visualização do portal; o que salvar reflete em **Portal → Boas-vindas** do cliente.
 
 ### MELHORIA
 
-- Identidade visual: logotipo oficial **Azoup** (laranja) e nome **Implantação Azoup** em sidebar, login e telas públicas; remoção da marca anterior nas telas do app.
-- Versionamento e changelog em semver de três partes; classificação das mudanças nas versões novas.
+- Identidade **Implantação Azoup** (logo Azoup, menu e título das notas); alinhamento de repositório (`package.json`, `.bat`, chaves `implantacao_azoup_*`, sync). Supabase: bucket/funções com id legado documentados onde não renomeados.
+- **Semver** e `CHANGELOG.md` espelhado em `src/constants/releaseNotes.ts`.
+- **Notas de atualização:** chips do filtro **Tipos de mudança** em versalete (maiúsculas via CSS), alinhados às tags da lista de cada release.
+
+### BUG FIX
+
+- Datas das notas no calendário de **Brasília** (`America/Sao_Paulo`), independentemente do fuso do navegador.
 
 ### DOCUMENTAÇÃO
 
-- Este changelog: bloco de contexto Alfa/Beta para o histórico pré‑v1.0.0; espelhamento das notas em `src/constants/releaseNotes.ts` para a UI.
+- Changelog: versões **anteriores a v1.0.0** = ciclo Alfa/Beta (**VynTask**); histórico preservado.
 
 ## v3.12.1 (2026-05-11)
 

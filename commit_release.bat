@@ -2,8 +2,9 @@
 setlocal ENABLEDELAYEDEXPANSION
 
 REM ============================================================
-REM Implantação Azoup — Commit + Push com bump de versao patch (+0.0.1)
-REM Versao lida de package.json (fallback no script Node se invalida)
+REM Implantação Azoup — bump PATCH + git add + commit + push
+REM Use depois de alinhar CHANGELOG / releaseNotes / appMeta para um pacote.
+REM Para só ver checklist e sugestao de versao: registrar-release-do-dia.bat
 REM ============================================================
 
 cd /d "%~dp0"

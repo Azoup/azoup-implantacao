@@ -11,38 +11,16 @@ import {
   uploadPortalProjectFile,
 } from '../../services/clientPortal'
 import { useUiFeedback } from '../../ui/UiFeedbackContext'
-import { AZOUP_WELCOME_FORM_FIELDS, AZOUP_WELCOME_GOOGLE_FORM_URL } from '../../constants/azoupWelcomeForm'
+import { AZOUP_WELCOME_GOOGLE_FORM_URL } from '../../constants/azoupWelcomeForm'
+import {
+  defaultGoogleFormUrlFromSchema,
+  resolveWelcomeFormFieldsFromSchema,
+  type WelcomeFormFieldDef,
+} from '../../lib/welcomeFormSchema'
 import { AzoupLogoMark } from '../../components/AzoupLogoMark'
 import '../PortalWelcomeFormPage.css'
 
-type FieldDef = {
-  id: string
-  section?: string
-  label: string
-  type: 'text' | 'textarea' | 'select' | 'checklist'
-  required?: boolean
-  options?: string[]
-  help?: string
-  placeholder?: string
-}
-
-function resolveFormFields(schema: unknown): FieldDef[] {
-  if (schema && typeof schema === 'object' && (schema as { version?: string }).version === 'azoup') {
-    return AZOUP_WELCOME_FORM_FIELDS.map((f) => ({ ...f }))
-  }
-  const fields = (schema as { fields?: unknown } | null)?.fields
-  if (Array.isArray(fields) && fields.length > 0) {
-    return fields as FieldDef[]
-  }
-  return AZOUP_WELCOME_FORM_FIELDS.map((f) => ({ ...f }))
-}
-
-function resolveGoogleFormUrl(schema: unknown): string {
-  const u = schema && typeof schema === 'object' ? (schema as { externalGoogleFormUrl?: unknown }).externalGoogleFormUrl : null
-  return typeof u === 'string' && u.trim().length > 0 ? u.trim() : AZOUP_WELCOME_GOOGLE_FORM_URL
-}
-
-function normalizeAnswersForFields(raw: Record<string, unknown> | null, fieldList: FieldDef[]): Record<string, unknown> {
+function normalizeAnswersForFields(raw: Record<string, unknown> | null, fieldList: WelcomeFormFieldDef[]): Record<string, unknown> {
   if (!raw) return {}
   const next: Record<string, unknown> = { ...raw }
   for (const f of fieldList) {
@@ -61,7 +39,7 @@ function normalizeAnswersForFields(raw: Record<string, unknown> | null, fieldLis
   return next
 }
 
-function fieldIsFilled(field: FieldDef, answers: Record<string, unknown>): boolean {
+function fieldIsFilled(field: WelcomeFormFieldDef, answers: Record<string, unknown>): boolean {
   const v = answers[field.id]
   if (field.type === 'checklist') {
     return Array.isArray(v) && v.length > 0
@@ -75,7 +53,7 @@ export function PortalWelcomeFormPage() {
   const { projectId = '' } = useParams()
   const { toast, toastError } = useUiFeedback()
   const [templateId, setTemplateId] = useState<string | null>(null)
-  const [fields, setFields] = useState<FieldDef[]>(() => AZOUP_WELCOME_FORM_FIELDS.map((f) => ({ ...f })))
+  const [fields, setFields] = useState<WelcomeFormFieldDef[]>(() => resolveWelcomeFormFieldsFromSchema(null))
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [googleFormUrl, setGoogleFormUrl] = useState(AZOUP_WELCOME_GOOGLE_FORM_URL)
   const [submitting, setSubmitting] = useState(false)
@@ -95,8 +73,8 @@ export function PortalWelcomeFormPage() {
         if (template?.id) {
           setTemplateId(String(template.id))
           const schema = (template as { form_schema?: unknown }).form_schema
-          const list = resolveFormFields(schema)
-          setGoogleFormUrl(resolveGoogleFormUrl(schema))
+          const list = resolveWelcomeFormFieldsFromSchema(schema)
+          setGoogleFormUrl(defaultGoogleFormUrlFromSchema(schema) ?? AZOUP_WELCOME_GOOGLE_FORM_URL)
           setFields(list)
           const sub = await fetchMyWelcomeSubmission(projectId, String(template.id))
           if (sub?.answers && typeof sub.answers === 'object') {
@@ -105,7 +83,7 @@ export function PortalWelcomeFormPage() {
           if (sub?.status) setLastStatus(String(sub.status))
         } else {
           setTemplateId(null)
-          const list = AZOUP_WELCOME_FORM_FIELDS.map((f) => ({ ...f }))
+          const list = resolveWelcomeFormFieldsFromSchema(null)
           setFields(list)
           setGoogleFormUrl(AZOUP_WELCOME_GOOGLE_FORM_URL)
           setAnswers({})
@@ -133,7 +111,7 @@ export function PortalWelcomeFormPage() {
   )
 
   const fieldSections = useMemo(() => {
-    const map = new Map<string, FieldDef[]>()
+    const map = new Map<string, WelcomeFormFieldDef[]>()
     for (const f of fields) {
       const sec = f.section?.trim() || 'Formulário'
       if (!map.has(sec)) map.set(sec, [])

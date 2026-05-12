@@ -31,6 +31,7 @@ import {
   ResetPasswordPageLazy,
   SettingsPageLazy,
   TarefasPageLazy,
+  WelcomeFormsPageLazy,
 } from './app/lazyPages'
 import type { PermissionScope } from './db/types'
 
@@ -157,6 +158,14 @@ export const appRouter = createBrowserRouter(
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/implantacao']}>
               <ImplantationJourneyPageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/formularios"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/formularios']}>
+              <WelcomeFormsPageLazy />
             </RequireScope>
           }
         />

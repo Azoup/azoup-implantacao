@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabaseClient'
+import type { WelcomeFormSchemaPayload } from '../lib/welcomeFormSchema'
 
 /** Projeto vinculado ao cliente no portal (lista inicial). */
 export type PortalProject = {
@@ -131,6 +132,44 @@ export async function fetchWelcomeTemplate(projectId: string) {
     .maybeSingle()
   if (error) throw error
   return data
+}
+
+/** Cria ou atualiza o template ativo do projeto (equipe com `can_edit_project`). */
+export async function saveWelcomeTemplateForProject(args: {
+  projectId: string
+  name: string
+  schema: WelcomeFormSchemaPayload
+}): Promise<{ templateId: string }> {
+  const db = requireSupabase()
+  const { data: existing, error: qErr } = await db
+    .from('welcome_form_templates')
+    .select('id')
+    .eq('project_id', args.projectId)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (qErr) throw qErr
+  if (existing?.id) {
+    const { error } = await db
+      .from('welcome_form_templates')
+      .update({ name: args.name, form_schema: args.schema })
+      .eq('id', existing.id)
+    if (error) throw error
+    return { templateId: String(existing.id) }
+  }
+  const { data: inserted, error } = await db
+    .from('welcome_form_templates')
+    .insert({
+      project_id: args.projectId,
+      name: args.name,
+      form_schema: args.schema,
+      is_active: true,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return { templateId: String((inserted as { id: string }).id) }
 }
 
 export async function fetchMyWelcomeSubmission(projectId: string, templateId: string) {

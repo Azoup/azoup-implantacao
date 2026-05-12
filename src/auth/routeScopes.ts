@@ -7,6 +7,7 @@ export const ROUTE_SCOPE_MAP: Record<string, PermissionScope> = {
   '/projetos': 'projects.view',
   '/projetos/:projectId': 'projects.view',
   '/implantacao': 'projects.view',
+  '/formularios': 'projects.view',
   '/tarefas': 'tasks.view',
   '/agenda': 'agenda.view',
   '/relatorios': 'reports.view',
