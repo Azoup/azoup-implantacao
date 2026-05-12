@@ -1,4 +1,4 @@
--- VynTask — Fundir os dois registros "Vinicius" / "Vinícius" em um só analista
+-- Implantação Azoup — Fundir os dois registros "Vinicius" / "Vinícius" em um só analista
 -- Mantém: 33f2f784-ec03-4a82-b2df-2c848736158c ("Vinicius")
 -- Remove: 66827fda-8720-455b-8771-16ac80f22de4 ("Vinícius" duplicado)
 -- Perfil de login: f2f37d7b-e3ee-408b-b5d0-66e1a4ccc799 (vinicius.azoup@gmail.com)

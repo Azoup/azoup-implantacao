@@ -68,7 +68,7 @@ export function startSupabaseRealtimeDomainSync(): void {
   setRealtimeRuntimeStatus('subscribing')
   const client = supabase
   const ch = client
-    .channel('vyntask-domain-realtime')
+    .channel('implantacao-azoup-domain-realtime')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) =>
       handleDomain('projects', payload as PgChangePayload),
     )

@@ -1,4 +1,4 @@
--- VynTask — Correção emergencial de RLS para documentação (comments)
+-- Implantação Azoup — Correção emergencial de RLS para documentação (comments)
 -- Objetivo: restaurar INSERT/UPDATE/DELETE em public.comments para usuários autenticados
 -- com perfil ativo e permissão de edição no projeto (incluindo analista vinculado por profile_id).
 --

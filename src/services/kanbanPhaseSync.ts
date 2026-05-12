@@ -42,6 +42,7 @@ function firstIncompletePhase(
  * - Fase 00 do plano (`orderIndex` 0, tarefas 0.x) → coluna **Novos clientes** (`novos`).
  * - Fase 01 (`orderIndex` 1, tarefas 1.x) → **Fase 01** … até Fase 04 para `orderIndex` ≥ 4.
  * - Todas as fases e tarefas concluídas → **Concluídos** (`finalizados`).
+ * - Situação **Congelado** → coluna **Congelados**; **Inadimplente** → **Inadimplentes** (como Cancelados).
  */
 export function deriveKanbanColumnFromPlanState(
   project: DbProject,
@@ -50,6 +51,8 @@ export function deriveKanbanColumnFromPlanState(
 ): KanbanColumn {
   if (project.status === 'cancelado') return 'cancelados'
   if (project.status === 'finalizado') return 'finalizados'
+  if (project.status === 'congelado') return 'congelados'
+  if (project.status === 'inadimplente') return 'inadimplentes'
 
   const mine = sortedProjectPhases(project.id, phases)
   if (mine.length === 0) return 'novos'
@@ -70,20 +73,27 @@ export async function syncProjectKanbanFromPlanState(projectId: string): Promise
   const tasks = await db.tasks.where('projectId').equals(projectId).toArray()
   const next = deriveKanbanColumnFromPlanState(project, phases, tasks)
   if (next !== project.kanbanColumn) {
-    await db.projects.update(projectId, { kanbanColumn: next })
-    if (isSupabaseConfigured()) {
-      try {
-        await withDexieSupabaseSyncMuted(async () => {
-          await updateProjectPartialInSupabase(projectId, { kanbanColumn: next })
-        })
-      } catch (err) {
-        console.warn('[kanban] Falha ao sincronizar coluna do projeto (será retentado na fila).', projectId, err)
-        enqueuePendingProjectGraphSync(projectId, {
-          lastErrorCode: 'PRJ_KANBAN_SYNC',
-          lastErrorMessage: err instanceof Error ? err.message : String(err),
-          opId: crypto.randomUUID(),
-        })
-      }
+    /**
+     * O update no Dexie **antes** do mute disparava o hook `updating` → `upsert` (POST) no grafo inteiro,
+     * o que falha com 403 quando a RLS não permite INSERT em projetos de outros owners.
+     * Gravar local + nuvem dentro de `withDexieSupabaseSyncMuted` evita o upsert implícito e usa só o PATCH leve.
+     */
+    if (!isSupabaseConfigured()) {
+      await db.projects.update(projectId, { kanbanColumn: next })
+      return
+    }
+    try {
+      await withDexieSupabaseSyncMuted(async () => {
+        await db.projects.update(projectId, { kanbanColumn: next })
+        await updateProjectPartialInSupabase(projectId, { kanbanColumn: next })
+      })
+    } catch (err) {
+      console.warn('[kanban] Falha ao sincronizar coluna do projeto (será retentado na fila).', projectId, err)
+      enqueuePendingProjectGraphSync(projectId, {
+        lastErrorCode: 'PRJ_KANBAN_SYNC',
+        lastErrorMessage: err instanceof Error ? err.message : String(err),
+        opId: crypto.randomUUID(),
+      })
     }
   }
 }
@@ -123,6 +133,42 @@ export async function applyManualKanbanColumnMove(
     const patch = {
       ...norm,
       cancelledAt,
+      internalNotes: appendKanbanNote(project.internalNotes, line),
+    }
+    if (isSupabaseConfigured()) {
+      await withDexieSupabaseSyncMuted(async () => {
+        await updateProjectPartialInSupabase(projectId, patch)
+        await db.projects.update(projectId, patch)
+      })
+    } else {
+      await db.projects.update(projectId, patch)
+    }
+    return
+  }
+
+  if (to === 'congelados') {
+    const norm = normalizeProjectPlacement({ status: 'congelado', kanbanColumn: 'congelados' })
+    const patch = {
+      ...norm,
+      cancelledAt: null,
+      internalNotes: appendKanbanNote(project.internalNotes, line),
+    }
+    if (isSupabaseConfigured()) {
+      await withDexieSupabaseSyncMuted(async () => {
+        await updateProjectPartialInSupabase(projectId, patch)
+        await db.projects.update(projectId, patch)
+      })
+    } else {
+      await db.projects.update(projectId, patch)
+    }
+    return
+  }
+
+  if (to === 'inadimplentes') {
+    const norm = normalizeProjectPlacement({ status: 'inadimplente', kanbanColumn: 'inadimplentes' })
+    const patch = {
+      ...norm,
+      cancelledAt: null,
       internalNotes: appendKanbanNote(project.internalNotes, line),
     }
     if (isSupabaseConfigured()) {

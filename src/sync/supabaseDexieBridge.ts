@@ -87,11 +87,11 @@ const TABLES_GUARD_EMPTY_REMOTE = new Set<string>([
   'project_deletion_logs',
 ])
 
-const FORCE_CACHE_REFRESH_KEY = 'vyntask_force_empty_remote_cache.v1'
+const FORCE_CACHE_REFRESH_KEY = 'implantacao_azoup_force_empty_remote_cache.v1'
 
 /** Coalesce chamadas concorrentes a um único refresh (evita rajadas de GET /labels etc.). */
 let refreshSupabaseDexieCacheInFlight: Promise<void> | null = null
-const PENDING_PROJECT_GRAPH_SYNC_KEY = 'vyntask_pending_project_graph_sync.v1'
+const PENDING_PROJECT_GRAPH_SYNC_KEY = 'implantacao_azoup_pending_project_graph_sync.v1'
 /** Evita loop agressivo de retry no focus/online quando a nuvem está instável. */
 const PENDING_PROJECT_SYNC_COOLDOWN_MS = 90_000
 

@@ -2,8 +2,8 @@
 setlocal ENABLEDELAYEDEXPANSION
 
 REM ============================================================
-REM VynTask - Commit + Push com bump de versao patch (+0.0.1)
-REM Base atual esperada: 2.0.1
+REM Implantação Azoup — Commit + Push com bump de versao patch (+0.0.1)
+REM Versao lida de package.json (fallback no script Node se invalida)
 REM ============================================================
 
 cd /d "%~dp0"
@@ -21,13 +21,13 @@ echo.
 echo [2/6] Lendo versao atual...
 for /f %%v in ('node -p "require('./package.json').version"') do set CURRENT_VERSION=%%v
 if "%CURRENT_VERSION%"=="" (
-  set CURRENT_VERSION=2.0.1
+  set CURRENT_VERSION=1.0.0
 )
 echo Versao atual detectada: v%CURRENT_VERSION%
 
 echo.
 echo [3/6] Calculando proxima versao (+0.0.1)...
-for /f %%v in ('node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); let v=(p.version||'2.0.1').trim(); if(!/^\\d+\\.\\d+\\.\\d+$/.test(v)) v='2.0.1'; const parts=v.split('.').map(Number); parts[2]+=1; const next=parts.join('.'); process.stdout.write(next);"') do set NEW_VERSION=%%v
+for /f %%v in ('node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('package.json','utf8')); let v=(p.version||'1.0.0').trim(); if(!/^\\d+\\.\\d+\\.\\d+$/.test(v)) v='1.0.0'; const parts=v.split('.').map(Number); parts[2]+=1; const next=parts.join('.'); process.stdout.write(next);"') do set NEW_VERSION=%%v
 if "%NEW_VERSION%"=="" (
   echo ERRO: nao foi possivel calcular a nova versao.
   pause

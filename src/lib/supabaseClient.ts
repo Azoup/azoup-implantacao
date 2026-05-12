@@ -4,7 +4,7 @@ import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 const rawUrl = import.meta.env.VITE_SUPABASE_URL
 const rawAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
 const rawMode = import.meta.env.VITE_DATA_MODE
-const OVERRIDE_KEY = 'vyntask.dataModeOverride.v1'
+const OVERRIDE_KEY = 'implantacao_azoup.dataModeOverride.v1'
 
 function looksLikeValidHttpUrl(s: string): boolean {
   try {
@@ -90,10 +90,10 @@ if (import.meta.env.DEV) {
   const keyT = typeof rawAnon === 'string' ? rawAnon.trim() : ''
   if (mode === 'local') {
     const origin = runtimeOverride ? `override runtime (${runtimeOverride})` : 'VITE_DATA_MODE=local'
-    console.info(`[VynTask] Modo LOCAL ativo (${origin}). Supabase desativado neste ambiente.`)
+    console.info(`[Implantação Azoup] Modo LOCAL ativo (${origin}). Supabase desativado neste ambiente.`)
   } else if ((urlT || keyT) && !parsed) {
     console.warn(
-      '[VynTask] Supabase desativado: confira VITE_SUPABASE_URL (https://…supabase.co, sem espaços) e VITE_SUPABASE_ANON_KEY no .env.local.',
+      '[Implantação Azoup] Supabase desativado: confira VITE_SUPABASE_URL (https://…supabase.co, sem espaços) e VITE_SUPABASE_ANON_KEY no .env.local.',
     )
   }
 }

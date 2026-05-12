@@ -16,7 +16,7 @@ const QA_BASIC_CNPJ = '33014556000196'
 const QA_PRO_CNPJ = '33014556000277'
 const QA_MASTER_CNPJ = '33014556000358'
 
-const QA_NOTE = `PROJETO DE TESTE VYNTASK (sandbox)
+const QA_NOTE = `PROJETO DE TESTE IMPLANTACAO AZOUP (sandbox)
 — Use para validar: Visão geral, Dashboard, Projetos, Fases/tarefas, Labels, Agenda, Relatórios, horas.
 — Pode excluir estes projetos sem impacto em produção.`
 
@@ -61,7 +61,7 @@ async function seedAgendaSample(projectId: string, analystId: string | null, suf
     projectId,
     taskId: null,
     analystId,
-    meetingLink: 'https://meet.google.com/lookup/qa-vyntask-test',
+    meetingLink: 'https://meet.google.com/lookup/qa-implantacao-azoup-test',
   })
 }
 
@@ -91,7 +91,7 @@ async function enrichCommon(
     docLinks: [
       {
         id: `${projectId}-qa-doclink`,
-        url: 'https://docs.google.com/document/d/qa-vyntask-example',
+        url: 'https://docs.google.com/document/d/qa-implantacao-azoup-example',
         label: 'Doc compartilhado (exemplo)',
       },
     ],
@@ -191,7 +191,7 @@ export async function seedTestProjects(): Promise<void> {
     {
       cnpj: QA_BASIC_CNPJ,
       planKey: 'basic' as const,
-      name: '[QA] Sandbox Basic 30h — VYNTASK',
+      name: '[QA] Sandbox Basic 30h — IMPLANTACAO AZOUP',
       analystId: a0,
       scenario: scenarioBasic as (id: string) => Promise<void>,
       tradeName: 'QA Confecções Basic Ltda',
@@ -202,7 +202,7 @@ export async function seedTestProjects(): Promise<void> {
     {
       cnpj: QA_PRO_CNPJ,
       planKey: 'pro' as const,
-      name: '[QA] Sandbox Pró 50h — VYNTASK',
+      name: '[QA] Sandbox Pró 50h — IMPLANTACAO AZOUP',
       analystId: a1,
       scenario: scenarioPro,
       tradeName: 'QA Confecções Pró ME',
@@ -213,7 +213,7 @@ export async function seedTestProjects(): Promise<void> {
     {
       cnpj: QA_MASTER_CNPJ,
       planKey: 'master' as const,
-      name: '[QA] Sandbox Master 70h — VYNTASK',
+      name: '[QA] Sandbox Master 70h — IMPLANTACAO AZOUP',
       analystId: a0,
       scenario: scenarioMaster,
       tradeName: 'QA Confecções Master Group',
@@ -249,8 +249,8 @@ export async function seedTestProjects(): Promise<void> {
       addressState: 'SP',
       implantationContactName: 'Fulano QA Silva',
       implantationContactPhone: '(11) 98888-7777',
-      corporateEmail: `qa-${def.planKey}@exemplo-vyntask.invalid`,
-      clientApiId: `vyntask-qa-${def.planKey}`,
+      corporateEmail: `qa-${def.planKey}@exemplo-implantacao-azoup.invalid`,
+      clientApiId: `implantacao-azoup-qa-${def.planKey}`,
       internalNotes: `${QA_NOTE}\n\nPlano: ${def.planKey.toUpperCase()} · ${def.modules}`,
       stateRegistration: '123456789012',
       secondaryCnpj: def.secondaryCnpj,

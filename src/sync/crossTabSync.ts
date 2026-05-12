@@ -1,5 +1,5 @@
 import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
-const CHANNEL_NAME = 'vyntask-dexie-sync-v1'
+const CHANNEL_NAME = 'implantacao-azoup-dexie-sync-v1'
 
 type SyncMessage = { v: 1; kind: 'incremental-pull' }
 

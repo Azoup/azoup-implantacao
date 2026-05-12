@@ -1,4 +1,4 @@
--- VynTask — perfis ligados ao Supabase Auth
+-- Implantação Azoup — perfis ligados ao Supabase Auth
 -- Como usar: Supabase → SQL → New query → colar tudo → Run
 -- Seguro rodar de novo: recria políticas/funções; dados em profiles são mantidos (IF NOT EXISTS na tabela).
 

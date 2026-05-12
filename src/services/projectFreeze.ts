@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { updateProjectPartialInSupabase, withDexieSupabaseSyncMuted } from '../sync/supabaseDexieBridge'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
 import { normalizeProjectPlacement } from './projectGovernance'
+import { syncProjectKanbanFromPlanState } from './kanbanPhaseSync'
 
 export type FreezeToggleDialogs = {
   requestConfirm: (opts: {
@@ -101,6 +102,7 @@ export async function applyProjectFreezeToggle(params: {
       details: `Descongelamento (grade/detalhe). Motivo: ${entry.reason}`,
       user: actor,
     })
+    await syncProjectKanbanFromPlanState(cur.id)
     return 'applied'
   }
 

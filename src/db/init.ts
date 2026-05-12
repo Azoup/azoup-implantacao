@@ -8,7 +8,7 @@ import { startLiveSyncAfterBridgeReady } from '../sync/liveSyncController'
 import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
 
 let initPromise: Promise<void> | null = null
-const LOCAL_SANDBOX_SEEDED_KEY = 'vyntask.localSandboxSeeded.v1'
+const LOCAL_SANDBOX_SEEDED_KEY = 'implantacao_azoup.localSandboxSeeded.v1'
 
 function browserStorage(): Storage | null {
   if (typeof window === 'undefined') return null

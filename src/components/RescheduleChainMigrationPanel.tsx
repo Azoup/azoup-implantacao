@@ -48,7 +48,7 @@ export function RescheduleChainMigrationPanel({ actorUserId }: Props) {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `vyntask-reschedule-migration-snapshot-${snapshot.capturedAt.replace(/[:.]/g, '-')}.json`
+      link.download = `implantacao-azoup-reschedule-migration-snapshot-${snapshot.capturedAt.replace(/[:.]/g, '-')}.json`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

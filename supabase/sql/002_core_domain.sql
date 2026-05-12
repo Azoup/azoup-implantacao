@@ -1,4 +1,4 @@
--- VynTask — domínio principal (analistas, modelos de plano, projetos, fases, tarefas, agenda, horas, comentários, labels)
+-- Implantação Azoup — domínio principal (analistas, modelos de plano, projetos, fases, tarefas, agenda, horas, comentários, labels)
 -- Pré-requisito: 001_profiles.sql já aplicado (public.profiles + public.is_admin()).
 -- Uso: SQL Editor → colar → Run. Idempotente na medida do possível (DROP POLICY IF EXISTS, CREATE OR REPLACE).
 

@@ -1,4 +1,4 @@
--- VynTask — Diagnóstico e verificação (produção / staging)
+-- Implantação Azoup — Diagnóstico e verificação (produção / staging)
 -- Rode no SQL Editor do Supabase (role com leitura no schema public).
 -- Não altera dados por padrão; seções comentadas são sugestões de correção.
 

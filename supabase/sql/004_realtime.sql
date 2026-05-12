@@ -1,4 +1,4 @@
--- VynTask — Realtime (Postgres Changes)
+-- Implantação Azoup — Realtime (Postgres Changes)
 -- Pré-requisitos: 001 + 002 (tabelas em public). 003 Storage não é necessário.
 -- Efeito: clientes com `supabase.channel(...).on('postgres_changes', ...)` recebem eventos.
 -- Idempotente: só faz ADD TABLE se a tabela ainda não estiver na publicação.

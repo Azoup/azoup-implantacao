@@ -1,4 +1,4 @@
--- VynTask — Auditoria operacional (pipeline base, passo 5 de 8)
+-- Implantação Azoup — Auditoria operacional (pipeline base, passo 5 de 8)
 -- Pré-requisitos: 001_profiles.sql + 002_core_domain.sql
 -- Idempotente: CREATE TABLE IF NOT EXISTS + policies recriáveis.
 -- Ordem completa: supabase/sql/README_RUN_ORDER.txt

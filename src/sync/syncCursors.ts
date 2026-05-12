@@ -1,5 +1,5 @@
 import { pushRuntimeDiagnostic } from '../diagnostics/runtimeDiagnostics'
-const PREFIX = 'vyntask.syncCursor.v1.'
+const PREFIX = 'implantacao_azoup.syncCursor.v1.'
 
 const INCREMENTAL_TABLES = new Set(['projects', 'phases', 'tasks'])
 

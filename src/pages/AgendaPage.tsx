@@ -812,7 +812,7 @@ export function AgendaPage() {
             <h3 className="agenda-google-card__title">Google Agenda</h3>
             <p className="agenda-google-card__text muted">
               Use <strong>Abrir no Google</strong> em cada evento para criar o mesmo compromisso na sua conta Google
-              (abre em nova aba; não exige login no VynTask).
+              (abre em nova aba; não exige login na Implantação Azoup).
             </p>
             <p className="agenda-google-card__text muted">
               <strong>Sincronização automática</strong> (dois sentidos) exige projeto no Google Cloud, OAuth e um

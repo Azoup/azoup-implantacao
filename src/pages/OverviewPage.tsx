@@ -32,7 +32,7 @@ import { formatDatePt, toDateInputValue } from '../lib/dates'
 
 const iconSmall = { size: 16, strokeWidth: 2 } as const
 
-const DT_PROJECT = 'application/x-vyntask-project'
+const DT_PROJECT = 'application/x-implantacao-azoup-project'
 
 type PendingMove = {
   projectId: string
@@ -44,6 +44,12 @@ type PendingMove = {
 function moveConsequences(from: KanbanColumn, to: KanbanColumn): string {
   if (to === 'cancelados') {
     return 'O projeto será marcado como cancelado. As tarefas não serão alteradas automaticamente.'
+  }
+  if (to === 'congelados') {
+    return 'O projeto será marcado como Congelado. As fases e tarefas não serão alteradas automaticamente.'
+  }
+  if (to === 'inadimplentes') {
+    return 'O projeto será marcado como Inadimplente. As fases e tarefas não serão alteradas automaticamente.'
   }
   if (to === 'finalizados') {
     return 'Todas as fases do plano serão concluídas e todas as tarefas (exceto canceladas) marcadas como concluídas — projeto em Concluídos.'
@@ -145,8 +151,8 @@ export function OverviewPage() {
         <div>
           <h1 className="page__title">Visão Geral</h1>
           <p className="page__subtitle">
-            Colunas = fases do plano (0.x → Fase 00, 1.x → Fase 01, …); Concluídos só com todo o plano fechado ·{' '}
-            {activeCount} projeto(s) no quadro (exceto cancelados)
+            Colunas = fases do plano (0.x → Fase 00, 1.x → Fase 01, …); Concluídos só com todo o plano fechado; Congelados /
+            Inadimplentes refletem a situação do projeto · {activeCount} projeto(s) no quadro (exceto cancelados)
           </p>
         </div>
         {canEditProjects ? (

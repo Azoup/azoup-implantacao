@@ -6,7 +6,7 @@ import { AuthCardShell } from '../components/auth/AuthCardShell'
 import { APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 export function LoginPage() {
-  const REMEMBER_EMAIL_KEY = 'vyntask_remember_email'
+  const REMEMBER_EMAIL_KEY = 'implantacao_azoup_remember_email'
   const { ready, authMode, user, login } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')

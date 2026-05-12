@@ -1,4 +1,4 @@
-# Plano Unico de Entrega Integrada - VynTask
+# Plano único de entrega integrada — Implantação Azoup
 
 Versao alvo do plano: `v2.10.15`  
 Data: `2026-05-05`  
@@ -6,7 +6,7 @@ Escopo: entrega integrada de produto + arquitetura + UX + frontend + backend + Q
 
 ## 1) Objetivo da entrega
 
-Entregar uma iteracao operacionalmente confiavel do VynTask para cenarios de implantacao, reduzindo ambiguidade de status, retrabalho entre times e perda de evidencias de execucao.
+Entregar uma iteracao operacionalmente confiavel do aplicativo Implantação Azoup para cenarios de implantacao, reduzindo ambiguidade de status, retrabalho entre times e perda de evidencias de execucao.
 
 Resultado esperado:
 - fluxo claro de planejamento -> execucao -> comprovacao;

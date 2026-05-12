@@ -1,4 +1,4 @@
--- VynTask — Security Advisor: funções com search_path fixo (evita hijack de search_path).
+-- Implantação Azoup — Security Advisor: funções com search_path fixo (evita hijack de search_path).
 -- Rode no SQL Editor do Supabase (produção). Idempotente (CREATE OR REPLACE).
 
 -- profiles trigger (001_profiles.sql)

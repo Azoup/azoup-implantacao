@@ -1,4 +1,4 @@
--- Check-in manual de projeto (frescor operacional no VynTask).
+-- Check-in manual de projeto (frescor operacional no Implantação Azoup).
 -- Idempotente: ADD COLUMN IF NOT EXISTS.
 --
 -- Depois de aplicar no Supabase, no frontend (.env.local / Netlify):

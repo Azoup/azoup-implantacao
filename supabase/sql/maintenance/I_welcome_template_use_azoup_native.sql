@@ -10,7 +10,7 @@ set form_schema = jsonb_build_object(
   'https://docs.google.com/forms/d/e/1FAIpQLSdSy1e16-PLYcM1VEGTnBSmwc6zn1H1A_37mt6R_LGYIfnt_g/viewform?usp=dialog',
   'fields', '[]'::jsonb
 ),
-    name = coalesce(nullif(trim(w.name), ''), 'Jornada do cliente Azoup (VynTask)')
+    name = coalesce(nullif(trim(w.name), ''), 'Jornada do cliente Azoup (Implantação Azoup)')
 from public.projects p
 where w.project_id = p.id
   and p.project_name = 'AREA CLIENTE TESTE'

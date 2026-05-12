@@ -1,4 +1,4 @@
-export const SYNC_FAILURE_EVENT = 'vyntask-sync-failure'
+export const SYNC_FAILURE_EVENT = 'implantacao-azoup-sync-failure'
 
 export type SyncFailureDetail = {
   table: string

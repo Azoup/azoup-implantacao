@@ -135,7 +135,7 @@ function localFallbackFormat(rawText: string, intent: AiFormatIntent): string {
   out.push('')
   out.push('### Próximos passos')
   out.push('- Validar informações-chave com o cliente/equipe.')
-  out.push('- Ajustar responsáveis e prazos no VynTask.')
+  out.push('- Ajustar responsáveis e prazos na Implantação Azoup.')
   return out.join('\n')
 }
 

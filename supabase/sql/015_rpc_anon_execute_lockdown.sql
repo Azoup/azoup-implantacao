@@ -1,4 +1,4 @@
--- VynTask — correção complementar: bloquear EXECUTE para role anon em funções sensíveis
+-- Implantação Azoup — correção complementar: bloquear EXECUTE para role anon em funções sensíveis
 -- Motivo: em alguns projetos Supabase existe grant explícito para anon/authenticated em funções,
 -- então revogar apenas de PUBLIC pode não ser suficiente.
 

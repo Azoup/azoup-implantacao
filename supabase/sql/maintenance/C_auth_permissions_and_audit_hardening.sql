@@ -1,4 +1,4 @@
--- VynTask — hardening emergencial de Auth/Permissões/Auditoria
+-- Implantação Azoup — hardening emergencial de Auth/Permissões/Auditoria
 -- Execute em ambiente já em uso para alinhar:
 -- 1) cadastro híbrido (profiles.status = pending por padrão)
 -- 2) proteção de colunas privilegiadas em profiles (role/status/permissions)

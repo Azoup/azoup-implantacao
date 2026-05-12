@@ -1,6 +1,6 @@
 # Visão de produto — roadmap por fases
 
-VYNTASK como **centro de implantações** (referência operacional ao modelo Artia): um só lugar para equipe interna e cliente acompanharem implantação, documentação, agenda e sinais financeiros por projeto.
+**Implantação Azoup** como centro de implantações (referência operacional ao modelo Artia): um só lugar para equipe interna e cliente acompanharem implantação, documentação, agenda e sinais financeiros por projeto.
 
 ## Fase 1 — Operação e transparência (em curso)
 

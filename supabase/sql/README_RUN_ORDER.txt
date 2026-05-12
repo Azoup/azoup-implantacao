@@ -1,5 +1,5 @@
 ================================================================================
-VynTask — Supabase SQL: ordem de execução e nível de risco
+Implantação Azoup — Supabase SQL: ordem de execução e nível de risco
 ================================================================================
 
 LEIA ANTES DE RODAR QUALQUER SCRIPT EM PRODUÇÃO.

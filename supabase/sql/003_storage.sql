@@ -1,4 +1,5 @@
--- VynTask — Storage (anexos, PDFs, imagens de projeto/comentário)
+-- Implantação Azoup — Storage (anexos, PDFs, imagens de projeto/comentário)
+-- Id legado do bucket: `vyntask`. Renomear no Supabase Storage + políticas + código cliente exige migração de objetos.
 -- Pré-requisitos: 001_profiles.sql + 002_core_domain.sql (funções profile_is_active, can_edit_project).
 -- Convenção de path no bucket:  "<project_uuid>/qualquer/subpasta/arquivo.ext"
 --   Ex.: front: `supabase.storage.from('vyntask').upload(\`${projectId}/comments/${commentId}/foto.png\`, file)`

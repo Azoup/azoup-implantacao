@@ -5,7 +5,7 @@ export type ProjectSortKey = 'startDate' | 'name'
 export type ProjectSortDirection = 'asc' | 'desc'
 export type ProjectSortConfig = { key: ProjectSortKey; direction: ProjectSortDirection }
 
-const STORAGE_KEY = 'vyntask:projectSortConfig'
+const STORAGE_KEY = 'implantacao_azoup:projectSortConfig'
 
 function startMs(p: Pick<DbProject, 'startDate'>, nullSentinel: 'min' | 'max'): number {
   const raw = p.startDate?.trim()

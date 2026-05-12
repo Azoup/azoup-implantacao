@@ -11,9 +11,9 @@ import {
 } from 'react'
 import { isPaletteId, LEGACY_PALETTE_MAP, type PaletteId } from './paletteCatalog'
 
-const THEME_KEY = 'vyntask_theme_v1'
-const PALETTE_KEY = 'vyntask_palette_v1'
-const THEME_SOURCE_KEY = 'vyntask_theme_source_v1'
+const THEME_KEY = 'implantacao_azoup_theme_v1'
+const PALETTE_KEY = 'implantacao_azoup_palette_v1'
+const THEME_SOURCE_KEY = 'implantacao_azoup_theme_source_v1'
 
 export type ThemeMode = 'light' | 'dark'
 export type ThemeSource = 'manual' | 'system'

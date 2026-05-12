@@ -5,7 +5,7 @@ import { UnsavedLeaveDialog } from '../components/UnsavedLeaveDialog'
 import { useUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { Sidebar } from './Sidebar'
 
-const SIDEBAR_COLLAPSED_KEY = 'vyntask_sidebar_collapsed_v1'
+const SIDEBAR_COLLAPSED_KEY = 'implantacao_azoup_sidebar_collapsed_v1'
 const MOBILE_MQ = '(max-width: 960px)'
 
 function readSidebarCollapsed(): boolean {

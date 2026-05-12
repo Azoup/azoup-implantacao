@@ -16,11 +16,22 @@ export function normalizeProjectPlacement(input: {
   if (status === 'cancelado') {
     return { status: 'cancelado', kanbanColumn: 'cancelados' }
   }
-  if (status === 'ativo' || status === 'inadimplente' || status === 'congelado') {
-    if (kanbanColumn === 'cancelados' || kanbanColumn === 'finalizados') {
-      return { status, kanbanColumn: 'novos' }
+  if (status === 'congelado') {
+    return { status: 'congelado', kanbanColumn: 'congelados' }
+  }
+  if (status === 'inadimplente') {
+    return { status: 'inadimplente', kanbanColumn: 'inadimplentes' }
+  }
+  if (status === 'ativo') {
+    if (
+      kanbanColumn === 'cancelados' ||
+      kanbanColumn === 'finalizados' ||
+      kanbanColumn === 'congelados' ||
+      kanbanColumn === 'inadimplentes'
+    ) {
+      return { status: 'ativo', kanbanColumn: 'novos' }
     }
-    return { status, kanbanColumn }
+    return { status: 'ativo', kanbanColumn }
   }
 
   if (kanbanColumn === 'finalizados') {
@@ -28,6 +39,12 @@ export function normalizeProjectPlacement(input: {
   }
   if (kanbanColumn === 'cancelados') {
     return { status: 'cancelado', kanbanColumn: 'cancelados' }
+  }
+  if (kanbanColumn === 'congelados') {
+    return { status: 'congelado', kanbanColumn: 'congelados' }
+  }
+  if (kanbanColumn === 'inadimplentes') {
+    return { status: 'inadimplente', kanbanColumn: 'inadimplentes' }
   }
   return { status, kanbanColumn }
 }

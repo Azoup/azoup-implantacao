@@ -15,6 +15,7 @@ import {
   Library,
   LogOut,
   Moon,
+  Newspaper,
   Plus,
   ScrollText,
   SlidersHorizontal,
@@ -26,9 +27,8 @@ import { useAuth } from '../auth/AuthContext'
 import { canAccessManuais, hasScope } from '../auth/permissions'
 import type { DbUser } from '../db/types'
 import { useTheme } from '../theme/ThemeContext'
-import { AzoupOrbMark } from '../components/AzoupOrbMark'
-import { VyntaskLogo } from '../components/VyntaskLogo'
-import { APP_BRAND_ENDORSEMENT, APP_VERSION_DISPLAY } from '../constants/appMeta'
+import { AzoupLogoMark } from '../components/AzoupLogoMark'
+import { APP_BRAND_NAME_FULL, APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 type NavItem = {
   to: string
@@ -41,6 +41,7 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, scope: 'dashboard.view' },
+  { to: '/atualizacoes', label: 'Notas de atualização', icon: Newspaper, scope: 'dashboard.view' },
   { to: '/visao-geral', label: 'Visão geral', icon: Columns3, scope: 'overview.view' },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban, scope: 'projects.view' },
   { to: '/implantacao', label: 'Implantação', icon: Footprints, scope: 'projects.view' },
@@ -89,18 +90,11 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             (collapsed ? 'sidebar__brand--collapsed' : 'sidebar__brand--expanded')
           }
         >
-          <span className="sidebar__logo vyntask-logo-wrap" aria-hidden>
-            <AzoupOrbMark size={collapsed ? 40 : 34} className="sidebar__logo-azoup" />
-            <span className="sidebar__logo-vyntask-badge">
-              <VyntaskLogo variant="inverse" size={collapsed ? 12 : 13} />
-            </span>
+          <span className="sidebar__logo" aria-hidden>
+            <AzoupLogoMark size={collapsed ? 36 : 32} className="sidebar__logo-mark" />
           </span>
           <div className="sidebar__brand-text">
-            <div className="sidebar__title">
-              <span className="sidebar__title-accent">Vyn</span>Task
-              <span className="sidebar__title-endorse-prefix">by</span>
-              <span className="sidebar__title-endorse">{APP_BRAND_ENDORSEMENT.replace(/^by\s+/i, '')}</span>
-            </div>
+            <div className="sidebar__title">{APP_BRAND_NAME_FULL}</div>
             <div className="sidebar__version" spellCheck={false}>
               {APP_VERSION_DISPLAY}
             </div>

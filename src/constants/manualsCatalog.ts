@@ -32,7 +32,7 @@ export const MANUAL_CATEGORIES: Record<ManualCategoryId, ManualCategoryMeta> = {
     label: 'Integrações',
     pathLabel: 'Internos > Integrações',
     description:
-      'Conexões entre o ERP / VynTask e sistemas externos (APIs, e-commerce, plugins).',
+      'Conexões entre o ERP / Implantação Azoup e sistemas externos (APIs, e-commerce, plugins).',
   },
   operacional: {
     label: 'Operacional',

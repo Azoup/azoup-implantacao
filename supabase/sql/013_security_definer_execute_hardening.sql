@@ -1,4 +1,4 @@
--- VynTask — hardening de EXECUTE em funções SECURITY DEFINER expostas via RPC
+-- Implantação Azoup — hardening de EXECUTE em funções SECURITY DEFINER expostas via RPC
 -- Objetivo:
 -- 1) remover superfície de ataque do role anon/public em funções internas/sensíveis
 -- 2) manter somente RPCs administrativas necessárias para usuários autenticados (com check de admin interno)

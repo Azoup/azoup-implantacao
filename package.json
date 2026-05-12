@@ -1,7 +1,7 @@
 {
-  "name": "vyntask",
+  "name": "implantacao-azoup",
   "private": true,
-  "version": "3.11.9",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite",

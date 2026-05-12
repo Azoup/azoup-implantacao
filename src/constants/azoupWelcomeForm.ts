@@ -127,7 +127,7 @@ export const AZOUP_WELCOME_FORM_FIELDS: AzoupWelcomeField[] = [
     label: 'Quantas máquinas a empresa possui e que irão utilizar o sistema Azoup? (ex.: 3 desktops e 2 notebooks)',
     type: 'text',
     required: true,
-    help: 'Inclua computadores que acessarão o VynTask/Azoup (não precisa listar impressoras).',
+    help: 'Inclua computadores que acessarão o sistema Azoup (não precisa listar impressoras).',
     placeholder: 'Ex.: 4 desktops na fábrica + 2 notebooks para gestores',
   },
 

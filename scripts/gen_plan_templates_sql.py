@@ -83,7 +83,7 @@ def w(*args: str) -> None:
 
 w(
     "-- ============================================================",
-    "-- VynTask — Seed: fases e tarefas dos modelos de plano",
+    "-- Implantação Azoup — Seed: fases e tarefas dos modelos de plano",
     "-- Gerado por: scripts/gen_plan_templates_sql.py",
     "-- Fonte: dados reais do projeto antigo (Lovable)",
     "-- Pré-requisito: 006_seed_builtin_plan_models.sql já rodado",

@@ -23,6 +23,7 @@ import {
   PortalHomePageLazy,
   PortalProjectPageLazy,
   PortalWelcomeFormPageLazy,
+  ReleaseNotesPageLazy,
   ProjectDetailPageLazy,
   ProjectsPageLazy,
   RegisterPageLazy,
@@ -38,7 +39,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (!ready) {
     return (
       <div className="boot">
-        <div className="boot__inner">Carregando VynTask…</div>
+        <div className="boot__inner">Carregando Implantação Azoup…</div>
       </div>
     )
   }
@@ -116,6 +117,14 @@ export const appRouter = createBrowserRouter(
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/dashboard']}>
               <DashboardPageLazy />
+            </RequireScope>
+          }
+        />
+        <Route
+          path="/atualizacoes"
+          element={
+            <RequireScope scope={ROUTE_SCOPE_MAP['/atualizacoes']}>
+              <ReleaseNotesPageLazy />
             </RequireScope>
           }
         />

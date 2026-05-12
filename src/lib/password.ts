@@ -1,3 +1,4 @@
+/** Pepper estável para modo Dexie local; não alterar ou todas as senhas locais deixam de bater. */
 const PEPPER = 'vyntask-local-v1'
 
 function toHex(buf: ArrayBuffer): string {

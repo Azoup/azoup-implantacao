@@ -1,4 +1,4 @@
--- VynTask — UPDATE de projects orientado por permissões de login (RBAC)
+-- Implantação Azoup — UPDATE de projects orientado por permissões de login (RBAC)
 -- Objetivo: edição de projeto deve respeitar perfil/permissões do usuário autenticado,
 -- sem depender de vínculo operacional em analysts.profile_id.
 --

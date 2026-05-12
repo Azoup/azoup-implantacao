@@ -1,5 +1,49 @@
 # Changelog
 
+> **Legado (Alfa/Beta):** entradas de versão **anteriores a v1.0.0** descrevem o ciclo de desenvolvimento sob o nome de código **VynTask** (fases Alfa/Beta). O texto abaixo foi **preservado** como histórico. A linha de produto atual é **Implantação Azoup**, com **semver** (`major.minor.patch`) e notas categorizadas (BUG FIX, MELHORIA, NOVA FUNÇÃO, etc.).
+
+## v1.0.2 (2026-05-12)
+
+### BUG FIX
+
+- **Notas de atualização:** horário de publicação formatado sempre em **Brasília** (`America/Sao_Paulo`), em vez do fuso local do navegador.
+
+### MELHORIA
+
+- Sidebar e cabeçalho da página: rótulo **Notas de atualização** (URL `/atualizacoes` inalterada).
+
+## v1.0.1 (2026-05-12)
+
+### MELHORIA
+
+- Repositório e scripts alinhados ao nome **Implantação Azoup** (`package.json`, `.bat`, chaves de sessão/UI e comentários SQL). **Sem mudança obrigatória** na Vercel além do deploy; no Supabase, **bucket** e **funções** com id legado `vyntask` permanecem até migração manual (ver notas no `README` em `supabase/`).
+
+## v1.0.0 (2026-05-12)
+
+Versão inicial da linha **Implantação Azoup**. Mesmo número em `package.json` (`1.0.0`), interface e tags de release (`v1.0.0`).
+
+### NOVA FUNÇÃO
+
+- Página **Notas de atualização** (`/atualizacoes`) com notas legíveis, data/hora de publicação, etiqueta (`tag`) de versão e selos por tipo de mudança.
+
+### MELHORIA
+
+- Identidade visual: logotipo oficial **Azoup** (laranja) e nome **Implantação Azoup** em sidebar, login e telas públicas; remoção da marca anterior nas telas do app.
+- Versionamento e changelog em semver de três partes; classificação das mudanças nas versões novas.
+
+### DOCUMENTAÇÃO
+
+- Este changelog: bloco de contexto Alfa/Beta para o histórico pré‑v1.0.0; espelhamento das notas em `src/constants/releaseNotes.ts` para a UI.
+
+## v3.12.1 (2026-05-11)
+
+- **Sync Kanban / Supabase:** `syncProjectKanbanFromPlanState` gravava `kanbanColumn` no Dexie **fora** do mute do bridge, disparando o hook `updating` → **upsert POST** em `projects` (403 quando a RLS não permite insert em linhas alheias). O update local passou a ocorrer **dentro** de `withDexieSupabaseSyncMuted` junto com `updateProjectPartialInSupabase` (PATCH), eliminando a rajada de POST e o erro na reconciliação da Visão geral.
+
+## v3.12.0 (2026-05-11)
+
+- **Visão geral (kanban):** colunas **Congelados** e **Inadimplentes**; projetos com situação `congelado` ou `inadimplente` passam a aparecer nessas colunas (derivação alinhada ao cancelado → Cancelados). Movimento manual para essas colunas atualiza situação + `kanbanColumn`; reconciliação automática grava `congelados` / `inadimplentes` no Dexie/Supabase. **SQL:** `026_projects_kanban_congelados_inadimplentes.sql` amplia o `CHECK` de `projects.kanban_column` no Postgres.
+- **Congelar / descongelar:** após descongelar pela grade ou detalhe, roda `syncProjectKanbanFromPlanState` para recolocar o cartão na fase correta do plano (evita ficar preso na coluna Congelados após `kanban_column` sincronizado).
+
 ## v3.11.9 (2026-05-11)
 
 - **Projetos — alerta operacional:** no ícone `(!)` do card, **popover em atalho** (`createPortal`) com o mesmo fluxo do modal (ver texto, editar, remover, mín. 12 caracteres), **sem abrir** “Editar projeto”; opção **Abrir edição completa…** leva ao modal. Persistência via `applyManualAttentionOnlyPatch` (Dexie + `updateProjectPartialInSupabase` + auditoria).
@@ -670,7 +714,7 @@
 - **Sync multi-aba e tempo real (Supabase):** canal `BroadcastChannel` para outras abas dispararem pull incremental leve; inscrição Realtime em `projects`, `phases` e `tasks` aplicando mudanças no Dexie com mute nos hooks (evita loop Dexie→nuvem).
 - **Pull incremental:** após refresh completo, cursores em `localStorage` por tabela; polling (~2 min) e filtro `.gt('updated_at', cursor)` quando a coluna existir no Postgres.
 - **Versionamento local:** `remoteUpdatedAt` em projeto/fase/tarefa (Dexie v14); merge conservador se o cache local já tiver timestamp mais novo que o evento remoto.
-- **Hooks Dexie→PostgREST:** retry com backoff (mesma política de tentativas do sync de grafo) e `CustomEvent` `vyntask-sync-failure` com toast limitado por tabela no `UiFeedbackProvider`.
+- **Hooks Dexie→PostgREST:** retry com backoff (mesma política de tentativas do sync de grafo) e `CustomEvent` `implantacao-azoup-sync-failure` com toast limitado por tabela no `UiFeedbackProvider`.
 - **Operação:** script opcional `supabase/sql/optional/D_domain_row_versioning_updated_at.sql` adiciona `updated_at`, triggers, índices e `REPLICA IDENTITY FULL` para DELETE via Realtime; habilitar replicação das três tabelas no painel Supabase.
 
 ## v2.3.4 (2026-04-20)
@@ -720,7 +764,7 @@
 
 ## v2.2.9 (2026-04-17)
 
-- **Segurança de dados (crítico):** o refresh do cache Dexie não apaga mais tabelas de domínio quando a API Supabase devolve **0 linhas** mas o IndexedDB ainda tem dados (cenário típico: RLS, sessão ou leitura vazia). Evita “sumir” todos os projetos na tela local. Para forçar substituição por vazio: `sessionStorage['vyntask_force_empty_remote_cache.v1'] = '1'` + reload (uso raro).
+- **Segurança de dados (crítico):** o refresh do cache Dexie não apaga mais tabelas de domínio quando a API Supabase devolve **0 linhas** mas o IndexedDB ainda tem dados (cenário típico: RLS, sessão ou leitura vazia). Evita “sumir” todos os projetos na tela local. Para forçar substituição por vazio: `sessionStorage['implantacao_azoup_force_empty_remote_cache.v1'] = '1'` + reload (uso raro).
 - **Perfis:** se `profiles` vier vazio da API, não limpamos mais a tabela local de usuários quando já existia cache.
 - **Operação:** script SQL de diagnóstico em `supabase/sql/optional/B_diagnostics_readonly.sql`.
 

@@ -1,5 +1,5 @@
 -- ============================================================
--- VynTask — Restore documentação/comentários de projetos (old -> new)
+-- Implantação Azoup — Restore documentação/comentários de projetos (old -> new)
 -- Gerado por: scripts/gen_project_docs_sql.py
 -- Seguro para reexecução: ON CONFLICT (id) DO UPDATE
 -- ============================================================

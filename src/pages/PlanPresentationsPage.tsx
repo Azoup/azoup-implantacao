@@ -5,7 +5,7 @@ import { ExternalLink, FileText } from 'lucide-react'
 import { db } from '../db/database'
 import { ensureDatabase } from '../db/init'
 import { STATIC_PLAN_PRESENTATIONS } from '../constants/planPresentations'
-import { VyntaskLogo } from '../components/VyntaskLogo'
+import { AzoupLogoMark } from '../components/AzoupLogoMark'
 import { formatDurationHmFromHours } from '../lib/durationFormat'
 
 type Card = {
@@ -50,11 +50,11 @@ export function PlanPresentationsPage() {
     <div className="presentations-page">
       <header className="presentations-page__header">
         <div className="presentations-page__brand">
-          <span className="presentations-page__logo vyntask-logo-wrap" aria-hidden>
-            <VyntaskLogo variant="inverse" size={28} />
+          <span className="presentations-page__logo" aria-hidden>
+            <AzoupLogoMark size={36} className="presentations-page__logo-img" />
           </span>
           <div>
-            <h1 className="presentations-page__title">VynTask · Planos de implantação</h1>
+            <h1 className="presentations-page__title">Implantação Azoup · Planos de implantação</h1>
             <p className="presentations-page__sub">
               Material de apresentação para a reunião de alinhamento (referência comercial).
             </p>
@@ -100,7 +100,7 @@ export function PlanPresentationsPage() {
       <footer className="presentations-page__footer">
         <p>
           Dúvidas comerciais ou contratuais: use o canal oficial da Azoup. Este espaço reúne apenas o PDF de alinhamento
-          cadastrado em <strong>Modelos de planos</strong> no VynTask.
+          cadastrado em <strong>Modelos de planos</strong> no aplicativo Implantação Azoup.
         </p>
       </footer>
     </div>

@@ -1,4 +1,4 @@
--- VynTask — Liga analista (catálogo) ao perfil de login (Supabase Auth / public.profiles)
+-- Implantação Azoup — Liga analista (catálogo) ao perfil de login (Supabase Auth / public.profiles)
 -- Assim o RLS pode permitir edição do projeto quando projects.analyst_id aponta para um
 -- analista cujo profile_id = auth.uid().
 --

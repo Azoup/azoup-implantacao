@@ -24,7 +24,7 @@ import type {
   DbUser,
 } from './types'
 
-export class VyntaskDB extends Dexie {
+export class ImplantacaoAzoupDB extends Dexie {
   users!: EntityTable<DbUser, 'id'>
   analysts!: EntityTable<DbAnalyst, 'id'>
   auditLogs!: EntityTable<DbAuditLog, 'id'>
@@ -43,6 +43,7 @@ export class VyntaskDB extends Dexie {
   labels!: EntityTable<DbLabel, 'id'>
 
   constructor() {
+    // Nome interno IndexedDB legado; renomear sem migração anula dados offline.
     super('vyntask_db')
     this.version(1).stores({
       users: 'id, email, status, role',
@@ -717,4 +718,4 @@ export class VyntaskDB extends Dexie {
   }
 }
 
-export const db = new VyntaskDB()
+export const db = new ImplantacaoAzoupDB()

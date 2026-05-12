@@ -305,7 +305,7 @@ export async function recordAiAssistantMetric(params: {
   const id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`
   const userId = params.user?.id ?? 'system'
   const userName = params.user?.name ?? 'Sistema'
-  const userEmail = params.user?.email ?? 'system@vyntask.local'
+  const userEmail = params.user?.email ?? 'system@implantacao-azoup.local'
   try {
     await db.auditLogs.add({
       id,

@@ -1,4 +1,4 @@
--- VynTask — verificação pós-ajustes (somente leitura)
+-- Implantação Azoup — verificação pós-ajustes (somente leitura)
 -- Uso: rodar no SQL Editor após 012 + 013.
 -- Objetivo: confirmar policy de update por permissão e hardening de EXECUTE.
 

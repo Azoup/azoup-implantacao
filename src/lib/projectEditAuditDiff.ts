@@ -79,6 +79,8 @@ const KANBAN_PT: Record<string, string> = {
   fase_03: 'Fase 3',
   fase_04: 'Fase 4',
   finalizados: 'Finalizados',
+  congelados: 'Congelados',
+  inadimplentes: 'Inadimplentes',
   cancelados: 'Cancelados',
 }
 

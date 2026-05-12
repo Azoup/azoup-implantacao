@@ -235,7 +235,7 @@ export function PortalWelcomeFormPage() {
               Jornada do cliente
             </h2>
             <p className="port-welcome__hero-sub">
-              Respostas ficam vinculadas ao seu projeto no VynTask. Use as dicas em cada campo; campos com * são obrigatórios
+              Respostas ficam vinculadas ao seu projeto na Implantação Azoup. Use as dicas em cada campo; campos com * são obrigatórios
               antes do envio final.
             </p>
           </div>
@@ -257,7 +257,7 @@ export function PortalWelcomeFormPage() {
         <div className="port-welcome__intro-card">
           <strong>Referência</strong>
           <p>
-            O formulário oficial no Google Forms continua disponível se preferir responder por lá — no VynTask a equipe
+            O formulário oficial no Google Forms continua disponível se preferir responder por lá — na Implantação Azoup a equipe
             enxerga tudo no mesmo projeto.
           </p>
         </div>

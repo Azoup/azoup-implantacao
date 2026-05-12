@@ -1,4 +1,4 @@
--- VynTask — Readiness checklist para estabilidade de sync de projetos (cloud/SaaS).
+-- Implantação Azoup — Readiness checklist para estabilidade de sync de projetos (cloud/SaaS).
 -- Não altera dados críticos; apenas valida pré-condições e imprime sinais de risco.
 
 -- 1) Estruturas essenciais

@@ -18,7 +18,7 @@ import { refreshSupabaseDexieCache } from '../sync/supabaseDexieBridge'
 import { startLiveSyncAfterBridgeReady, stopLiveSyncOnLogout } from '../sync/liveSyncController'
 import { cleanupLegacyTaskCodePrefixes } from '../services/taskTitleCleanup'
 
-const SESSION_KEY = 'vyntask_session_v1'
+const SESSION_KEY = 'implantacao_azoup_session_v1'
 
 type Session = { userId: string; issuedAt: string }
 

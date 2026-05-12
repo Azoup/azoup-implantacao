@@ -812,7 +812,7 @@ export function ProjectCreateModal({
 
         <div className="project-create-modal__body" ref={bodyRef}>
           <form
-            id="vyntask-project-create-form"
+            id="implantacao-azoup-project-create-form"
             className="stack project-create-form"
             onSubmit={onSubmit}
           >
@@ -1322,7 +1322,7 @@ export function ProjectCreateModal({
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
                   <span className="field__hint muted">
                     Início operacional (ex.: primeiro contato ou e-mail do cliente). O padrão é hoje só por conveniência —
-                    não é a data em que o cadastro foi feito no VynTask. Ajuste aqui na criação ou depois em{' '}
+                    não é a data em que o cadastro foi feito na Implantação Azoup. Ajuste aqui na criação ou depois em{' '}
                     <strong>Projeto → Editar</strong>.
                   </span>
                 </label>
@@ -1408,7 +1408,7 @@ export function ProjectCreateModal({
             <button type="button" className="btn btn--ghost" disabled={saving} onClick={() => void attemptClose()}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn--primary" form="vyntask-project-create-form" disabled={saving}>
+            <button type="submit" className="btn btn--primary" form="implantacao-azoup-project-create-form" disabled={saving}>
               {saving ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar projeto'}
             </button>
           </div>

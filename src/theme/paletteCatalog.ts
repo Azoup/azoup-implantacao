@@ -16,7 +16,7 @@ export type PaletteMeta = {
 export const PALETTE_PRESETS: PaletteMeta[] = [
   {
     id: 'neo',
-    name: 'VynTask Neo',
+    name: 'Azoup Neo',
     tagline: 'Identidade oficial: grafite + laranja com contraste SaaS',
     swatch: ['#0f0f0f', '#1a1a1a', '#ff8b17'],
   },
@@ -59,6 +59,8 @@ export const LEGACY_PALETTE_MAP: Record<string, PaletteId> = {
   sage: 'growth',
   slate: 'minimal',
   tech_graphite_orange: 'neo',
+  implantacao_azoup_brand: 'blue_ops',
+  /** @deprecated alias legado salvo em alguns ambientes */
   vyntask_brand: 'blue_ops',
   black_yellow: 'growth',
   black_orange: 'neo',

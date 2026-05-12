@@ -36,7 +36,7 @@ export const IMPLANTATION_JOURNEY_INTRO = {
   objective:
     'Registrar o método de implantação após contratação: contato, alinhamento, importação de dados, preparação da base, cronograma, execução e encerramento.',
   control:
-    'O **VynTask** concentra projeto, responsáveis, fases e tarefas. Antes o controle e a documentação dos projetos de implantação eram feitos no **Trello**; a referência oficial passa a ser o **VynTask**.',
+    'A **Implantação Azoup** concentra projeto, responsáveis, fases e tarefas. Antes o controle e a documentação dos projetos de implantação eram feitos no **Trello**; a referência oficial passa a ser a **Implantação Azoup**.',
   toolsTitle: 'Ferramentas',
 }
 
@@ -101,7 +101,7 @@ export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
     phase: 'Entrada do projeto',
     title: 'Verificação do e-mail',
     body:
-      'Receber novos projetos de implantação por e-mail do **financeiro/comercial Azoup** em https://titan.hostgator.com.br/mail/ . Conferir dados e anexos; abrir ou atualizar o projeto no **VynTask** para rastreabilidade.',
+      'Receber novos projetos de implantação por e-mail do **financeiro/comercial Azoup** em https://titan.hostgator.com.br/mail/ . Conferir dados e anexos; abrir ou atualizar o projeto na **Implantação Azoup** para rastreabilidade.',
     icon: 'mail',
   },
   {
@@ -128,7 +128,7 @@ export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
     phase: 'Alinhamento',
     title: 'Agendamento da reunião de alinhamento',
     body:
-      'Combinar data, participantes e pauta com **Google Agenda** (reuniões em **Google Meet** quando aplicável); registrar compromissos no cronograma no **VynTask** quando houver rascunho.',
+      'Combinar data, participantes e pauta com **Google Agenda** (reuniões em **Google Meet** quando aplicável); registrar compromissos no cronograma na **Implantação Azoup** quando houver rascunho.',
     icon: 'calendar',
   },
   {
@@ -190,7 +190,7 @@ export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
     phase: 'Cronograma e execução',
     title: 'Elaboração do cronograma',
     body:
-      'Definir datas de instalação, configuração, treinamentos e viradas; publicar no **VynTask** como referência do projeto.',
+      'Definir datas de instalação, configuração, treinamentos e viradas; publicar na **Implantação Azoup** como referência do projeto.',
     icon: 'calendarRange',
   },
   {
@@ -203,7 +203,7 @@ export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
     n: 16,
     title: 'Documentação das agendas',
     body:
-      'Registrar o realizado em cada agenda (evidências, pendências, próximos passos) no **VynTask** e no **Discord** quando couber.',
+      'Registrar o realizado em cada agenda (evidências, pendências, próximos passos) na **Implantação Azoup** e no **Discord** quando couber.',
     icon: 'fileText',
   },
   {
@@ -216,7 +216,7 @@ export const IMPLANTATION_JOURNEY_STEPS: ImplantationJourneyStep[] = [
   {
     n: 18,
     title: 'Finalização do projeto',
-    body: 'Formalizar encerramento: comunicar partes, pendências registradas e status final no **VynTask**.',
+    body: 'Formalizar encerramento: comunicar partes, pendências registradas e status final na **Implantação Azoup**.',
     icon: 'flag',
   },
   {

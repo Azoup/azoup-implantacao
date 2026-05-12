@@ -1,6 +1,18 @@
-# Supabase SQL — VynTask
+# Supabase SQL — Implantação Azoup
 
 **Índice principal:** `sql/README_RUN_ORDER.txt` (ordem de execução, risco, import legado).
+
+## Identificadores legados no banco (não renomeados automaticamente)
+
+Para não quebrar ambientes já provisionados, estes nomes **podem continuar como `vyntask`** até você planejar migração:
+
+| Onde | Id legado | O que fazer se quiser renomear |
+|------|-----------|--------------------------------|
+| **Storage** | Bucket `vyntask` | Criar novo bucket, copiar objetos, atualizar políticas RLS e todo `storage.from('…')` no app; depois remover o antigo. |
+| **Postgres** | Função `public.vyntask_set_updated_at` | `ALTER FUNCTION` / triggers que referenciam o nome; coordenar com `010_public_functions_search_path.sql` e `optional/D_domain_row_versioning_updated_at.sql`. |
+| **IndexedDB (só no browser)** | Nome `vyntask_db` | Definido em `src/db/database.ts`; mudar sem rotina de migração **apaga** dados offline locais. |
+
+Nada disso é obrigatório só por causa do rebranding — só se você quiser **100%** sem o termo nos identificadores.
 
 ## Pipeline base (novo ambiente)
 

@@ -752,7 +752,7 @@ export function SettingsPage() {
       {tab === 'geral' ? (
         <>
           <section className="panel panel--stack">
-            <h2 className="panel__title">VynTask como centro da implantação</h2>
+            <h2 className="panel__title">Implantação Azoup como centro da operação</h2>
             <p className="muted panel__lead">
               Quando informação está espalhada (planilhas, WhatsApp, e-mail, tickets), perde-se prazo e padrão. O
               objetivo deste app é ser o <strong>registro único</strong> do ciclo por cliente: etapa no quadro,

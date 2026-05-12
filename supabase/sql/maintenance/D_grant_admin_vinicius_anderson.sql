@@ -1,4 +1,4 @@
--- VynTask — garante admin para VINICIUS e ANDERSON
+-- Implantação Azoup — garante admin para VINICIUS e ANDERSON
 -- E-mails confirmados:
 -- Anderson Telis Junior: telis.junior2@gmail.com
 -- vinicius.azoup: vinicius.azoup@gmail.com

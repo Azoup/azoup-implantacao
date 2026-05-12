@@ -5,7 +5,7 @@ REM Sempre executa a partir da pasta deste .bat
 pushd "%~dp0"
 
 echo ==========================================
-echo           VynTask - Inicializacao
+echo       Implantação Azoup - Inicializacao
 echo ==========================================
 echo Pasta: %CD%
 echo No GitHub, cada push/PR roda: lint, testes e build ^(veja .github\workflows\ci.yml^).

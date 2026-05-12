@@ -35,6 +35,8 @@ export type KanbanColumn =
   | 'fase_03'
   | 'fase_04'
   | 'finalizados'
+  | 'congelados'
+  | 'inadimplentes'
   | 'cancelados'
 
 export type PhaseStatus = 'bloqueada' | 'ativa' | 'concluida'

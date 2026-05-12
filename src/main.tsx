@@ -15,7 +15,7 @@ document.title = APP_BROWSER_DOCUMENT_TITLE
 
 if (import.meta.env.DEV) {
   console.info(
-    '[VynTask]',
+    '[Implantação Azoup]',
     isSupabaseConfigured()
       ? 'Supabase configurado (variáveis carregadas).'
       : 'Supabase: preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local',

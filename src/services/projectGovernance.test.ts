@@ -9,10 +9,14 @@ describe('normalizeProjectPlacement', () => {
     })
   })
 
-  it('prioriza congelado sobre coluna cancelados', () => {
+  it('congelado alinha sempre à coluna Congelados', () => {
     expect(normalizeProjectPlacement({ status: 'congelado', kanbanColumn: 'cancelados' })).toEqual({
       status: 'congelado',
-      kanbanColumn: 'novos',
+      kanbanColumn: 'congelados',
+    })
+    expect(normalizeProjectPlacement({ status: 'congelado', kanbanColumn: 'fase_02' })).toEqual({
+      status: 'congelado',
+      kanbanColumn: 'congelados',
     })
   })
 
@@ -23,10 +27,14 @@ describe('normalizeProjectPlacement', () => {
     })
   })
 
-  it('inadimplente com coluna cancelados realinha para novos', () => {
+  it('inadimplente alinha sempre à coluna Inadimplentes', () => {
     expect(normalizeProjectPlacement({ status: 'inadimplente', kanbanColumn: 'cancelados' })).toEqual({
       status: 'inadimplente',
-      kanbanColumn: 'novos',
+      kanbanColumn: 'inadimplentes',
+    })
+    expect(normalizeProjectPlacement({ status: 'inadimplente', kanbanColumn: 'fase_03' })).toEqual({
+      status: 'inadimplente',
+      kanbanColumn: 'inadimplentes',
     })
   })
 
@@ -46,6 +54,17 @@ describe('normalizeProjectPlacement', () => {
 
   it('ativo com coluna finalizados inconsistente realinha kanban para novos', () => {
     expect(normalizeProjectPlacement({ status: 'ativo', kanbanColumn: 'finalizados' })).toEqual({
+      status: 'ativo',
+      kanbanColumn: 'novos',
+    })
+  })
+
+  it('ativo com colunas congelados/inadimplentes inconsistentes realinha para novos', () => {
+    expect(normalizeProjectPlacement({ status: 'ativo', kanbanColumn: 'congelados' })).toEqual({
+      status: 'ativo',
+      kanbanColumn: 'novos',
+    })
+    expect(normalizeProjectPlacement({ status: 'ativo', kanbanColumn: 'inadimplentes' })).toEqual({
       status: 'ativo',
       kanbanColumn: 'novos',
     })

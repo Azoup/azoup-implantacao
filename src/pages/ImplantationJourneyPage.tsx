@@ -253,7 +253,7 @@ export function ImplantationJourneyPage() {
       </ol>
 
       <p className="impl-page__footer-note">
-        VynTask · Azoup · <a href={azoupSite} target="_blank" rel="noopener noreferrer">azoup.com.br</a>
+        Implantação Azoup · <a href={azoupSite} target="_blank" rel="noopener noreferrer">azoup.com.br</a>
       </p>
     </div>
   )

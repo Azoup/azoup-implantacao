@@ -1,11 +1,14 @@
 /** Título da aba do navegador (alinhar com `<title>` em `index.html`). */
-export const APP_BROWSER_DOCUMENT_TITLE = 'Implantação - Azoup'
+export const APP_BROWSER_DOCUMENT_TITLE = 'Implantação Azoup'
 
-/** Versão exibida na UI (sidebar, login). */
-export const APP_VERSION_DISPLAY = 'v3.11.9'
-/** Nome de marca principal no produto. */
-export const APP_BRAND_NAME_SHORT = 'VynTask'
-/** Assinatura institucional exibida junto da marca principal. */
-export const APP_BRAND_ENDORSEMENT = 'by Azoup'
-/** Nome completo para títulos e metadados. */
-export const APP_BRAND_NAME_FULL = `${APP_BRAND_NAME_SHORT} ${APP_BRAND_ENDORSEMENT}`
+/**
+ * Versão da linha de produto **Implantação Azoup** (semver `major.minor.patch`).
+ * Manter alinhado com `package.json` e com as notas em `CHANGELOG.md` / `releaseNotes.ts`.
+ */
+export const APP_VERSION_DISPLAY = 'v1.0.2'
+
+/** Etiqueta Git/release; em geral igual a {@link APP_VERSION_DISPLAY}. */
+export const APP_VERSION_TAG = 'v1.0.2'
+
+/** Nome completo da marca no produto (telas, PDFs, metadados). */
+export const APP_BRAND_NAME_FULL = 'Implantação Azoup'

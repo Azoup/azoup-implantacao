@@ -18,7 +18,7 @@ export type BrowserCapabilitySnapshot = {
   hasWebSocket: boolean
 }
 
-const DIAG_KEY = 'vyntask.runtimeDiagnostics.v1'
+const DIAG_KEY = 'implantacao_azoup.runtimeDiagnostics.v1'
 const MAX_DIAG_ENTRIES = 120
 
 export type RuntimeSyncSnapshot = {
@@ -91,7 +91,7 @@ function testStorage(kind: 'localStorage' | 'sessionStorage'): boolean {
   if (typeof window === 'undefined') return false
   try {
     const s = window[kind]
-    const probe = `vyntask_probe_${kind}`
+    const probe = `implantacao_azoup_probe_${kind}`
     s.setItem(probe, '1')
     s.removeItem(probe)
     return true

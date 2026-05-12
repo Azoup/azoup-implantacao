@@ -143,7 +143,7 @@ begin
     )
     values (
       v_project,
-      'Jornada do cliente Azoup (VynTask)',
+      'Jornada do cliente Azoup (Implantação Azoup)',
       v_schema,
       true,
       v_admin

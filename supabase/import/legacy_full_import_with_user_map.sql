@@ -1,5 +1,5 @@
 -- ============================================================
--- VynTask — Legacy import (antigo Lovable → novo schema)
+-- Implantação Azoup — Legacy import (antigo Lovable → novo schema)
 -- Gerado por: scripts/gen_migration_sql.py
 -- Como usar:
 --   1. Abra o Supabase SQL Editor do NOVO projeto.

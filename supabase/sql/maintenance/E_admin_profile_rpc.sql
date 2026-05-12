@@ -1,4 +1,4 @@
--- VynTask — RPCs administrativas para gestão de perfis
+-- Implantação Azoup — RPCs administrativas para gestão de perfis
 -- Objetivo: evitar falhas de ajuste de permissões/status por diferenças de RLS/trigger
 -- no cliente. As funções exigem admin ativo (public.is_admin()).
 

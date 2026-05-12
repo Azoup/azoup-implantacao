@@ -44,6 +44,8 @@ export const KANBAN_COLUMNS: KanbanColumnDef[] = [
     accent: phaseProgressionAccent(4),
   },
   { id: 'finalizados', title: 'Concluídos', titleCompact: 'Concluídos', accent: '#14b8a6' },
+  { id: 'congelados', title: 'Congelados', titleCompact: 'Congelados', accent: '#38bdf8' },
+  { id: 'inadimplentes', title: 'Inadimplentes', titleCompact: 'Inadimpl.', accent: '#f59e0b' },
   { id: 'cancelados', title: 'Cancelados', titleCompact: 'Cancelados', accent: '#ef4444' },
 ]
 
