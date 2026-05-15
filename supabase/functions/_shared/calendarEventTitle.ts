@@ -66,7 +66,7 @@ export function parseEmpresaAssuntoFromTitle(title: string): { empresa: string; 
 }
 
 function stripLeadingTaskCode(subject: string, task?: CalendarTitleTaskRow | null): string {
-  let s = subject
+  const s = subject
   const code = task?.code?.trim()
   if (!code) return s
 

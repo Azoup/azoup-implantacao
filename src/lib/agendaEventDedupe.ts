@@ -16,7 +16,7 @@ const EMPRESA_DASH_RE = /\s+-\s+/
 const NON_ALNUM_RE = /[^a-z0-9\s]/gi
 
 function stripTitleForDedupe(title: string): string {
-  let s = stripTaskCodePrefix(String(title ?? '').trim())
+  const s = stripTaskCodePrefix(String(title ?? '').trim())
   return s.replace(PAREN_SUFFIX_RE, ' ').trim()
 }
 
