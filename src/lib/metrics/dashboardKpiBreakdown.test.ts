@@ -25,6 +25,7 @@ const baseProject = (overrides: Partial<DbProject>): DbProject => ({
   id: 'p1',
   projectName: 'P1',
   clientType: 'generico',
+  engagementKind: 'operacao_padrao',
   planType: 'basic',
   hoursContracted: 10,
   hoursUsed: 0,

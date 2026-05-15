@@ -23,6 +23,7 @@ import type {
 import { ALL_PERMISSION_SCOPES } from '../auth/permissions'
 import { inferPhaseColor, normalizePhaseColorHex } from '../constants/phaseProgression'
 import { normalizeProjectClientType } from '../lib/projectClientType'
+import { normalizeProjectEngagementKind } from '../lib/projectEngagementKind'
 import { normalizeRemoteProjectStatus } from '../lib/projectStatus'
 import { parseFreezeTimeline } from '../lib/projectFreezeTimeline'
 import { broadcastDexieSyncHint } from './crossTabSync'
@@ -684,6 +685,7 @@ function dbProjectPartialToSupabaseUpdate(patch: Partial<DbProject>): Record<str
   set('manualAttentionAt', 'manual_attention_at', patch.manualAttentionAt)
   set('manualAttentionBy', 'manual_attention_by', patch.manualAttentionBy)
   set('clientType', 'client_type', patch.clientType)
+  set('engagementKind', 'engagement_kind', patch.engagementKind)
   if (Object.prototype.hasOwnProperty.call(patch, 'freezeTimeline')) {
     o.freeze_timeline = patch.freezeTimeline
   }
@@ -759,8 +761,75 @@ export function dbProjectToSupabaseRow(v: DbProject): Record<string, unknown> {
     manual_attention_at: v.manualAttentionAt,
     manual_attention_by: v.manualAttentionBy,
     client_type: v.clientType,
+    engagement_kind: v.engagementKind,
     freeze_timeline: v.freezeTimeline ?? [],
   }
+}
+
+/**
+ * PATCH aplicado em `upsertProjectGraphFromDexie`: espelha o projeto local na nuvem **sem** reenviar vínculos/imutáveis
+ * (`owner_id`, `analyst_id`, `created_by`, `created_at`). Políticas RLS costumam negar UPDATE quando esses campos
+ * entram no corpo (WITH CHECK) ou quando o cliente cai no fallback **INSERT** (POST) sem permissão.
+ */
+function dbProjectGraphSyncPartialFromDexie(p: DbProject): Partial<DbProject> {
+  return {
+    projectName: p.projectName,
+    planType: p.planType,
+    hoursContracted: p.hoursContracted,
+    hoursUsed: p.hoursUsed,
+    startDate: p.startDate,
+    dueDate: p.dueDate,
+    cancelledAt: p.cancelledAt,
+    status: p.status,
+    kanbanColumn: p.kanbanColumn,
+    cnpj: p.cnpj,
+    razaoSocial: p.razaoSocial,
+    tradeName: p.tradeName,
+    cep: p.cep,
+    addressStreet: p.addressStreet,
+    addressNumber: p.addressNumber,
+    addressComplement: p.addressComplement,
+    addressNeighborhood: p.addressNeighborhood,
+    addressCity: p.addressCity,
+    addressState: p.addressState,
+    implantationContactName: p.implantationContactName,
+    implantationContactPhone: p.implantationContactPhone,
+    corporateEmail: p.corporateEmail,
+    clientApiId: p.clientApiId,
+    internalNotes: p.internalNotes,
+    stateRegistration: p.stateRegistration,
+    secondaryCnpj: p.secondaryCnpj,
+    secondaryRazaoSocial: p.secondaryRazaoSocial,
+    modulesDescription: p.modulesDescription,
+    planSnapshotCapturedAt: p.planSnapshotCapturedAt,
+    planSnapshot: p.planSnapshot,
+    lastManualCheckinAt: p.lastManualCheckinAt,
+    lastManualCheckinBy: p.lastManualCheckinBy,
+    manualAttentionNote: p.manualAttentionNote,
+    manualAttentionAt: p.manualAttentionAt,
+    manualAttentionBy: p.manualAttentionBy,
+    clientType: p.clientType,
+    engagementKind: p.engagementKind,
+    freezeTimeline: p.freezeTimeline,
+  }
+}
+
+/**
+ * Grava `public.projects` sem `upsert` do PostgREST: o merge pode usar **INSERT** (POST) e retornar 403 quando a RLS
+ * só cobre **UPDATE** para o mesmo vínculo (analista/dono). Fluxo: `PATCH` por `id`; se não afetar linhas, `INSERT`.
+ */
+async function writeProjectRowToSupabase(
+  client: ReturnType<typeof assertSupabase>,
+  project: DbProject,
+): Promise<{ error: { message: string } | null; data?: unknown }> {
+  const full = dbProjectToSupabaseRow(project) as Record<string, unknown> & { id: string }
+  const rowId = String(full.id)
+  const { id: _omitId, ...patch } = full
+  const upd = await client.from('projects').update(patch).eq('id', rowId).select('id').maybeSingle()
+  if (upd.error) return upd
+  const updId = (upd.data as { id?: string } | null)?.id
+  if (updId) return upd
+  return await client.from('projects').insert(full).select('id').maybeSingle()
 }
 
 export function dbPhaseToSupabaseRow(v: DbPhase): Record<string, unknown> {
@@ -820,11 +889,10 @@ export function dbTaskToSupabaseRow(v: DbTask): Record<string, unknown> {
 /** Grava um projeto inteiro no Supabase (INSERT/UPSERT — use após criação ou sync amplo; edições de formulário preferem `updateProjectPartialInSupabase`). */
 export async function upsertProjectToSupabase(project: DbProject): Promise<void> {
   const client = assertSupabase()
-  const payload = dbProjectToSupabaseRow(project)
   await runProjectSyncWrite(
     'projects',
     project.id,
-    async () => await client.from('projects').upsert(payload).select('id').maybeSingle(),
+    async () => writeProjectRowToSupabase(client, project),
     undefined,
     (res) => {
       const data = res.data as { id?: string } | null | undefined
@@ -926,9 +994,12 @@ export async function upsertProjectGraphFromDexie(projectId: string): Promise<bo
   try {
     failedOperation = 'projects'
     await runProjectSyncWrite('projects', projectId, async () => {
-      const payload = dbProjectToSupabaseRow(p)
       const client = assertSupabase()
-      return await client.from('projects').upsert(payload).select('id').maybeSingle()
+      const body = dbProjectPartialToSupabaseUpdate(dbProjectGraphSyncPartialFromDexie(p))
+      if (Object.keys(body).length === 0) {
+        return { error: null, data: { id: projectId } }
+      }
+      return await client.from('projects').update(body).eq('id', projectId).select('id').maybeSingle()
     }, opId, (res) => {
       const data = res.data as { id?: string } | null | undefined
       return Boolean(data?.id)
@@ -1017,6 +1088,7 @@ const defs: BridgeDef<unknown>[] = [
       active: toBool(r.active, true),
       createdAt: String(r.created_at ?? new Date().toISOString()),
       profileId: toStringOrNull(r.profile_id),
+      googleCalendarId: toStringOrNull((r as { google_calendar_id?: unknown }).google_calendar_id),
     }),
     toRemote: (x) => {
       const v = x as DbAnalyst
@@ -1028,6 +1100,7 @@ const defs: BridgeDef<unknown>[] = [
         active: v.active,
         created_at: v.createdAt,
         profile_id: v.profileId ?? null,
+        google_calendar_id: v.googleCalendarId ?? null,
       }
     },
   },
@@ -1110,6 +1183,7 @@ const defs: BridgeDef<unknown>[] = [
       id: String(r.id),
       projectName: String(r.project_name ?? ''),
       clientType: normalizeProjectClientType((r as { client_type?: unknown }).client_type),
+      engagementKind: normalizeProjectEngagementKind((r as { engagement_kind?: unknown }).engagement_kind),
       planType: String(r.plan_type ?? ''),
       hoursContracted: toNumber(r.hours_contracted),
       hoursUsed: toNumber(r.hours_used),
@@ -1240,6 +1314,10 @@ const defs: BridgeDef<unknown>[] = [
       analystId: toStringOrNull(r.analyst_id),
       meetingLink: toStringOrNull(r.meeting_link),
       recordingLink: toStringOrNull(r.recording_link),
+      googleEventId: toStringOrNull((r as { google_event_id?: unknown }).google_event_id),
+      googleCalendarId: toStringOrNull((r as { google_calendar_id?: unknown }).google_calendar_id),
+      googleSyncStatus: toStringOrNull((r as { google_sync_status?: unknown }).google_sync_status),
+      googleUpdatedAt: toStringOrNull((r as { google_updated_at?: unknown }).google_updated_at),
       createdAt: String(r.created_at ?? new Date().toISOString()),
     }),
     toRemote: (x) => {
@@ -1257,6 +1335,10 @@ const defs: BridgeDef<unknown>[] = [
         meeting_link: v.meetingLink,
         recording_link: v.recordingLink,
         created_at: v.createdAt,
+        google_event_id: v.googleEventId ?? null,
+        google_calendar_id: v.googleCalendarId ?? null,
+        google_sync_status: v.googleSyncStatus ?? null,
+        google_updated_at: v.googleUpdatedAt ?? null,
       }
     },
   },
@@ -1486,6 +1568,105 @@ export async function applyRemoteRowFromSupabase(
   }
 }
 
+/** Recarrega eventos da nuvem no Dexie (ex.: após pull do Google Calendar). */
+export async function refreshEventsFromSupabase(params: {
+  ids?: string[]
+  timeMin?: string
+  timeMax?: string
+}): Promise<number> {
+  const client = assertSupabase()
+  let query = client.from('events').select('*')
+  if (params.ids?.length) {
+    query = query.in('id', params.ids)
+  } else {
+    if (params.timeMin) query = query.gte('start_time', params.timeMin)
+    if (params.timeMax) query = query.lte('start_time', params.timeMax)
+  }
+  const { data, error } = await query.order('start_time', { ascending: true }).limit(2000)
+  if (error) throw new Error(error.message)
+  const rows = (data ?? []) as Record<string, unknown>[]
+  for (const r of rows) {
+    await applyRemoteRowFromSupabase('events', r, 'INSERT')
+  }
+  if (rows.length > 0) broadcastDexieSyncHint()
+  return rows.length
+}
+
+/**
+ * Dexie `projects.updating` → nuvem: **PATCH** só com colunas seguras (sem `upsert`/POST da linha inteira).
+ * O `upsert` genérico reenvia `owner_id`/`created_*` e costuma devolver **403** com RLS, enquanto o IndexedDB
+ * já gravou — por isso “funciona local” e o console acusa RLS.
+ */
+async function patchProjectRemoteAfterDexieUpdateWithRetry(project: DbProject): Promise<boolean> {
+  let lastMsg = 'Falha desconhecida ao sincronizar.'
+  for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
+    let error: { message?: string } | null = null
+    try {
+      const client = assertSupabase()
+      const body = dbProjectPartialToSupabaseUpdate(dbProjectGraphSyncPartialFromDexie(project))
+      if (Object.keys(body).length === 0) {
+        broadcastDexieSyncHint()
+        return true
+      }
+      const res = await client.from('projects').update(body).eq('id', project.id).select('id').maybeSingle()
+      error = res.error
+      /** `data` pode vir null se o UPDATE aplicou mas o SELECT da linha está bloqueado por RLS — ainda assim não repropagar como falha. */
+      if (!error) {
+        broadcastDexieSyncHint()
+        return true
+      }
+    } catch (err) {
+      error = {
+        message: err instanceof Error ? err.message : String(err),
+      }
+    }
+    if (shouldIgnoreMissingTable('projects', error)) return true
+    lastMsg = error.message ?? lastMsg
+    if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
+  }
+  dispatchSyncFailure({ table: 'projects', operation: 'upsert', message: lastMsg })
+  pushRuntimeDiagnostic({
+    source: 'dexie-bridge',
+    level: 'warn',
+    message: 'Falha em PATCH remoto (projects, hook Dexie updating).',
+    details: lastMsg,
+  })
+  const syncInfo = classifyProjectSyncError({ message: lastMsg })
+  try {
+    const client = assertSupabase()
+    const { data: userData } = await client.auth.getUser()
+    const uid = userData.user?.id ?? null
+    let profileRole: string | null = null
+    let profileStatus: string | null = null
+    let profileErr: string | null = null
+    if (uid) {
+      const { data: profile, error: pErr } = await client
+        .from('profiles')
+        .select('role,status')
+        .eq('id', uid)
+        .maybeSingle()
+      if (pErr) profileErr = pErr.message
+      profileRole = (profile as { role?: string } | null)?.role ?? null
+      profileStatus = (profile as { status?: string } | null)?.status ?? null
+    }
+    pushRuntimeDiagnostic({
+      source: 'dexie-bridge',
+      level: 'warn',
+      message: 'Falha em PATCH remoto (projects) com contexto de perfil.',
+      details: `uid=${uid ?? 'null'} role=${profileRole ?? 'null'} status=${profileStatus ?? 'null'} err=${profileErr ?? 'none'} msg=${lastMsg}`,
+    })
+  } catch {
+    // ignore debug-only probe failures
+  }
+  if (syncInfo.type !== 'policy') {
+    enqueuePendingProjectGraphSync(project.id, {
+      lastErrorCode: 'PRJ_BG_SYNC',
+      lastErrorMessage: lastMsg,
+    })
+  }
+  return false
+}
+
 /** @returns true se gravou (ou tabela opcional ausente); false após esgotar tentativas. */
 async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown): Promise<boolean> {
   const payload = def.toRemote(localRow)
@@ -1570,6 +1751,7 @@ async function upsertRemoteWithRetry(def: BridgeDef<unknown>, localRow: unknown)
 }
 
 const eventBridgeDef = defs.find((d) => d.localTable === 'events')
+const analystBridgeDef = defs.find((d) => d.localTable === 'analysts')
 
 /** Upsert explícito na nuvem (hooks Dexie não aguardam Promise; use após gravar local com sync mutado). */
 export async function syncEventRowToSupabase(ev: DbEvent): Promise<void> {
@@ -1578,6 +1760,39 @@ export async function syncEventRowToSupabase(ev: DbEvent): Promise<void> {
   if (!ok) {
     throw new Error(
       'O evento foi salvo localmente, mas não na nuvem. Verifique conexão, sessão e permissões; tente salvar de novo.',
+    )
+  }
+}
+
+export async function deleteEventRowFromSupabase(eventId: string): Promise<void> {
+  if (!supabase || !eventBridgeDef) return
+  let lastMsg = 'Falha ao excluir o evento na nuvem.'
+  for (let attempt = 1; attempt <= PROJECT_SYNC_MAX_ATTEMPTS; attempt++) {
+    let error: { message?: string } | null = null
+    try {
+      const client = assertSupabase()
+      const res = await client.from(eventBridgeDef.remoteTable).delete().eq('id', eventId)
+      error = res.error
+    } catch (err) {
+      error = { message: err instanceof Error ? err.message : String(err) }
+    }
+    if (!error) {
+      broadcastDexieSyncHint()
+      return
+    }
+    if (shouldIgnoreMissingTable(eventBridgeDef.remoteTable, error)) return
+    lastMsg = error.message ?? lastMsg
+    if (attempt < PROJECT_SYNC_MAX_ATTEMPTS) await sleep(retryDelayMs(attempt))
+  }
+  throw new Error(lastMsg)
+}
+
+export async function syncAnalystRowToSupabase(row: DbAnalyst): Promise<void> {
+  if (!supabase || !analystBridgeDef) return
+  const ok = await upsertRemoteWithRetry(analystBridgeDef, row)
+  if (!ok) {
+    throw new Error(
+      'O analista foi salvo localmente, mas não na nuvem. Verifique conexão, sessão e permissões; tente de novo.',
     )
   }
 }
@@ -1631,6 +1846,15 @@ function installHooks() {
     table.hook('updating', function (mods: Record<string, unknown>, _primaryKey: unknown, obj: Record<string, unknown>) {
       if (syncingMuted) return
       const merged = { ...obj, ...mods }
+      if (def.remoteTable === 'projects') {
+        void patchProjectRemoteAfterDexieUpdateWithRetry(merged as unknown as DbProject).catch((err) => {
+          console.warn('[Supabase] Unhandled updating hook sync error (captured).', {
+            table: def.remoteTable,
+            err,
+          })
+        })
+        return
+      }
       void upsertRemoteWithRetry(def, merged).catch((err) => {
         console.warn('[Supabase] Unhandled updating hook sync error (captured).', {
           table: def.remoteTable,

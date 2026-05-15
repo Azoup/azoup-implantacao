@@ -2,11 +2,65 @@
 
 > **Legado (Alfa/Beta):** entradas de versão **anteriores a v1.0.0** descrevem o ciclo de desenvolvimento sob o nome de código **VynTask** (fases Alfa/Beta). O texto abaixo foi **preservado** como histórico. A linha de produto atual é **Implantação Azoup**, com **semver** (`major.minor.patch`) e notas categorizadas (BUG FIX, MELHORIA, NOVA FUNÇÃO, etc.).
 
-## v1.1.1 (2026-05-12)
+## v1.3.0 (2026-05-15)
+
+### NOVA FUNÇÃO
+
+- **Agenda — calendário estilo Google:** vista **Mês** (padrão), **Semana** e **Dia**; grade mensal com chips por analista; faixas contínuas para eventos **multi-dia / dia inteiro** (ex.: férias); painel lateral com mini-mês, filtros por **analista** (checkboxes) e projeto; botão no topo para **recolher/expandir** o painel (calendário em largura total quando fechado).
+- **Agenda — layout:** `AgendaLayout` com abas Calendário / Em execução / Tarefas não agendadas; deep link e modal compartilhado; filtro de analistas persistido em `localStorage`.
+
+### MELHORIA
+
+- **Agenda — títulos:** compromissos exibidos e enviados ao Google como **EMPRESA — ASSUNTO** (sem prefixo `INTERNO` indevido); dedupe por `googleEventId` na grade.
+- **Agenda — UX:** espaçamentos, alinhamento da barra superior e ritmo visual do painel + grade mensal.
 
 ### BUG FIX
 
-- **Formulários** (`/formularios`): lista de projetos ordenada em memória em vez de `orderBy('projectName')` no Dexie (o índice `projectName` não existe na store `projects`), eliminando o erro ao abrir a página.
+- **Agenda:** navegação **Anterior/Próximo** mantém `monthCursor` na vista mês; **Dia** usa `activeDay` correto ao trocar de vista.
+
+### INFRA
+
+- **Supabase:** Edge Functions `calendar-*` (OAuth, push/pull, listagem); SQL `027`–`029`; script de manutenção `H_dedupe_agenda_google_twins.sql` para limpar eventos fantasma sem `google_event_id`.
+- **Documentação:** ADR-001 (contratos da agenda, navegação e sync).
+
+## v1.2.0 (2026-05-14)
+
+### NOVA FUNÇÃO
+
+- **Projetos — ciclo comercial:** campo `engagement_kind` (`operacao_padrao` / `upsell`) com rótulos **IMPLANTAÇÃO** e **UPSELL** na UI; backfill por nome com `[UPSELL]`; migration `029_projects_engagement_kind.sql`.
+- **Agenda:** três rotas sob `/agenda` — **Calendário**, **Em execução** e **Tarefas não agendadas** (redirect de `/agenda` e legado `em-andamento`); modal de evento compartilhado no layout.
+- **Google Calendar (base):** colunas em `events`, outbox, OAuth Edge (`calendar-oauth-*`), conta corporativa e mapeamento de sub-agenda por analista quando a flag e o SQL estiverem ativos; funções auxiliares de listagem/status.
+
+### MELHORIA
+
+- **Projetos — grade:** cards com zona de chips + situação estável, Último/Atual mais legíveis, ritmo e alinhamento na página hub.
+- **Agenda — calendário:** tokens de grade, faixa de horários alinhada, eventos estreitos/sobrepostos mais legíveis (ícones e texto).
+- **Login:** removido fluxo “Continuar com Google” na tela de entrada (mantém e-mail/senha).
+
+### BUG FIX
+
+- **Auth / router:** `AuthProvider` e `UnsavedChangesProvider` no layout raiz do data router, evitando `useAuth fora de AuthProvider` em `RequireAuth` e `Sidebar`.
+
+### INFRA
+
+- **Supabase:** scripts SQL de integração Calendar (027+) e engagement em projetos; ordem documentada em `supabase/sql/README_RUN_ORDER.txt`; Edge Functions `calendar-*` para OAuth, listagem e fila de sync.
+
+## v1.1.1 (2026-05-12 — também 2026-05-13)
+
+### BUG FIX
+
+- **2026-05-13 — Supabase / projetos:** hook Dexie `projects.updating` passou a sincronizar com **PATCH parcial** em vez de **`upsert`** da linha inteira (alinhado ao sync de grafo), reduzindo **403** por RLS quando o perfil só pode atualizar parte dos campos.
+- **2026-05-12 — Formulários** (`/formularios`): lista de projetos ordenada em memória em vez de `orderBy('projectName')` no Dexie (o índice `projectName` não existe na store `projects`), eliminando o erro ao abrir a página.
+
+### MELHORIA
+
+- **2026-05-13 — Detalhe do projeto (fases & tarefas):** colunas de fase e cartões mais largos; cartão com código, linha de status/chips e título em faixas (menos sobreposição com rail e ações); chip de próximo compromisso mostra **só data/hora**; botão concluir e espaçamentos refinados.
+- **2026-05-13 — Menu lateral:** refinamento visual (cores, ativos, ferramentas); **recolhido:** notificação + tema **empilhados** e controles menores na faixa estreita.
+- **2026-05-13 — Plano avulso:** board de fases no **layout horizontal** do catálogo (colunas roláveis).
+- **2026-05-12 — Projetos:** borda verde nos cards **FINALIZADO** (`proj-card--done`).
+- **2026-05-12 — Menu lateral:** sino de **notificações** com pendência de check-in (>7 dias) só para projetos **em andamento**; página **Projetos** com filtro padrão **EM ANDAMENTO**.
+- **2026-05-12 — Projetos — filtros:** contraste maior entre chip selecionado e demais (opacidade, borda, sombra; analistas e grupos com `:has()`).
+- **2026-05-12 — Notas de atualização:** lista **agrupada por dia** (Brasília); várias releases no mesmo dia mostram **horário** por versão; texto deixa claro que notas vêm de `releaseNotes.ts` / changelog, não do build automático.
 
 ## v1.1.0 (2026-05-12)
 

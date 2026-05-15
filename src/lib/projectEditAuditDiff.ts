@@ -1,5 +1,6 @@
 import type { DbProject } from '../db/types'
 import { formatDatePt } from './dates'
+import { projectEngagementKindLabelForAudit } from './projectEngagementKind'
 
 const CLIP = 420
 
@@ -43,6 +44,7 @@ function sameNumber(a: unknown, b: unknown): boolean {
 const FIELD_LABEL: Record<string, string> = {
   projectName: 'Nome do projeto',
   clientType: 'Tipo do cliente (negócio)',
+  engagementKind: 'Ciclo do projeto (IMPLANTAÇÃO / UPSELL)',
   analystId: 'Analista responsável',
   startDate: 'Data de início',
   dueDate: 'Previsão de término',
@@ -176,6 +178,17 @@ export function describeProjectPersistPatchDiff(
           label,
           CLIENT_TYPE_PT[String(oldVal)] ?? String(oldVal ?? '—'),
           CLIENT_TYPE_PT[String(newVal)] ?? String(newVal ?? '—'),
+        )
+      }
+      continue
+    }
+
+    if (key === 'engagementKind') {
+      if (oldVal !== newVal) {
+        pushChange(
+          label,
+          projectEngagementKindLabelForAudit(oldVal),
+          projectEngagementKindLabelForAudit(newVal),
         )
       }
       continue

@@ -7,6 +7,7 @@ function mkProject(partial: Partial<DbProject>): DbProject {
     id: partial.id ?? crypto.randomUUID(),
     projectName: partial.projectName ?? 'Projeto Teste',
     clientType: partial.clientType ?? 'generico',
+    engagementKind: partial.engagementKind ?? 'operacao_padrao',
     planType: 'basic',
     hoursContracted: partial.hoursContracted ?? 100,
     hoursUsed: partial.hoursUsed ?? 20,

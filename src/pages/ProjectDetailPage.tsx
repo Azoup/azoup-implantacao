@@ -20,6 +20,7 @@ import {
   CircleCheck,
   Clock,
   CircleDashed,
+  ExternalLink,
   Link2,
   Lock,
   MessageSquare,
@@ -48,6 +49,7 @@ import { PlanTaskModal, type PlanTaskFormValues, type PlanTaskSaveMeta } from '.
 import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { TaskScheduleChip } from '../components/TaskScheduleChip'
+import { AgendaEventModal, type AgendaEventModalHandle } from '../components/agenda/AgendaEventModal'
 import { ManualCompleteTaskModal } from '../components/ManualCompleteTaskModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { AiFormatModal } from '../components/AiFormatModal'
@@ -71,6 +73,7 @@ import { phaseNameShort } from '../lib/phaseDisplay'
 import { projectProgressPercent } from '../lib/projectProgress'
 import { getPhaseSegments, statusLabelPt } from '../lib/projectPhaseUi'
 import { projectClientTypeLabelPt } from '../lib/projectClientType'
+import { projectEngagementKindLabelPt } from '../lib/projectEngagementKind'
 import { effectiveTaskIsInformational } from '../lib/effectiveTaskInformational'
 import { buildCustomPlanBlueprintBlocks, buildLabelsTabSections, type PlanBlueprintBlock } from '../lib/labelsTabFromPlan'
 import { planLabelTabPillStyle, planLabelColorsFromCode, planPhaseAccentHex } from '../lib/planLabelDisplay'
@@ -78,6 +81,7 @@ import { normalizeDocLinkUrl } from '../lib/docUrls'
 import { compareTaskCode } from '../lib/taskCode'
 import { getPrimaryScheduledEventFromCandidates } from '../lib/taskSchedule'
 import { buildRescheduleKanbanProjectModel } from '../lib/rescheduleChainKanban'
+import { buildAgendaNavigateTo } from '../lib/agendaDeepLink'
 import { CUSTOM_PLAN_TYPE, planPillClass, planSummaryLabel } from '../constants/customPlan'
 import { uuid } from '../lib/uuid'
 import { addProjectContact, deleteProjectContact } from '../services/projectContacts'
@@ -186,6 +190,7 @@ export function ProjectDetailPage() {
   const { user } = useAuth()
   const { running: runningTimerSession, liveSeconds: runningLiveSeconds } = useRunningTimerSession(user?.id)
   const canEditProjects = hasScope(user, 'projects.edit')
+  const canEditAgenda = hasScope(user, 'agenda.edit')
   const canViewPortalIntel = Boolean(user) && isSupabaseConfigured() && hasScope(user, 'projects.view')
 
   const projects = useLiveQuery(() => db.projects.toArray(), []) ?? emptyProjects
@@ -195,6 +200,8 @@ export function ProjectDetailPage() {
     () => (projectId ? db.tasks.where('projectId').equals(projectId).toArray() : Promise.resolve([] as DbTask[])),
     [projectId],
   ) ?? emptyTasks
+
+  const allTasksForAgendaModal = useLiveQuery(() => db.tasks.toArray(), []) ?? emptyTasks
 
   const projectEvents = useLiveQuery(
     () =>
@@ -272,6 +279,7 @@ export function ProjectDetailPage() {
   const [docDraft, setDocDraft] = useState('')
   const [docBusy, setDocBusy] = useState(false)
   const docFileInputRef = useRef<HTMLInputElement>(null)
+  const agendaEventModalRef = useRef<AgendaEventModalHandle>(null)
   const [docPendingFiles, setDocPendingFiles] = useState<{ localId: string; file: File }[]>([])
   const [docPendingLinks, setDocPendingLinks] = useState<{ id: string; url: string; label: string }[]>([])
   const [docLinkUrlDraft, setDocLinkUrlDraft] = useState('')
@@ -1006,6 +1014,15 @@ export function ProjectDetailPage() {
             >
               {projectClientTypeLabelPt(proj.clientType)}
             </span>
+            <span
+              className={
+                'proj-card__badge proj-card__badge--engagement-kind is-' +
+                (proj.engagementKind ?? 'operacao_padrao')
+              }
+              title="Ciclo do projeto: IMPLANTAÇÃO (ciclo principal) vs. UPSELL"
+            >
+              {projectEngagementKindLabelPt(proj.engagementKind)}
+            </span>
             <span className={'proj-card__badge proj-card__badge--status is-' + proj.status}>
               {statusLabelPt(proj.status)}
             </span>
@@ -1298,7 +1315,7 @@ export function ProjectDetailPage() {
                   }
                   style={{ ['--pd-phase-accent' as string]: phase.colorHex || planPhaseAccentHex(phase.orderIndex) }}
                 >
-                  <header className={'pd-phase__head' + (isCustomPlan ? ' pd-phase__head--custom' : '')}>
+                  <header className="pd-phase__head">
                     <div className="pd-phase__head-row">
                       <div className={'pd-phase__icon' + (ativa ? ' pd-phase__icon--play' : '')}>
                         {locked ? <Lock {...ic} /> : concl ? <CheckCircle2 {...ic} /> : <Play {...ic} />}
@@ -1483,13 +1500,31 @@ export function ProjectDetailPage() {
                           }}
                         >
                           <div className="pd-task__top">
-                            <div className="pd-task__lead">
-                              <div className="pd-task__code-row">
+                            <div className="pd-task__meta-row">
+                              <div className="pd-task__code-line">
                                 <span className="pd-task__code">{t.code}</span>
+                              </div>
+                              <div className="pd-task__status-line">
                                 <TaskScheduleChip
                                   task={t}
                                   events={projectEvents}
                                   rowScopedEvents={mergedRowEvents}
+                                  onAgendaPress={
+                                    canEditAgenda
+                                      ? ({ state, primaryEvent }) => {
+                                          if (
+                                            (state === 'scheduled' ||
+                                              state === 'in_session' ||
+                                              state === 'done_event') &&
+                                            primaryEvent
+                                          ) {
+                                            void agendaEventModalRef.current?.openEditEvent(primaryEvent.id)
+                                          } else if (state === 'no_schedule') {
+                                            void agendaEventModalRef.current?.openPrefillTask(t.id, proj.id)
+                                          }
+                                        }
+                                      : undefined
+                                  }
                                 />
                                 {t.completedManualOverride && t.completedManualOverrideReason ? (
                                   <span
@@ -1528,7 +1563,6 @@ export function ProjectDetailPage() {
                                   </span>
                                 ) : null}
                               </div>
-                              <span className="pd-task__title">{t.title}</span>
                             </div>
                             <div className="pd-task__rail">
                               {(() => {
@@ -1651,6 +1685,7 @@ export function ProjectDetailPage() {
                               </details>
                               </div>
                             </div>
+                            <span className="pd-task__title">{t.title}</span>
                           </div>
                           {!informational ? (
                             <div
@@ -1723,35 +1758,49 @@ export function ProjectDetailPage() {
                               ) : null}
                               {!doneTask && canAct ? (
                                 <div className="pd-task__footer">
-                                  {scheduledEv ? (
+                                  <div className="pd-task__footer-agenda-wrap">
+                                    {scheduledEv ? (
+                                      <button
+                                        type="button"
+                                        className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda pd-task__footer-btn--agenda-on"
+                                        onClick={() => void agendaEventModalRef.current?.openEditEvent(scheduledEv.id)}
+                                        title="Editar compromisso (nesta tela)"
+                                        aria-label="Editar compromisso na agenda"
+                                      >
+                                        <CalendarCheck {...ic} aria-hidden />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda"
+                                        onClick={() => void agendaEventModalRef.current?.openPrefillTask(t.id, proj.id)}
+                                        title="Agendar (nesta tela)"
+                                        aria-label="Agendar na agenda"
+                                      >
+                                        <CalendarPlus {...ic} aria-hidden />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
-                                      className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda pd-task__footer-btn--agenda-on"
-                                      onClick={() =>
-                                        navigate('/agenda', {
-                                          state: { editEventId: scheduledEv.id },
-                                        })
-                                      }
-                                      title="Compromisso na agenda — abrir para editar"
-                                      aria-label="Abrir compromisso na agenda"
+                                      className="pd-task__footer-btn pd-task__footer-btn--agenda-page pd-task__footer-btn--agenda-page-labeled"
+                                      onClick={() => {
+                                        const intent = scheduledEv
+                                          ? ({ kind: 'editEvent' as const, eventId: scheduledEv.id } as const)
+                                          : ({
+                                              kind: 'prefillTask' as const,
+                                              taskId: t.id,
+                                              projectId: proj.id,
+                                            } as const)
+                                        const { pathname, search } = buildAgendaNavigateTo(intent)
+                                        navigate({ pathname, search }, { state: {} })
+                                      }}
+                                      title="Abrir na página Agenda (URL copiável)"
+                                      aria-label="Abrir na agenda em página própria"
                                     >
-                                      <CalendarCheck {...ic} aria-hidden />
+                                      <ExternalLink {...ic} aria-hidden />
+                                      <span className="pd-task__footer-agenda-page-label">Abrir na agenda</span>
                                     </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      className="pd-task__footer-btn pd-task__footer-btn--icon-only pd-task__footer-btn--agenda"
-                                      onClick={() =>
-                                        navigate('/agenda', {
-                                          state: { prefillTaskId: t.id, prefillProjectId: proj.id },
-                                        })
-                                      }
-                                      title="Agendar na agenda"
-                                      aria-label="Agendar na agenda"
-                                    >
-                                      <CalendarPlus {...ic} aria-hidden />
-                                    </button>
-                                  )}
+                                  </div>
                                   {!informational ? (
                                     <button
                                       type="button"
@@ -2420,6 +2469,13 @@ export function ProjectDetailPage() {
         onSave={onSaveCustomTaskModal}
         variant={planTaskModalVariant === 'catalogAdHoc' ? 'catalogAdHoc' : 'standard'}
         auditOnEdit
+      />
+      <AgendaEventModal
+        ref={agendaEventModalRef}
+        projects={projects}
+        tasks={allTasksForAgendaModal}
+        analysts={analystsAll}
+        canEditAgenda={canEditAgenda}
       />
     </div>
   )

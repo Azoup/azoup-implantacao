@@ -6,6 +6,7 @@ function proj(over: Partial<DbProject> & Pick<DbProject, 'id' | 'status'>): DbPr
   return {
     projectName: 'T',
     clientType: 'generico',
+    engagementKind: 'operacao_padrao',
     planType: 'basic',
     hoursContracted: 10,
     hoursUsed: 0,

@@ -29,6 +29,7 @@ import { canAccessManuais, hasScope } from '../auth/permissions'
 import type { DbUser } from '../db/types'
 import { useTheme } from '../theme/ThemeContext'
 import { AzoupLogoMark } from '../components/AzoupLogoMark'
+import { SidebarNotifications } from '../components/SidebarNotifications'
 import { APP_BRAND_NAME_FULL, APP_VERSION_DISPLAY } from '../constants/appMeta'
 
 type NavItem = {
@@ -86,53 +87,57 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
   return (
     <aside className={'sidebar' + (collapsed ? ' sidebar--collapsed' : '')}>
       <div className="sidebar__header">
-        <div
-          className={
-            'sidebar__brand sidebar__brand--interactive ' +
-            (collapsed ? 'sidebar__brand--collapsed' : 'sidebar__brand--expanded')
-          }
-        >
-          <span className="sidebar__logo" aria-hidden>
-            <AzoupLogoMark size={collapsed ? 36 : 32} className="sidebar__logo-mark" />
-          </span>
-          <div className="sidebar__brand-text">
-            <div className="sidebar__title">{APP_BRAND_NAME_FULL}</div>
-            <div className="sidebar__version" spellCheck={false}>
-              {APP_VERSION_DISPLAY}
+        <div className="sidebar__header-brand-slot">
+          <div
+            className={
+              'sidebar__brand sidebar__brand--interactive ' +
+              (collapsed ? 'sidebar__brand--collapsed' : 'sidebar__brand--expanded')
+            }
+          >
+            <span className="sidebar__logo" aria-hidden>
+              <AzoupLogoMark size={collapsed ? 36 : 32} className="sidebar__logo-mark" />
+            </span>
+            <div className="sidebar__brand-text">
+              <div className="sidebar__title">{APP_BRAND_NAME_FULL}</div>
+              <div className="sidebar__version" spellCheck={false}>
+                {APP_VERSION_DISPLAY}
+              </div>
             </div>
           </div>
         </div>
+        <div className="sidebar__header-tools" role="toolbar" aria-label="Notificações e aparência">
+          <SidebarNotifications collapsed={collapsed} onNavigate={onNavigate} />
+          <button
+            type="button"
+            className={'sidebar__theme-toggle sidebar__theme-toggle--header' + (theme === 'dark' ? ' is-dark' : ' is-light')}
+            onClick={() => {
+              toggle()
+              onNavigate?.()
+            }}
+            title={themeToggleLabel}
+            aria-label={themeToggleLabel}
+            aria-pressed={theme === 'dark'}
+          >
+            {theme === 'dark' ? (
+              <Moon size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
+            ) : (
+              <Sun size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
+            )}
+          </button>
+        </div>
         <button
           type="button"
-          className={'sidebar__theme-toggle sidebar__theme-toggle--header' + (theme === 'dark' ? ' is-dark' : ' is-light')}
-          onClick={() => {
-            toggle()
-            onNavigate?.()
-          }}
-          title={themeToggleLabel}
-          aria-label={themeToggleLabel}
-          aria-pressed={theme === 'dark'}
+          className="sidebar__rail-toggle sidebar__rail-toggle--header"
+          onClick={onToggleCollapse}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+          title={collapsed ? 'Expandir (Ctrl+B)' : 'Recolher (Ctrl+B)'}
         >
-          {theme === 'dark' ? (
-            <Moon size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
-          ) : (
-            <Sun size={17} strokeWidth={2.2} absoluteStrokeWidth aria-hidden />
-          )}
+          {collapsed ? <ChevronRight size={18} strokeWidth={2} /> : <ChevronLeft size={18} strokeWidth={2} />}
         </button>
       </div>
 
       <div className="sidebar__divider" aria-hidden />
-
-      <button
-        type="button"
-        className="sidebar__rail-toggle"
-        onClick={onToggleCollapse}
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-        title={collapsed ? 'Expandir (Ctrl+B)' : 'Recolher (Ctrl+B)'}
-      >
-        {collapsed ? <ChevronRight size={18} strokeWidth={2} /> : <ChevronLeft size={18} strokeWidth={2} />}
-      </button>
 
       <div className="sidebar__scroll">
         <nav className="sidebar__nav" aria-label="Principal">

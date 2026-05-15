@@ -8,6 +8,7 @@ import type {
   KanbanColumn,
   PlanTypeKey,
   ProjectClientType,
+  ProjectEngagementKind,
   ProjectStatus,
 } from '../db/types'
 import { db } from '../db/database'
@@ -42,6 +43,11 @@ import {
   DEFAULT_PROJECT_CLIENT_TYPE,
   PROJECT_CLIENT_TYPE_SELECT_OPTIONS,
 } from '../lib/projectClientType'
+import {
+  DEFAULT_PROJECT_ENGAGEMENT_KIND,
+  normalizeProjectEngagementKind,
+  PROJECT_ENGAGEMENT_KIND_SELECT_OPTIONS,
+} from '../lib/projectEngagementKind'
 import { statusLabelPt } from '../lib/projectPhaseUi'
 
 function mapProjectCreateError(raw: unknown, isEdit: boolean): string {
@@ -164,6 +170,7 @@ export function ProjectCreateModal({
 
   const [projectName, setProjectName] = useState('')
   const [clientType, setClientType] = useState<ProjectClientType>(DEFAULT_PROJECT_CLIENT_TYPE)
+  const [engagementKind, setEngagementKind] = useState<ProjectEngagementKind>(DEFAULT_PROJECT_ENGAGEMENT_KIND)
   const [planKey, setPlanKey] = useState<PlanTypeKey>('master')
   /** Teto de horas (plano avulso — política híbrida B). */
   const [customContractHours, setCustomContractHours] = useState(40)
@@ -228,6 +235,7 @@ export function ProjectCreateModal({
     if (edit) {
       setProjectName(edit.projectName)
       setClientType(edit.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE)
+      setEngagementKind(normalizeProjectEngagementKind(edit.engagementKind))
       setPlanKey((normalizePlanTypeKey(edit.planType) || edit.planType) as PlanTypeKey)
       setAnalystId(edit.analystId ?? '')
       setStartDate(isoToDateInput(edit.startDate))
@@ -287,6 +295,7 @@ export function ProjectCreateModal({
     const p = plansRef.current
     setProjectName('')
     setClientType(DEFAULT_PROJECT_CLIENT_TYPE)
+    setEngagementKind(DEFAULT_PROJECT_ENGAGEMENT_KIND)
     setPlanKey(p[0]?.key ?? 'master')
     setAnalystId('')
     setStartDate(toDateInputValue(new Date()))
@@ -410,6 +419,7 @@ export function ProjectCreateModal({
       JSON.stringify({
         projectName,
         clientType,
+        engagementKind,
         planKey,
         customContractHours,
         analystId,
@@ -441,6 +451,7 @@ export function ProjectCreateModal({
     [
       projectName,
       clientType,
+      engagementKind,
       planKey,
       customContractHours,
       analystId,
@@ -631,6 +642,7 @@ export function ProjectCreateModal({
         })
         const patch: Record<string, unknown> = {
           ...common,
+          engagementKind: normalizeProjectEngagementKind(engagementKind),
           ...placement,
           manualAttentionNote: noteTrim.length > 0 ? noteTrim : null,
           manualAttentionAt,
@@ -979,6 +991,12 @@ export function ProjectCreateModal({
                     minLength={2}
                     placeholder="Ex.: Implantação ERP — Loja Centro"
                   />
+                  {!isEdit ? (
+                    <span className="field__hint muted">
+                      Se o nome contiver <code>[UPSELL]</code> (sem distinção de maiúsculas), o projeto será salvo como
+                      UPSELL automaticamente.
+                    </span>
+                  ) : null}
                 </label>
                 <label className="field field--span2">
                   <span>Tipo do cliente (negócio)</span>
@@ -993,6 +1011,24 @@ export function ProjectCreateModal({
                     Classifica a unidade de negócio do cliente neste projeto (Confecção ou Genérico).
                   </span>
                 </label>
+                {isEdit ? (
+                  <label className="field field--span2">
+                    <span>Ciclo do projeto</span>
+                    <select
+                      value={engagementKind}
+                      onChange={(e) => setEngagementKind(e.target.value as ProjectEngagementKind)}
+                    >
+                      {PROJECT_ENGAGEMENT_KIND_SELECT_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="field__hint muted">
+                      Distinto do plano contratado e do tipo de cliente; use para separar UPSELL do ciclo principal.
+                    </span>
+                  </label>
+                ) : null}
                 <label className="field field--span2">
                   <span>Plano contratado</span>
                   <select value={planKey} onChange={(e) => setPlanKey(e.target.value)} disabled={isEdit}>

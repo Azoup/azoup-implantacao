@@ -1,6 +1,6 @@
 import { addDays, addWeeks, startOfWeek } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 
 export const CAL_TZ = 'America/Sao_Paulo'
 
@@ -50,14 +50,29 @@ export function formatSingleDayLong(d: Date): string {
   return formatInTimeZone(d, CAL_TZ, "EEEE, d 'de' MMMM yyyy", fmtOpts)
 }
 
+export function formatMonthRangeLabel(anchor: Date): string {
+  return formatInTimeZone(toZonedTime(anchor, CAL_TZ), CAL_TZ, 'MMMM yyyy', fmtOpts)
+}
+
+/** ISO sem sufixo Z/offset = horário de parede em CAL_TZ (evita tratar como UTC). */
+export function parseEventInstant(iso: string): Date {
+  const s = iso.trim()
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d{1,3})?$/.test(s)) {
+    const wall = /T\d{2}:\d{2}$/.test(s) ? `${s}:00` : s
+    return fromZonedTime(wall, CAL_TZ)
+  }
+  return new Date(s)
+}
+
 export function minutesFromMidnightInTz(iso: string): number {
-  const h = Number(formatInTimeZone(iso, CAL_TZ, 'H'))
-  const m = Number(formatInTimeZone(iso, CAL_TZ, 'm'))
+  const instant = parseEventInstant(iso)
+  const h = Number(formatInTimeZone(instant, CAL_TZ, 'H'))
+  const m = Number(formatInTimeZone(instant, CAL_TZ, 'm'))
   return h * 60 + m
 }
 
 export function dayKeyFromIso(iso: string): string {
-  return formatInTimeZone(iso, CAL_TZ, 'yyyy-MM-dd')
+  return formatInTimeZone(parseEventInstant(iso), CAL_TZ, 'yyyy-MM-dd')
 }
 
 /** Retorna top% e height% dentro da faixa GRID_START_HOUR–GRID_END_HOUR. */
@@ -107,19 +122,32 @@ export function maxConcurrency(ev: Segment[]): number {
   return Math.max(1, m)
 }
 
-export function assignLanes(ev: Segment[]): Map<string, { lane: number; laneCount: number }> {
-  const laneCount = maxConcurrency(ev)
+export type LaneAssignment = { lane: number; laneCount: number; stackIndex: number }
+
+/**
+ * Distribui eventos sobrepostos em faixas paralelas (máx. `maxLanes` colunas).
+ * Acima do limite, empilha na última coluna com `stackIndex` (deslocamento visual).
+ */
+export function assignLanes(ev: Segment[], maxLanes = 2): Map<string, LaneAssignment> {
+  const rawCount = maxConcurrency(ev)
+  const laneCount = Math.min(rawCount, Math.max(1, maxLanes))
   const sorted = ev.slice().sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
   const laneEnd = Array.from({ length: laneCount }, () => 0)
-  const map = new Map<string, { lane: number; laneCount: number }>()
+  const stackInLane = Array.from({ length: laneCount }, () => 0)
+  const map = new Map<string, LaneAssignment>()
   for (const e of sorted) {
     let lane = 0
     for (; lane < laneCount; lane++) {
       if (laneEnd[lane] <= e.startMin) break
     }
-    if (lane === laneCount) lane = 0
+    if (lane === laneCount) {
+      lane = laneCount - 1
+      stackInLane[lane] += 1
+    } else {
+      stackInLane[lane] = 0
+    }
     laneEnd[lane] = Math.max(laneEnd[lane], e.endMin)
-    map.set(e.id, { lane, laneCount })
+    map.set(e.id, { lane, laneCount, stackIndex: stackInLane[lane] })
   }
   return map
 }

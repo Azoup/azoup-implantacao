@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Camera, Edit3, Trash2, UserCheck, UserX } from 'lucide-react'
+import { Camera, Edit3, RefreshCw, Trash2, UserCheck, UserX } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import { hasScope } from '../auth/permissions'
 import { db } from '../db/database'
@@ -15,6 +15,9 @@ import { reassignAnalystReferences } from '../services/analystAssignments'
 import { useRegisterUnsavedChanges } from '../navigation/UnsavedChangesContext'
 import { useUnsavedCloseGuard } from '../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../ui/UiFeedbackContext'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
+import { fetchGoogleCalendarList, isGoogleCalendarSyncEnabled } from '../services/calendarPushQueue'
+import { syncAnalystRowToSupabase } from '../sync/supabaseDexieBridge'
 
 const ANALYST_COLORS = ['#FF8B17', '#0EA5E9', '#8B5CF6', '#22C55E', '#EF4444', '#EC4899', '#14B8A6', '#6366F1']
 
@@ -45,8 +48,53 @@ export function AnalystsPage() {
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [replacementFlow, setReplacementFlow] = useState<ReplacementFlowState>(null)
   const [analystModalBaseline, setAnalystModalBaseline] = useState<string | null>(null)
+  const [googleCalendars, setGoogleCalendars] = useState<Array<{ id: string; summary: string; primary?: boolean }>>([])
+  const [googleCalendarsErr, setGoogleCalendarsErr] = useState<string | null>(null)
+  const [googleCalendarsBusy, setGoogleCalendarsBusy] = useState(false)
+  const [analystGcalSaveBusy, setAnalystGcalSaveBusy] = useState<string | null>(null)
 
   const activeCount = useMemo(() => analysts.filter((a) => a.active).length, [analysts])
+
+  const canOfferGoogleCalendar =
+    isGoogleCalendarSyncEnabled() && isSupabaseConfigured() && user?.userType !== 'client'
+
+  const refreshGoogleCalendarOptions = useCallback(async () => {
+    if (!canOfferGoogleCalendar || !canEditAnalysts) return
+    setGoogleCalendarsBusy(true)
+    setGoogleCalendarsErr(null)
+    try {
+      const list = await fetchGoogleCalendarList()
+      setGoogleCalendars(list)
+    } catch (e) {
+      setGoogleCalendarsErr(e instanceof Error ? e.message : 'Falha ao carregar agendas Google.')
+    } finally {
+      setGoogleCalendarsBusy(false)
+    }
+  }, [canOfferGoogleCalendar, canEditAnalysts])
+
+  useEffect(() => {
+    if (!canOfferGoogleCalendar || !canEditAnalysts) return
+    void refreshGoogleCalendarOptions()
+  }, [canOfferGoogleCalendar, canEditAnalysts, refreshGoogleCalendarOptions])
+
+  async function onChangeAnalystGoogleCalendar(analystId: string, calendarIdRaw: string) {
+    if (!canEditAnalysts) return
+    const googleCalendarId = calendarIdRaw === '' ? null : calendarIdRaw
+    setAnalystGcalSaveBusy(analystId)
+    try {
+      await db.analysts.update(analystId, { googleCalendarId })
+      const row = await db.analysts.get(analystId)
+      if (row && isSupabaseConfigured()) await syncAnalystRowToSupabase(row)
+      toastMutationSuccess({ action: 'update', target: 'Agenda Google do analista' })
+    } catch (err) {
+      toastMutationError(
+        { action: 'update', target: 'a agenda Google do analista' },
+        err instanceof Error ? err.message : undefined,
+      )
+    } finally {
+      setAnalystGcalSaveBusy(null)
+    }
+  }
 
   const closeReplacementModal = useCallback(() => setReplacementFlow(null), [])
 
@@ -276,6 +324,25 @@ export function AnalystsPage() {
           </div>
         </div>
 
+        {canOfferGoogleCalendar && canEditAnalysts ? (
+          <div className="analysts-gcal-banner muted" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+            <p style={{ margin: '0 0 0.5rem' }}>
+              A conta Google da operação é <strong>uma só</strong> (conectada em Configurações). Aqui você escolhe, por
+              analista, <strong>qual sub-agenda</strong> daquela conta recebe os eventos dele.
+            </p>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              disabled={googleCalendarsBusy}
+              onClick={() => void refreshGoogleCalendarOptions()}
+            >
+              <RefreshCw size={14} strokeWidth={2} aria-hidden />
+              {googleCalendarsBusy ? 'Carregando agendas…' : 'Atualizar lista de agendas Google'}
+            </button>
+            {googleCalendarsErr ? <p className="auth__error" style={{ marginTop: '0.5rem' }}>{googleCalendarsErr}</p> : null}
+          </div>
+        ) : null}
+
         {analysts.length === 0 ? (
           <p className="muted">Nenhum analista cadastrado ainda.</p>
         ) : (
@@ -295,6 +362,33 @@ export function AnalystsPage() {
                   <span className="color-dot" style={{ background: a.color }} />
                   <code className="analyst-card__hex">{a.color.toUpperCase()}</code>
                 </div>
+                {canOfferGoogleCalendar && canEditAnalysts ? (
+                  <label className="analyst-card__gcal">
+                    <span className="muted">Sub-agenda Google (conta corporativa)</span>
+                    <select
+                      value={a.googleCalendarId ?? ''}
+                      disabled={
+                        Boolean(googleCalendarsBusy) ||
+                        analystGcalSaveBusy === a.id ||
+                        (googleCalendars.length === 0 && !a.googleCalendarId)
+                      }
+                      onChange={(e) => void onChangeAnalystGoogleCalendar(a.id, e.target.value)}
+                    >
+                      <option value="">{googleCalendars.length === 0 ? '— Conecte a conta em Configurações —' : '— Não vinculado —'}</option>
+                      {a.googleCalendarId && !googleCalendars.some((c) => c.id === a.googleCalendarId) ? (
+                        <option value={a.googleCalendarId}>
+                          {a.googleCalendarId.slice(0, 28)}
+                          … (salvo)
+                        </option>
+                      ) : null}
+                      {googleCalendars.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {(c.primary ? 'Principal · ' : '') + c.summary}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
                 <div className="analyst-card__actions">
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => openEdit(a)} disabled={!canEditAnalysts}>
                     <Edit3 size={14} strokeWidth={2} />

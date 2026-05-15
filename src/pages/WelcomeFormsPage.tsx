@@ -52,7 +52,7 @@ function linesToOptions(text: string): string[] {
 }
 
 export function WelcomeFormsPage() {
-  const { toast, toastError } = useUiFeedback()
+  const { toast, toastError, requestConfirm } = useUiFeedback()
   const { user } = useAuth()
   const canPreviewPortal = Boolean(user && hasScope(user, 'portal.forms.fill'))
 
@@ -142,8 +142,13 @@ export function WelcomeFormsPage() {
     }
   }
 
-  function onRestoreAzoupDefaults() {
-    if (!window.confirm('Restaurar o modelo padrão Azoup no editor? Salve depois para gravar no projeto.')) return
+  async function onRestoreAzoupDefaults() {
+    const ok = await requestConfirm({
+      title: 'Restaurar modelo padrão',
+      message: 'Restaurar o modelo padrão Azoup no editor? Salve depois para gravar no projeto.',
+      confirmLabel: 'Restaurar',
+    })
+    if (!ok) return
     setFields(resolveWelcomeFormFieldsFromSchema(buildAzoupMarkerSchema()))
     setGoogleUrl(AZOUP_WELCOME_GOOGLE_FORM_URL)
     toast('Modelo padrão carregado no editor (use Salvar para publicar).')
@@ -258,7 +263,7 @@ export function WelcomeFormsPage() {
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFields((p) => [...p, emptyField()])}>
               Adicionar pergunta
             </button>
-            <button type="button" className="btn btn--ghost btn--sm" onClick={onRestoreAzoupDefaults}>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => void onRestoreAzoupDefaults()}>
               Carregar padrão Azoup
             </button>
             {templateId ? (

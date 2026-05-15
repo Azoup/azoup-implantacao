@@ -13,7 +13,7 @@ export function AuthCardShell({ subtitle, children }: AuthCardShellProps) {
       <div className="auth__card">
         <div className="auth__brand">
           <span className="auth__brand-mark" aria-hidden>
-            <AzoupLogoMark size={44} className="auth__brand-logo-img" />
+            <AzoupLogoMark size={32} className="auth__brand-logo-img" />
           </span>
           <div>
             <h1 className="auth__title">{APP_BRAND_NAME_FULL}</h1>

@@ -6,6 +6,7 @@ const baseProject = (): DbProject => ({
   id: 'p1',
   projectName: 'INNOVARE',
   clientType: 'generico',
+  engagementKind: 'operacao_padrao',
   planType: 'master',
   hoursContracted: 70,
   hoursUsed: 0,
@@ -61,6 +62,7 @@ describe('describeProjectPersistPatchDiff', () => {
     const patch = {
       projectName: b.projectName,
       clientType: b.clientType,
+      engagementKind: b.engagementKind,
       analystId: b.analystId,
       startDate: b.startDate,
       dueDate: b.dueDate,

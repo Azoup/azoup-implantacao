@@ -23,3 +23,11 @@ export function normalizeRemoteProjectStatus(raw: string | null | undefined): Pr
 export function isDashboardOperationalStatus(status: ProjectStatus): boolean {
   return status === 'ativo' || status === 'inadimplente'
 }
+
+/**
+ * Projetos elegíveis em seletores de **novo** compromisso ou tarefa vinculada.
+ * Exclui concluídos, cancelados e congelados (sem trabalho novo previsto).
+ */
+export function isProjectEligibleForScheduling(status: ProjectStatus): boolean {
+  return status === 'ativo' || status === 'inadimplente'
+}

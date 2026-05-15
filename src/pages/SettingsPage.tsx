@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  Calendar,
   Check,
   Cloud,
   DatabaseZap,
@@ -58,6 +60,7 @@ import {
   type WelcomeSubmissionOpsRow,
   uploadPortalProjectFile,
 } from '../services/clientPortal'
+import { fetchGoogleOrgCalendarStatus, isGoogleCalendarSyncEnabled, startGoogleCalendarOAuthConnect } from '../services/calendarPushQueue'
 
 const SETTINGS_PROFILES_TIMEOUT_MS = 25_000
 const SETTINGS_PROFILES_TIMEOUT_MSG = `A consulta de perfis passou de ${SETTINGS_PROFILES_TIMEOUT_MS / 1000}s sem resposta. Testar em localhost não bloqueia essa lista; verifique rede, VPN, extensões do navegador ou o status do projeto no Supabase.`
@@ -158,6 +161,8 @@ export function SettingsPage() {
   const portalTemplateFileRef = useRef<HTMLInputElement>(null)
   const usersListEffectGen = useRef(0)
   const [portalTemplateFileHint, setPortalTemplateFileHint] = useState<string | null>(null)
+  const [googleOrgOAuthBusy, setGoogleOrgOAuthBusy] = useState(false)
+  const [googleOrgStatus, setGoogleOrgStatus] = useState<{ connected: boolean; googleEmail: string | null } | null>(null)
   const canEditSettings = hasScope(current, 'settings.edit')
   const canManageUsers = current?.role === 'admin'
   const latestDiag = diag[0] ?? null
@@ -208,6 +213,22 @@ export function SettingsPage() {
     return source.length > 26 ? `${source.slice(0, 26)}...` : source
   }
 
+  useEffect(() => {
+    if (!isGoogleCalendarSyncEnabled() || !isSupabaseConfigured() || tab !== 'geral') return
+    let cancelled = false
+    void (async () => {
+      try {
+        const s = await fetchGoogleOrgCalendarStatus()
+        if (!cancelled) setGoogleOrgStatus(s)
+      } catch {
+        if (!cancelled) setGoogleOrgStatus(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
+
   async function loadUsersFromSupabase() {
     if (!supabase) throw new Error('Supabase não configurado.')
     const list = await withTimeout(
@@ -216,6 +237,16 @@ export function SettingsPage() {
       SETTINGS_PROFILES_TIMEOUT_MSG,
     )
     setRemoteUsers(list)
+  }
+
+  async function onConnectGoogleOrgAccount() {
+    setGoogleOrgOAuthBusy(true)
+    try {
+      await startGoogleCalendarOAuthConnect()
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : 'Não foi possível iniciar a conexão com o Google.')
+      setGoogleOrgOAuthBusy(false)
+    }
   }
 
   useEffect(() => {
@@ -809,6 +840,57 @@ export function SettingsPage() {
               )}
             </div>
           </section>
+
+          {isGoogleCalendarSyncEnabled() && isSupabaseConfigured() ? (
+            <section className="panel panel--stack">
+              <h2 className="panel__title">Google Agenda (conta corporativa)</h2>
+              <p className="muted panel__lead">
+                Uma única conta Google da operação (ex.: <strong>CS Azoup</strong>) autentica no Google. Cada analista
+                recebe os eventos na <strong>sub-agenda</strong> escolhida em{' '}
+                <Link to="/analistas">Analistas</Link> — o mesmo login Google pode ter várias agendas; o app só grava
+                na agenda mapeada para aquele analista. Contas de portal não conectam esta conta.
+              </p>
+              {googleOrgStatus ? (
+                <p className="muted panel__lead">
+                  Status:{' '}
+                  {googleOrgStatus.connected ? (
+                    <>
+                      <span className="pill pill--ok">Conectada</span>
+                      {googleOrgStatus.googleEmail ? (
+                        <>
+                          {' '}
+                          como <strong>{googleOrgStatus.googleEmail}</strong>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="pill">Não conectada</span>
+                  )}
+                </p>
+              ) : null}
+              {current?.userType === 'client' ? (
+                <p className="muted panel__lead">Contas de portal não exibem ação de vincular Google da operação.</p>
+              ) : canManageUsers ? (
+                <div className="settings-data-mode">
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    disabled={googleOrgOAuthBusy || !current}
+                    onClick={() => void onConnectGoogleOrgAccount()}
+                  >
+                    <Calendar size={16} strokeWidth={2} aria-hidden />
+                    {googleOrgOAuthBusy ? 'Abrindo Google…' : 'Conectar / trocar conta Google corporativa'}
+                  </button>
+                </div>
+              ) : (
+                <p className="muted panel__lead">Somente administradores conectam a conta Google corporativa aqui.</p>
+              )}
+              <p className="muted panel__lead" style={{ fontSize: '0.85rem' }}>
+                Produção: defina <code className="kbd">CALENDAR_OAUTH_STATE_SECRET</code> nas Edge Functions para
+                assinar o <code className="kbd">state</code> do OAuth.
+              </p>
+            </section>
+          ) : null}
 
           <section className="panel panel--stack">
             <h2 className="panel__title">Atalhos de teclado</h2>

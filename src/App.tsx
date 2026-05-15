@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from 'react'
-import { Navigate, Route, createBrowserRouter, createRoutesFromElements } from 'react-router-dom'
-import { useAuth } from './auth/AuthContext'
+import { Navigate, Outlet, Route, createBrowserRouter, createRoutesFromElements } from 'react-router-dom'
+import { AuthProvider, useAuth } from './auth/AuthContext'
 import { canAccessManuais, hasScope } from './auth/permissions'
 import { ROUTE_SCOPE_MAP } from './auth/routeScopes'
 import { AppShell } from './layout/AppShell'
@@ -8,7 +8,10 @@ import { LoginPage } from './pages/LoginPage'
 import { AccessDeniedPage } from './pages/AccessDeniedPage'
 import { RoutePageFallback } from './components/RoutePageFallback'
 import {
+  AgendaLayoutLazy,
   AgendaPageLazy,
+  AgendaExecutionPageLazy,
+  AgendaUnscheduledPageLazy,
   AiPageLazy,
   AnalystsPageLazy,
   DashboardPageLazy,
@@ -34,6 +37,18 @@ import {
   WelcomeFormsPageLazy,
 } from './app/lazyPages'
 import type { PermissionScope } from './db/types'
+import { UnsavedChangesProvider } from './navigation/UnsavedChangesContext'
+
+/** Garante `useAuth` / guards de alterações em toda a árvore do data router (evita “fora de AuthProvider”). */
+function AppRootProviders() {
+  return (
+    <AuthProvider>
+      <UnsavedChangesProvider>
+        <Outlet />
+      </UnsavedChangesProvider>
+    </AuthProvider>
+  )
+}
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { ready, user } = useAuth()
@@ -71,7 +86,7 @@ function RootRedirect() {
 /** Data router: necessário para `useBlocker` no AppShell (alterações não salvas na agenda). */
 export const appRouter = createBrowserRouter(
   createRoutesFromElements(
-    <>
+    <Route element={<AppRootProviders />}>
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/cadastro"
@@ -183,10 +198,16 @@ export const appRouter = createBrowserRouter(
           path="/agenda"
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/agenda']}>
-              <AgendaPageLazy />
+              <AgendaLayoutLazy />
             </RequireScope>
           }
-        />
+        >
+          <Route index element={<Navigate to="calendario" replace />} />
+          <Route path="calendario" element={<AgendaPageLazy />} />
+          <Route path="em-execucao" element={<AgendaExecutionPageLazy />} />
+          <Route path="em-andamento" element={<Navigate to="/agenda/em-execucao" replace />} />
+          <Route path="tarefas-nao-agendadas" element={<AgendaUnscheduledPageLazy />} />
+        </Route>
         <Route
           path="/relatorios"
           element={
@@ -269,6 +290,6 @@ export const appRouter = createBrowserRouter(
         />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </>,
+    </Route>,
   ),
 )

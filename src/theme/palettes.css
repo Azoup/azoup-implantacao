@@ -32,7 +32,7 @@
   --sidebar: #101010;
   --sidebar-text: #f4f4f5;
   --sidebar-muted: #9ca3af;
-  --sidebar-active-bg: rgba(255, 139, 23, 0.14);
+  --sidebar-active-bg: color-mix(in srgb, var(--accent) 9%, rgba(255, 255, 255, 0.04));
   --shadow: 0 18px 52px rgba(0, 0, 0, 0.54);
   --shadow-sm: 0 5px 15px rgba(0, 0, 0, 0.4);
   --cal-event-default: rgba(255, 139, 23, 0.2);
@@ -72,7 +72,7 @@
   --sidebar: #111111;
   --sidebar-text: #fafafa;
   --sidebar-muted: #a1a1aa;
-  --sidebar-active-bg: rgba(249, 115, 22, 0.15);
+  --sidebar-active-bg: color-mix(in srgb, var(--accent) 10%, rgba(255, 255, 255, 0.055));
   --shadow: 0 10px 30px rgba(24, 24, 27, 0.08);
   --shadow-sm: 0 3px 10px rgba(24, 24, 27, 0.05);
   --cal-event-default: rgba(249, 115, 22, 0.16);

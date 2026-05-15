@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  AlertTriangle,
   ArrowDownAZ,
   Ban,
   CalendarDays,
@@ -63,9 +62,12 @@ import {
 import { registerProjectManualCheckin } from '../services/project'
 import { applyManualAttentionOnlyPatch } from '../services/projectManualAttentionQuick'
 import { applyProjectFreezeToggle } from '../services/projectFreeze'
-import { isProjectCheckinStale } from '../services/projectCheckin'
 import { formatDatePt } from '../lib/dates'
 import { projectClientTypeLabelPt, projectClientTypeSearchBlob } from '../lib/projectClientType'
+import {
+  projectEngagementKindLabelPt,
+  projectEngagementKindSearchBlob,
+} from '../lib/projectEngagementKind'
 
 const metaIcon = { size: 15, strokeWidth: 2, absoluteStrokeWidth: true } as const
 
@@ -103,15 +105,13 @@ export function ProjectsPage() {
   const [projectNameSearch, setProjectNameSearch] = useState('')
   const [selectedAnalystIds, setSelectedAnalystIds] = useState<string[]>([])
   const [selectedPlanTypes, setSelectedPlanTypes] = useState<string[]>([])
-  const [selectedStatusFilters, setSelectedStatusFilters] = useState<ProjectStatus[]>([])
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<ProjectStatus[]>(['ativo'])
   const [selectedClientTypes, setSelectedClientTypes] = useState<ProjectClientType[]>([])
   const [filterManualAlertOnly, setFilterManualAlertOnly] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<DbProject | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
   const [syncRefreshing, setSyncRefreshing] = useState<Record<string, boolean>>({})
   const [_syncTick, setSyncTick] = useState(0)
-  const [_checkinTick, setCheckinTick] = useState(0)
-  const [pendingModalOpen, setPendingModalOpen] = useState(false)
   const [freezeBusyId, setFreezeBusyId] = useState<string | null>(null)
   /** Toques consecutivos no “Reenviar” por projeto; no 3º oferece limpar a fila. */
   const syncRetryCountRef = useRef<Record<string, number>>({})
@@ -216,7 +216,8 @@ export function ProjectsPage() {
     if (!q) return attentionFiltered
     return attentionFiltered.filter((p) => {
       if (p.projectName.toLowerCase().includes(q)) return true
-      return projectClientTypeSearchBlob(p).includes(q)
+      if (projectClientTypeSearchBlob(p).includes(q)) return true
+      return projectEngagementKindSearchBlob(p).includes(q)
     })
   }, [
     projects,
@@ -277,10 +278,6 @@ export function ProjectsPage() {
   }, [])
 
   const pendingIds = new Set(getPendingProjectGraphSyncIds())
-  const pendingCheckinProjects = useMemo(() => {
-    return visibleProjects.filter((project) => isProjectCheckinStale(project, 7))
-  }, [visibleProjects])
-
   async function onManualCheckin(projectId: string, projectName: string) {
     if (!canEditProjects || !user) return
     const ok = await requestConfirm({
@@ -291,7 +288,6 @@ export function ProjectsPage() {
     })
     if (!ok) return
     await registerProjectManualCheckin(projectId, user.id)
-    setCheckinTick((n) => n + 1)
     toast('Check-in manual registrado.')
   }
 
@@ -613,18 +609,6 @@ export function ProjectsPage() {
             </button>
           ) : null}
         </label>
-        <button
-          type="button"
-          className="projects-page__pending-btn"
-          onClick={() => setPendingModalOpen(true)}
-          title={`Pendências de check-in (> 7 dias): ${pendingCheckinProjects.length} projeto(s)`}
-          aria-label={`Abrir pendências de check-in: ${pendingCheckinProjects.length} projeto(s) sem check-in há mais de sete dias`}
-        >
-          <AlertTriangle size={15} strokeWidth={2} aria-hidden />
-          <span className="projects-page__pending-count" aria-hidden>
-            {pendingCheckinProjects.length}
-          </span>
-        </button>
         </div>
         </div>
       </div>
@@ -704,6 +688,7 @@ export function ProjectsPage() {
             (p.status === 'congelado' ? ' proj-card--frozen' : '') +
             (p.status === 'inadimplente' ? ' proj-card--arrears' : '') +
             (p.status === 'cancelado' ? ' proj-card--cancelled-muted' : '') +
+            (p.status === 'finalizado' ? ' proj-card--done' : '') +
             ((p.manualAttentionNote ?? '').trim() ? ' proj-card--manual-alert' : '')
 
           return (
@@ -752,52 +737,65 @@ export function ProjectsPage() {
                     </p>
                   ) : null}
                 </div>
-                <div className="proj-card__badges">
-                  {analyst ? (
+                <div className="proj-card__badges-zone">
+                  <div className="proj-card__badge-chips" aria-label="Classificação do projeto">
+                    {analyst ? (
+                      <span
+                        className="proj-card__analyst"
+                        title={`Analista responsável: ${analyst.name}`}
+                        style={{ ['--analyst-color' as string]: analyst.color }}
+                      >
+                        <AnalystAvatar
+                          name={analyst.name}
+                          color={analyst.color}
+                          avatarUrl={analyst.avatarUrl}
+                          size="sm"
+                        />
+                      </span>
+                    ) : null}
+                    {p.clientApiId?.trim() ? (
+                      <span className="proj-card__badge proj-card__badge--api" title="API do projeto">
+                        API {p.clientApiId}
+                      </span>
+                    ) : null}
+                    <span className={planPillClass(p.planType)} title={`Plano: ${planName}`}>
+                      {planName}
+                    </span>
                     <span
-                      className="proj-card__analyst"
-                      title={`Analista responsável: ${analyst.name}`}
-                      style={{ ['--analyst-color' as string]: analyst.color }}
+                      className={'proj-card__badge proj-card__badge--client-type is-' + (p.clientType ?? 'generico')}
+                      title="Tipo do cliente (negócio)"
                     >
-                      <AnalystAvatar
-                        name={analyst.name}
-                        color={analyst.color}
-                        avatarUrl={analyst.avatarUrl}
-                        size="sm"
-                      />
+                      {projectClientTypeLabelPt(p.clientType)}
                     </span>
-                  ) : null}
-                  {p.clientApiId?.trim() ? (
-                    <span className="proj-card__badge proj-card__badge--api" title="API do projeto">
-                      API {p.clientApiId}
-                    </span>
-                  ) : null}
-                  <span className={planPillClass(p.planType)} title={`Plano: ${planName}`}>
-                    {planName}
-                  </span>
-                  <span
-                    className={'proj-card__badge proj-card__badge--client-type is-' + (p.clientType ?? 'generico')}
-                    title="Tipo do cliente (negócio)"
-                  >
-                    {projectClientTypeLabelPt(p.clientType)}
-                  </span>
-                  <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
-                    {statusLabelPt(p.status)}
-                  </span>
-                  <span
-                    className={'proj-card__sync-dot is-' + syncMeta.state}
-                    role="img"
-                    aria-label={`Status de sincronização: ${syncStatusLabel}`}
-                    title={syncStatusTitle}
-                  />
-                  {(p.manualAttentionNote ?? '').trim() ? (
                     <span
-                      className="proj-card__badge proj-card__badge--op-alert"
-                      title={(p.manualAttentionNote ?? '').trim()}
+                      className={
+                        'proj-card__badge proj-card__badge--engagement-kind is-' +
+                        (p.engagementKind ?? 'operacao_padrao')
+                      }
+                      title="Ciclo do projeto: IMPLANTAÇÃO (ciclo principal) vs. UPSELL"
                     >
-                      Alerta
+                      {projectEngagementKindLabelPt(p.engagementKind)}
                     </span>
-                  ) : null}
+                  </div>
+                  <div className="proj-card__badge-status-slot" aria-label="Situação e alertas">
+                    <span className={'proj-card__badge proj-card__badge--status is-' + p.status}>
+                      {statusLabelPt(p.status)}
+                    </span>
+                    <span
+                      className={'proj-card__sync-dot is-' + syncMeta.state}
+                      role="img"
+                      aria-label={`Status de sincronização: ${syncStatusLabel}`}
+                      title={syncStatusTitle}
+                    />
+                    {(p.manualAttentionNote ?? '').trim() ? (
+                      <span
+                        className="proj-card__badge proj-card__badge--op-alert"
+                        title={(p.manualAttentionNote ?? '').trim()}
+                      >
+                        Alerta
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -834,7 +832,16 @@ export function ProjectsPage() {
                 </div>
                 <div className="proj-card__meta-item proj-card__meta-item--checkin">
                   <CheckCheck {...metaIcon} aria-hidden />
-                  <span>Atualizado em: {p.lastManualCheckinAt ? formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}</span>
+                  <span
+                    className="proj-card__meta-clamp"
+                    title={
+                      p.lastManualCheckinAt
+                        ? `Atualizado em: ${formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm')}`
+                        : 'Atualizado em: —'
+                    }
+                  >
+                    Atualizado em: {p.lastManualCheckinAt ? formatDatePt(p.lastManualCheckinAt, 'dd/MM HH:mm') : '—'}
+                  </span>
                 </div>
                 <div
                   className="proj-card__meta-item proj-card__meta-item--phase"
@@ -842,17 +849,26 @@ export function ProjectsPage() {
                     phaseCaptionColor ? { ['--proj-phase-accent' as string]: phaseCaptionColor } : undefined
                   }
                 >
-                  <span className="proj-card__phase-caption">{currentPhaseName ?? '—'}</span>
+                  <span className="proj-card__phase-caption" title={currentPhaseName ?? undefined}>
+                    <span className="proj-card__phase-caption-text proj-card__meta-clamp">
+                      {currentPhaseName ?? '—'}
+                    </span>
+                  </span>
                 </div>
               </div>
 
-              <div className="proj-card__plan-labels">
-                <PlanLabelRow
-                  last={lastPlanLabel}
-                  active={activePlanLabel}
-                  variant="dashboard"
-                  resolveCodeColor={resolveCodeColor}
-                />
+              <div
+                className="proj-card__plan-zone"
+                aria-hidden={!lastPlanLabel && !activePlanLabel}
+              >
+                <div className="proj-card__plan-labels">
+                  <PlanLabelRow
+                    last={lastPlanLabel}
+                    active={activePlanLabel}
+                    variant="dashboard"
+                    resolveCodeColor={resolveCodeColor}
+                  />
+                </div>
               </div>
 
               <div className="proj-card__progress-row">
@@ -1224,36 +1240,6 @@ export function ProjectsPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDeleteTarget}
       />
-      {pendingModalOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setPendingModalOpen(false)}>
-          <div className="modal" role="dialog" aria-modal onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal__title">Pendências de check-in</h2>
-            <p className="muted">Projetos sem check-in há mais de 7 dias precisam de acompanhamento manual.</p>
-            <div className="dashboard-side-stack">
-              {pendingCheckinProjects.length === 0 ? (
-                <p className="muted">Nenhuma pendência no momento.</p>
-              ) : (
-                pendingCheckinProjects.map((project) => {
-                  return (
-                    <div key={project.id} className="dashboard-cc__row">
-                      <strong>{project.projectName}</strong>
-                      <small>
-                        Atualizado em:{' '}
-                        {project.lastManualCheckinAt ? formatDatePt(project.lastManualCheckinAt, 'dd/MM/yyyy HH:mm') : '—'}
-                      </small>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-            <div className="modal__actions">
-              <button type="button" className="btn btn--ghost" onClick={() => setPendingModalOpen(false)}>
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

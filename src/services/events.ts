@@ -1,12 +1,21 @@
 import { db } from '../db/database'
 import type { DbEvent } from '../db/types'
+import { isProjectEligibleForScheduling } from '../lib/projectStatus'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import { uuid } from '../lib/uuid'
-import { syncEventRowToSupabase } from '../sync/supabaseDexieBridge'
+import {
+  deleteEventRowFromSupabase,
+  syncEventRowToSupabase,
+} from '../sync/supabaseDexieBridge'
 import { dispatchSyncFailure } from '../sync/syncFailure'
 import { addTaskTimeLog } from './timeLogs'
 import { recomputeTaskStatus } from './tasks'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
+import {
+  deleteEventFromGoogleCalendar,
+  isGoogleCalendarSyncEnabled,
+  maybeEnqueueGoogleCalendarPush,
+} from './calendarPushQueue'
 
 type EventInput = {
   title: string
@@ -55,6 +64,9 @@ async function validateEventLinks(data: EventInput): Promise<EventInput> {
   if (projectId) {
     const project = await db.projects.get(projectId)
     if (!project) throw new Error('Projeto vinculado não encontrado.')
+    if (!isProjectEligibleForScheduling(project.status)) {
+      throw new Error('Não é possível vincular a projeto finalizado, cancelado ou congelado.')
+    }
   }
 
   if (data.analystId) {
@@ -103,6 +115,7 @@ export async function createEventValidated(input: EventInput): Promise<EventWrit
   if (!isSupabaseConfigured()) return { id, cloudSync: 'local_only' }
   try {
     await syncEventRowToSupabase(row)
+    if (isGoogleCalendarSyncEnabled()) await maybeEnqueueGoogleCalendarPush(id)
     return { id, cloudSync: 'synced' }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -144,6 +157,7 @@ async function persistEventChange(eventId: string): Promise<EventWriteResult> {
   if (!updated) return { id: eventId, cloudSync: 'queued' }
   try {
     await syncEventRowToSupabase(updated)
+    if (isGoogleCalendarSyncEnabled()) await maybeEnqueueGoogleCalendarPush(eventId)
     return { id: eventId, cloudSync: 'synced' }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -331,11 +345,51 @@ export async function updateEventValidated(eventId: string, input: EventInput): 
   if (!updated) return { id: eventId, cloudSync: 'queued' }
   try {
     await syncEventRowToSupabase(updated)
+    if (isGoogleCalendarSyncEnabled()) await maybeEnqueueGoogleCalendarPush(eventId)
     return { id: eventId, cloudSync: 'synced' }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     dispatchSyncFailure({ table: 'events', operation: 'upsert', message })
     console.warn('[events] updated event saved locally; cloud sync queued', { id: eventId, err })
+    return { id: eventId, cloudSync: 'queued' }
+  }
+}
+
+/**
+ * Exclui o compromisso localmente e na nuvem; remove no Google quando já sincronizado.
+ * Com sync Google ativo, a exclusão remota passa pela Edge Function (Google + linha `events`).
+ */
+export async function deleteEventValidated(eventId: string): Promise<EventWriteResult> {
+  const event = await db.events.get(eventId)
+  if (!event) throw new Error('Evento não encontrado.')
+
+  if (isGoogleCalendarSyncEnabled() && isSupabaseConfigured()) {
+    try {
+      await deleteEventFromGoogleCalendar(eventId)
+      await db.events.delete(eventId)
+      return { id: eventId, cloudSync: 'synced' }
+    } catch (err) {
+      await db.events.delete(eventId)
+      try {
+        await deleteEventRowFromSupabase(eventId)
+        return { id: eventId, cloudSync: 'synced' }
+      } catch (inner) {
+        const message = inner instanceof Error ? inner.message : String(inner)
+        dispatchSyncFailure({ table: 'events', operation: 'delete', message })
+        throw err instanceof Error ? err : new Error(String(err))
+      }
+    }
+  }
+
+  await db.events.delete(eventId)
+  if (!isSupabaseConfigured()) return { id: eventId, cloudSync: 'local_only' }
+  try {
+    await deleteEventRowFromSupabase(eventId)
+    return { id: eventId, cloudSync: 'synced' }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    dispatchSyncFailure({ table: 'events', operation: 'delete', message })
+    console.warn('[events] deleted locally; cloud delete pending', { eventId, err })
     return { id: eventId, cloudSync: 'queued' }
   }
 }

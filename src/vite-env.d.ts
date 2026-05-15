@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_SYNC_PROJECT_MANUAL_CHECKIN?: string
   /** Ativa a etapa opcional de reescrita via LLM no assistente IA (`/functions/v1/ai-project-assistant`). */
   readonly VITE_AI_ASSISTANT_ENABLE_LLM?: string
+  /** `true` ativa fila de sync Google Calendar (Edge + `027_google_calendar_integration.sql`). */
+  readonly VITE_GOOGLE_CALENDAR_SYNC?: string
 }
 
 interface ImportMeta {

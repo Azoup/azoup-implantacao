@@ -73,3 +73,20 @@ export function filterReleaseNoteBundles(
 export function sortBundlesNewestFirst(bundles: ReleaseNoteBundle[]): ReleaseNoteBundle[] {
   return [...bundles].sort((a, b) => +parseISO(b.releasedAt) - +parseISO(a.releasedAt))
 }
+
+/** Agrupa releases pelo dia no calendário de `tz` (yyyy-MM-dd). Preserva a ordem dos bundles dentro de cada dia. */
+export type ReleaseNotesDayGroup = {
+  dateKey: string
+  bundles: ReleaseNoteBundle[]
+}
+
+export function groupBundlesByBrDay(bundles: ReleaseNoteBundle[], tz: string): ReleaseNotesDayGroup[] {
+  const map = new Map<string, ReleaseNoteBundle[]>()
+  for (const b of bundles) {
+    const k = bundleBrDateKey(b.releasedAt, tz)
+    if (!map.has(k)) map.set(k, [])
+    map.get(k)!.push(b)
+  }
+  const keys = [...map.keys()].sort((a, b) => b.localeCompare(a))
+  return keys.map((dateKey) => ({ dateKey, bundles: map.get(dateKey)! }))
+}

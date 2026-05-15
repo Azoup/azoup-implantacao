@@ -7,6 +7,7 @@ import { renderReleaseNoteInline } from '../lib/releaseNoteRichText'
 import {
   RELEASE_NOTE_CATEGORIES,
   filterReleaseNoteBundles,
+  groupBundlesByBrDay,
   sortBundlesNewestFirst,
   type ReleaseNotesViewFilters,
 } from '../lib/releaseNotesFilter'
@@ -33,8 +34,9 @@ function formatPublishedDateBr(iso: string): string {
   return formatInTimeZone(iso, APP_TZ, 'dd/MM/yyyy')
 }
 
-function publishedDateValue(iso: string): string {
-  return formatInTimeZone(iso, APP_TZ, 'yyyy-MM-dd')
+/** Horário local de Brasília (útil quando há mais de uma release no mesmo dia). */
+function formatPublishedTimeBr(iso: string): string {
+  return formatInTimeZone(iso, APP_TZ, 'HH:mm')
 }
 
 function filtersActive(f: ReleaseNotesViewFilters): boolean {
@@ -58,6 +60,8 @@ export function ReleaseNotesPage() {
     [sorted, filters],
   )
 
+  const groupedByDay = useMemo(() => groupBundlesByBrDay(filtered, APP_TZ), [filtered])
+
   const clearCategories = () => setFilters((p) => ({ ...p, categories: [] }))
 
   return (
@@ -66,11 +70,15 @@ export function ReleaseNotesPage() {
         <h1 className="page__title">Notas de atualização</h1>
         <p className="page__subtitle">
           Histórico do {APP_BRAND_NAME_FULL}. Versão neste navegador:{' '}
-          <strong className="release-notes-page__current-ver">{APP_VERSION_DISPLAY}</strong>. Cada release corresponde a
-          um <strong>pacote do dia</strong> (ou ao que você versionar ao subir no Git): várias mudanças entram na mesma
-          versão. Datas no calendário de <strong>Brasília</strong> (<code className="release-notes-page__kbd">America/Sao_Paulo</code>
-          ), formato <strong>dd/mm/aaaa</strong>. Para registrar o próximo pacote, use{' '}
-          <code className="release-notes-page__kbd">registrar-release-do-dia.bat</code> na raiz do repositório.
+          <strong className="release-notes-page__current-ver">{APP_VERSION_DISPLAY}</strong>. O texto abaixo{' '}
+          <strong>não é gerado automaticamente</strong> ao salvar ou compilar: vem de{' '}
+          <code className="release-notes-page__kbd">src/constants/releaseNotes.ts</code> (e do{' '}
+          <code className="release-notes-page__kbd">CHANGELOG.md</code>), atualizados quando se{' '}
+          <strong>fecha um pacote</strong> (dia de entrega ou release que você pedir para versionar). Várias mudanças
+          podem entrar na <strong>mesma versão</strong>. Datas no calendário de <strong>Brasília</strong> (
+          <code className="release-notes-page__kbd">America/Sao_Paulo</code>), formato <strong>dd/mm/aaaa</strong>. Para
+          registrar o próximo pacote, use <code className="release-notes-page__kbd">registrar-release-do-dia.bat</code>{' '}
+          na raiz do repositório.
         </p>
       </header>
 
@@ -170,28 +178,49 @@ export function ReleaseNotesPage() {
           <p className="muted release-notes-page__empty">Nenhuma release combina com os filtros. Ajuste a busca ou limpe os filtros.</p>
         ) : (
           <ul className="release-notes-page__list">
-            {filtered.map((bundle) => {
-              const when = formatPublishedDateBr(bundle.releasedAt)
+            {groupedByDay.map((day) => {
+              const dayLabel = formatPublishedDateBr(day.bundles[0].releasedAt)
+              const showTimeInRelease = day.bundles.length > 1
               return (
-                <li key={bundle.tag} className="release-notes-page__release">
-                  <header className="release-notes-page__release-head">
-                    <div className="release-notes-page__release-titles">
-                      <h2 className="release-notes-page__version">{bundle.versionDisplay}</h2>
-                      <span className="release-notes-page__tag" title="Etiqueta de release">
-                        {bundle.tag}
-                      </span>
-                    </div>
-                    <time className="release-notes-page__when" dateTime={publishedDateValue(bundle.releasedAt)}>
-                      {when}
-                    </time>
-                  </header>
-                  <ul className="release-notes-page__items">
-                    {bundle.items.map((item, i) => (
-                      <li key={i} className="release-notes-page__item">
-                        <span className={`release-notes-page__pill release-notes-page__pill--${item.category.toLowerCase()}`}>
-                          {CATEGORY_LABEL[item.category]}
-                        </span>
-                        <p className="release-notes-page__text">{renderReleaseNoteInline(item.text)}</p>
+                <li key={day.dateKey} className="release-notes-page__day">
+                  <div className="release-notes-page__day-head">
+                    <h2 className="release-notes-page__day-label">{dayLabel}</h2>
+                    <span className="release-notes-page__day-meta">
+                      {day.bundles.length} release{day.bundles.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <ul className="release-notes-page__day-list">
+                    {day.bundles.map((bundle) => (
+                      <li key={bundle.tag} className="release-notes-page__release">
+                        <header className="release-notes-page__release-head">
+                          <div className="release-notes-page__release-titles">
+                            <h3 className="release-notes-page__version">{bundle.versionDisplay}</h3>
+                            <span className="release-notes-page__tag" title="Etiqueta de release">
+                              {bundle.tag}
+                            </span>
+                          </div>
+                          {showTimeInRelease ? (
+                            <time
+                              className="release-notes-page__when release-notes-page__when--time"
+                              dateTime={bundle.releasedAt}
+                              title="Horário de publicação (Brasília)"
+                            >
+                              {formatPublishedTimeBr(bundle.releasedAt)}
+                            </time>
+                          ) : null}
+                        </header>
+                        <ul className="release-notes-page__items">
+                          {bundle.items.map((item, i) => (
+                            <li key={i} className="release-notes-page__item">
+                              <span
+                                className={`release-notes-page__pill release-notes-page__pill--${item.category.toLowerCase()}`}
+                              >
+                                {CATEGORY_LABEL[item.category]}
+                              </span>
+                              <p className="release-notes-page__text">{renderReleaseNoteInline(item.text)}</p>
+                            </li>
+                          ))}
+                        </ul>
                       </li>
                     ))}
                   </ul>

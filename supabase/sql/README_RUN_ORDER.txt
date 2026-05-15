@@ -27,6 +27,7 @@ A) PIPELINE BASE (novo projeto ou schema do zero) — pasta supabase/sql/, raiz
    12. 016_projects_manual_checkin.sql ← colunas projects.last_manual_checkin_* (opcional; ver VITE_SYNC_PROJECT_MANUAL_CHECKIN)
    13. 017_tasks_status_timestamps.sql ← colunas tasks.completed_at/cancelled_at para KPIs por período
    14. 018_tasks_no_show_fields.sql ← campos tasks.cancel_reason/rescheduled_* (opcional; ver VITE_SYNC_TASK_NO_SHOW_FIELDS)
+   15. 029_projects_engagement_kind.sql ← coluna projects.engagement_kind (operação padrão vs upsell)
 
    Em banco JÁ em uso: rode só os arquivos que ainda não foram aplicados (ex.: só 008).
 
@@ -66,6 +67,17 @@ Geradores Python (regeneram arquivos acima a partir de CSVs):
    scripts/gen_plan_templates_sql.py   → sql/007_seed_plan_phases_tasks.sql
    scripts/gen_migration_sql.py        → import/legacy_full_import_with_user_map.sql
    scripts/gen_project_docs_sql.py     → import/legacy_restore_project_docs_comments.sql
+
+--------------------------------------------------------------------------------
+E2) GOOGLE CALENDAR (opcional; ver VITE_GOOGLE_CALENDAR_SYNC)
+
+   - 027_google_calendar_integration.sql — colunas google_* em events, outbox, tabela legada user_calendar_connections
+   - 028_analyst_calendar_connections.sql — migra tokens para analyst_* (legado intermediário)
+   - 030_google_calendar_org_single_account.sql — **conta corporativa única** + analysts.google_calendar_id; remove analyst_calendar_connections (planejado; pode não existir ainda no repositório)
+
+   Domínio projetos (mesma pasta): `029_projects_engagement_kind.sql` — coluna `engagement_kind` (operação padrão vs upsell).
+
+   Em banco novo Calendar: pode rodar só 027 → 030 (028 é opcional se ainda existir user_calendar_connections).
 
 --------------------------------------------------------------------------------
 F) CHECKS PÓS-AJUSTE (somente leitura)

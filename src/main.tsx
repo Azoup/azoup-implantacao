@@ -4,8 +4,6 @@ import { RouterProvider } from 'react-router-dom'
 import './index.css'
 import './theme/palettes.css'
 import { appRouter } from './App.tsx'
-import { AuthProvider } from './auth/AuthContext'
-import { UnsavedChangesProvider } from './navigation/UnsavedChangesContext'
 import { ThemeProvider } from './theme/ThemeContext'
 import { UiFeedbackProvider } from './ui/UiFeedbackContext'
 import { isSupabaseConfigured } from './lib/supabaseClient'
@@ -26,11 +24,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       <UiFeedbackProvider>
-        <AuthProvider>
-          <UnsavedChangesProvider>
-            <RouterProvider router={appRouter} />
-          </UnsavedChangesProvider>
-        </AuthProvider>
+        <RouterProvider router={appRouter} />
       </UiFeedbackProvider>
     </ThemeProvider>
   </StrictMode>,

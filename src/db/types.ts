@@ -152,6 +152,8 @@ export interface DbAnalyst {
   createdAt: string
   /** Mesmo id que public.profiles (Supabase); usado em RLS can_edit_project na nuvem. */
   profileId?: string | null
+  /** ID da sub-agenda Google (na conta corporativa) para sync de eventos deste analista. */
+  googleCalendarId?: string | null
 }
 
 export interface DbPlanModel {
@@ -190,6 +192,12 @@ export interface DbPlanTask {
 /** Unidade de negócio do cliente no escopo do projeto (classificação operacional). */
 export type ProjectClientType = 'confeccao' | 'generico'
 
+/**
+ * Ciclo comercial do projeto (IMPLANTAÇÃO vs. UPSELL).
+ * Chaves estáveis em snake_case; rótulos na UI via `projectEngagementKindLabelPt`.
+ */
+export type ProjectEngagementKind = 'operacao_padrao' | 'upsell'
+
 /** Evento persistido ao congelar ou descongelar pela grade/detalhe (histórico no projeto). */
 export type ProjectFreezeEventKind = 'freeze' | 'unfreeze'
 
@@ -206,6 +214,8 @@ export interface DbProject {
   projectName: string
   /** Tipo de cliente / negócio (ex.: confecção vs. genérico). */
   clientType: ProjectClientType
+  /** `operacao_padrao` = IMPLANTAÇÃO (ciclo principal); `upsell` = UPSELL / expansão comercial. */
+  engagementKind: ProjectEngagementKind
   planType: PlanTypeKey
   hoursContracted: number
   hoursUsed: number
@@ -381,6 +391,10 @@ export interface DbEvent {
   closedAt?: string | null
   /** Horas registradas manualmente no fluxo de fechamento. */
   loggedHours?: number | null
+  googleEventId?: string | null
+  googleCalendarId?: string | null
+  googleSyncStatus?: string | null
+  googleUpdatedAt?: string | null
   createdAt: string
 }
 

@@ -20,7 +20,16 @@ export const ProjectDetailPageLazy = lazy(() =>
   import('../pages/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })),
 )
 export const TarefasPageLazy = lazy(() => import('../pages/TarefasPage').then((m) => ({ default: m.TarefasPage })))
+export const AgendaLayoutLazy = lazy(() =>
+  import('../pages/AgendaLayout').then((m) => ({ default: m.AgendaLayout })),
+)
 export const AgendaPageLazy = lazy(() => import('../pages/AgendaPage').then((m) => ({ default: m.AgendaPage })))
+export const AgendaExecutionPageLazy = lazy(() =>
+  import('../pages/AgendaExecutionPage').then((m) => ({ default: m.AgendaExecutionPage })),
+)
+export const AgendaUnscheduledPageLazy = lazy(() =>
+  import('../pages/AgendaUnscheduledPage').then((m) => ({ default: m.AgendaUnscheduledPage })),
+)
 export const ReportsPageLazy = lazy(() => import('../pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
 export const AiPageLazy = lazy(() => import('../pages/AiPage').then((m) => ({ default: m.AiPage })))
 export const SettingsPageLazy = lazy(() => import('../pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))

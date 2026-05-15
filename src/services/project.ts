@@ -1,6 +1,7 @@
 import { db } from '../db/database'
 import type { DbProject, KanbanColumn, PlanTypeKey, ProjectClientType } from '../db/types'
 import { DEFAULT_PROJECT_CLIENT_TYPE, normalizeProjectClientType } from '../lib/projectClientType'
+import { inferEngagementKindFromProjectName } from '../lib/projectEngagementKind'
 import { CUSTOM_PLAN_LABEL, CUSTOM_PLAN_TYPE } from '../constants/customPlan'
 import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
@@ -83,6 +84,7 @@ export async function createCustomProject(opts: CreateCustomProjectPayload): Pro
     id: projectId,
     projectName: opts.projectName.trim(),
     clientType: normalizeProjectClientType(opts.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE),
+    engagementKind: inferEngagementKindFromProjectName(opts.projectName),
     planType: CUSTOM_PLAN_TYPE,
     hoursContracted: hrs,
     hoursUsed: 0,
@@ -179,6 +181,7 @@ export async function createProjectFromPlan(opts: CreateProjectPayload): Promise
     id: projectId,
     projectName: opts.projectName.trim(),
     clientType: normalizeProjectClientType(opts.clientType ?? DEFAULT_PROJECT_CLIENT_TYPE),
+    engagementKind: inferEngagementKindFromProjectName(opts.projectName),
     planType: opts.planKey,
     hoursContracted: plan.hoursContracted,
     hoursUsed: 0,

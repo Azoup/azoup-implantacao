@@ -45,7 +45,7 @@
   justify-content: center;
   gap: 0.35rem;
   padding: 0.55rem 1rem;
-  border-radius: 10px;
+  border-radius: var(--radius-ui);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
@@ -92,7 +92,7 @@
 .btn--icon {
   padding: 0.45rem;
   min-width: 2.25rem;
-  border-radius: 10px;
+  border-radius: var(--radius-ui);
   background: var(--surface);
 }
 .btn--xs {
@@ -180,7 +180,7 @@
   max-width: 420px;
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--border) 85%, var(--accent) 15%);
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   padding: 1.85rem 1.9rem;
   box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 6%, transparent);
   backdrop-filter: saturate(1.05);
@@ -201,32 +201,30 @@
 }
 .auth__brand-mark {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 62px;
-  height: 62px;
-  border-radius: 14px;
-  background: linear-gradient(
-    165deg,
-    color-mix(in srgb, var(--accent) 16%, var(--surface-2) 84%) 0%,
-    color-mix(in srgb, var(--accent-deep) 12%, var(--surface) 88%) 100%
-  );
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
+  display: grid;
+  place-items: center;
+  width: var(--sidebar-logo-size, 42px);
+  height: var(--sidebar-logo-size, 42px);
+  border-radius: var(--radius-logo-frame);
+  background: linear-gradient(165deg, var(--logo-frame-start), var(--logo-frame-end));
+  border: 1px solid var(--logo-frame-border);
   box-shadow:
-    0 1px 0 color-mix(in srgb, #fff 18%, transparent) inset,
-    0 8px 20px color-mix(in srgb, var(--accent) 14%, transparent);
+    inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent),
+    0 8px 20px var(--logo-frame-glow);
   transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 .auth__brand-logo-img {
-  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 36%, transparent));
-  max-width: 78% !important;
-  max-height: 78% !important;
-  width: auto !important;
-  height: auto !important;
-  object-fit: contain;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 22%, transparent));
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.1);
+  transform-origin: center;
 }
 .auth__brand:hover .auth__brand-mark {
   transform: scale(1.06) rotate(-2deg);

@@ -13,6 +13,8 @@ type Props = {
    */
   rowScopedEvents?: readonly DbEvent[]
   className?: string
+  /** Quando definido, o chip vira botão e dispara ao clicar (ex.: abrir modal de agenda in-place). */
+  onAgendaPress?: (info: { state: ChipState; primaryEvent: DbEvent | null }) => void
 }
 
 type ChipState = 'no_schedule' | 'scheduled' | 'in_session' | 'done_event' | 'done_manual' | 'removed' | 'informational'
@@ -89,7 +91,7 @@ const STATE_META: Record<
   informational: { tone: 'muted', icon: Info, label: 'Informativa' },
 }
 
-export function TaskScheduleChip({ task, events, rowScopedEvents, className }: Props) {
+export function TaskScheduleChip({ task, events, rowScopedEvents, className, onAgendaPress }: Props) {
   const { state, primaryEvent, taskEvents } = deriveState({ task, events, rowScopedEvents })
   const meta = STATE_META[state]
   const Icon = meta.icon
@@ -121,30 +123,61 @@ export function TaskScheduleChip({ task, events, rowScopedEvents, className }: P
     extras.push('agenda anterior cancelada')
   }
 
+  /** No detalhe do projeto o botão de agenda já comunica “há compromisso”; o chip fica só data/hora. */
+  const compactScheduledChip = state === 'scheduled' && Boolean(datePart)
+
   const detailTitle =
     state === 'informational'
       ? 'Informativa · não consome horas do contrato'
-      : `${meta.label}${datePart ? ' · ' + datePart : ''}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+      : compactScheduledChip
+        ? `Compromisso · ${datePart}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+        : `${meta.label}${datePart ? ' · ' + datePart : ''}${extras.length ? ' · ' + extras.join(' · ') : ''}`
   const ariaLabel =
-    state === 'informational' ? 'Informativa, não consome horas do contrato' : `${meta.label}${datePart ? ' ' + datePart : ''}`
+    state === 'informational'
+      ? 'Informativa, não consome horas do contrato'
+      : compactScheduledChip
+        ? `Agendada, ${datePart.replace(/\s*·\s*/, ' às ')}${extras.length ? '. ' + extras.join('. ') : ''}`
+        : `${meta.label}${datePart ? ' ' + datePart : ''}`
 
-  return (
-    <span
-      className={
-        'task-schedule-chip task-schedule-chip--' +
-        meta.tone +
-        ' task-schedule-chip--' +
-        state +
-        (className ? ' ' + className : '')
-      }
-      role="status"
-      aria-label={ariaLabel}
-      title={detailTitle}
-    >
+  const interactive = Boolean(
+    onAgendaPress && state !== 'informational' && state !== 'removed',
+  )
+
+  const chipClass =
+    'task-schedule-chip task-schedule-chip--' +
+    meta.tone +
+    ' task-schedule-chip--' +
+    state +
+    (compactScheduledChip ? ' task-schedule-chip--date_only' : '') +
+    (interactive ? ' task-schedule-chip--interactive' : '') +
+    (className ? ' ' + className : '')
+
+  const body = (
+    <>
       <Icon size={12} aria-hidden />
-      <span className="task-schedule-chip__label">{meta.label}</span>
+      {!compactScheduledChip ? <span className="task-schedule-chip__label">{meta.label}</span> : null}
       {datePart ? <span className="task-schedule-chip__date">{datePart}</span> : null}
       {extras.length > 0 ? <span className="task-schedule-chip__extra">{extras.join(' · ')}</span> : null}
+    </>
+  )
+
+  if (interactive && onAgendaPress) {
+    return (
+      <button
+        type="button"
+        className={chipClass}
+        title={detailTitle}
+        aria-label={ariaLabel}
+        onClick={() => onAgendaPress({ state, primaryEvent })}
+      >
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <span className={chipClass} role="status" aria-label={ariaLabel} title={detailTitle}>
+      {body}
     </span>
   )
 }
