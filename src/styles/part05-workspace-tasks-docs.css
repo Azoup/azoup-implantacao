@@ -735,6 +735,14 @@ button.task-schedule-chip.task-schedule-chip--interactive:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;
 }
+button.task-schedule-chip.task-schedule-chip--interactive .task-schedule-chip__link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+button.task-schedule-chip.task-schedule-chip--interactive:hover .task-schedule-chip__link {
+  text-decoration-color: currentColor;
+}
 
 /* Cartões de tarefa no detalhe do projeto: chip compacto; largura limitada à coluna do código (evita empurrar o rail). */
 .pd-task .task-schedule-chip {
@@ -2520,32 +2528,8 @@ button.task-schedule-chip.task-schedule-chip--interactive:focus-visible {
   gap: 0.35rem;
 }
 
-.pd-task__footer-agenda-wrap > .pd-task__footer-btn--icon-only:first-of-type {
+.pd-task__footer-agenda-wrap > .pd-task__footer-btn--icon-only {
   flex: 1 1 auto;
-}
-
-.pd-task__footer-btn--agenda-page {
-  flex: 0 0 44px;
-  color: var(--text-muted);
-}
-
-.pd-task__footer-btn--agenda-page-labeled {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 0.45rem;
-  justify-content: center;
-  gap: 0.35rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.pd-task__footer-agenda-page-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .pd-task__footer-btn {

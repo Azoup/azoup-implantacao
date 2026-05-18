@@ -126,22 +126,34 @@ export function TaskScheduleChip({ task, events, rowScopedEvents, className, onA
   /** No detalhe do projeto o botão de agenda já comunica “há compromisso”; o chip fica só data/hora. */
   const compactScheduledChip = state === 'scheduled' && Boolean(datePart)
 
-  const detailTitle =
-    state === 'informational'
-      ? 'Informativa · não consome horas do contrato'
-      : compactScheduledChip
-        ? `Compromisso · ${datePart}${extras.length ? ' · ' + extras.join(' · ') : ''}`
-        : `${meta.label}${datePart ? ' · ' + datePart : ''}${extras.length ? ' · ' + extras.join(' · ') : ''}`
-  const ariaLabel =
-    state === 'informational'
-      ? 'Informativa, não consome horas do contrato'
-      : compactScheduledChip
-        ? `Agendada, ${datePart.replace(/\s*·\s*/, ' às ')}${extras.length ? '. ' + extras.join('. ') : ''}`
-        : `${meta.label}${datePart ? ' ' + datePart : ''}`
-
   const interactive = Boolean(
     onAgendaPress && state !== 'informational' && state !== 'removed',
   )
+
+  const detailTitle =
+    state === 'informational'
+      ? 'Informativa · não consome horas do contrato'
+      : interactive
+        ? compactScheduledChip
+          ? `Abrir na agenda · ${datePart}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+          : state === 'no_schedule'
+            ? 'Abrir na agenda para agendar'
+            : `Abrir na agenda · ${meta.label}${datePart ? ' · ' + datePart : ''}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+        : compactScheduledChip
+          ? `Compromisso · ${datePart}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+          : `${meta.label}${datePart ? ' · ' + datePart : ''}${extras.length ? ' · ' + extras.join(' · ') : ''}`
+  const ariaLabel =
+    state === 'informational'
+      ? 'Informativa, não consome horas do contrato'
+      : interactive
+        ? state === 'no_schedule'
+          ? 'Sem agenda. Abrir na agenda para agendar'
+          : compactScheduledChip
+            ? `Abrir na agenda, ${datePart.replace(/\s*·\s*/, ' às ')}`
+            : `Abrir na agenda, ${meta.label}${datePart ? ' ' + datePart : ''}`
+        : compactScheduledChip
+          ? `Agendada, ${datePart.replace(/\s*·\s*/, ' às ')}${extras.length ? '. ' + extras.join('. ') : ''}`
+          : `${meta.label}${datePart ? ' ' + datePart : ''}`
 
   const chipClass =
     'task-schedule-chip task-schedule-chip--' +
@@ -155,8 +167,14 @@ export function TaskScheduleChip({ task, events, rowScopedEvents, className, onA
   const body = (
     <>
       <Icon size={12} aria-hidden />
-      {!compactScheduledChip ? <span className="task-schedule-chip__label">{meta.label}</span> : null}
-      {datePart ? <span className="task-schedule-chip__date">{datePart}</span> : null}
+      {!compactScheduledChip ? (
+        <span className={'task-schedule-chip__label' + (interactive ? ' task-schedule-chip__link' : '')}>
+          {meta.label}
+        </span>
+      ) : null}
+      {datePart ? (
+        <span className={'task-schedule-chip__date' + (interactive ? ' task-schedule-chip__link' : '')}>{datePart}</span>
+      ) : null}
       {extras.length > 0 ? <span className="task-schedule-chip__extra">{extras.join(' · ')}</span> : null}
     </>
   )

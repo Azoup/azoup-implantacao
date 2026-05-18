@@ -20,7 +20,6 @@ import {
   CircleCheck,
   Clock,
   CircleDashed,
-  ExternalLink,
   Link2,
   Lock,
   MessageSquare,
@@ -1512,16 +1511,19 @@ export function ProjectDetailPage() {
                                   onAgendaPress={
                                     canEditAgenda
                                       ? ({ state, primaryEvent }) => {
-                                          if (
+                                          const intent =
+                                            primaryEvent &&
                                             (state === 'scheduled' ||
                                               state === 'in_session' ||
-                                              state === 'done_event') &&
-                                            primaryEvent
-                                          ) {
-                                            void agendaEventModalRef.current?.openEditEvent(primaryEvent.id)
-                                          } else if (state === 'no_schedule') {
-                                            void agendaEventModalRef.current?.openPrefillTask(t.id, proj.id)
-                                          }
+                                              state === 'done_event')
+                                              ? ({ kind: 'editEvent' as const, eventId: primaryEvent.id } as const)
+                                              : ({
+                                                  kind: 'prefillTask' as const,
+                                                  taskId: t.id,
+                                                  projectId: proj.id,
+                                                } as const)
+                                          const { pathname, search } = buildAgendaNavigateTo(intent)
+                                          navigate({ pathname, search }, { state: {} })
                                         }
                                       : undefined
                                   }
@@ -1780,26 +1782,6 @@ export function ProjectDetailPage() {
                                         <CalendarPlus {...ic} aria-hidden />
                                       </button>
                                     )}
-                                    <button
-                                      type="button"
-                                      className="pd-task__footer-btn pd-task__footer-btn--agenda-page pd-task__footer-btn--agenda-page-labeled"
-                                      onClick={() => {
-                                        const intent = scheduledEv
-                                          ? ({ kind: 'editEvent' as const, eventId: scheduledEv.id } as const)
-                                          : ({
-                                              kind: 'prefillTask' as const,
-                                              taskId: t.id,
-                                              projectId: proj.id,
-                                            } as const)
-                                        const { pathname, search } = buildAgendaNavigateTo(intent)
-                                        navigate({ pathname, search }, { state: {} })
-                                      }}
-                                      title="Abrir na página Agenda (URL copiável)"
-                                      aria-label="Abrir na agenda em página própria"
-                                    >
-                                      <ExternalLink {...ic} aria-hidden />
-                                      <span className="pd-task__footer-agenda-page-label">Abrir na agenda</span>
-                                    </button>
                                   </div>
                                   {!informational ? (
                                     <button
