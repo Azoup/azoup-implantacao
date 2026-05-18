@@ -2,6 +2,24 @@
 
 > **Legado (Alfa/Beta):** entradas de versão **anteriores a v1.0.0** descrevem o ciclo de desenvolvimento sob o nome de código **VynTask** (fases Alfa/Beta). O texto abaixo foi **preservado** como histórico. A linha de produto atual é **Implantação Azoup**, com **semver** (`major.minor.patch`) e notas categorizadas (BUG FIX, MELHORIA, NOVA FUNÇÃO, etc.).
 
+## v1.4.0 (2026-05-18)
+
+### NOVA FUNÇÃO
+
+- **Projetos — cronograma por fase:** botão **Lançar cronograma** com algoritmo de slots (09:00, 10:45, 14:15, 16:00), espaçamento em dias úteis, prévia editável, alerta de 20 dias úteis e confirmação respeitando conflitos na agenda do analista.
+- **Projetos — exportação WhatsApp:** texto copiável com data/hora, tarefa, descrição por tipo de sessão e **link Google Meet** em treinamentos e viradas (quando já sincronizado).
+- **Projetos — status do cronograma:** ícone e cor no cabeçalho da fase (nenhum / parcial / completo) + faixa **Cronograma** com badge de estado.
+- **Sessões:** inferência de tipo (`technical` / `training` / `handover`) pelo título; no lançamento, **instalação e configuração** vão só para o Google Calendar **sem Meet**; treinamento e virada **com Meet**.
+
+### MELHORIA
+
+- **Projetos — cabeçalho da fase:** layout em duas linhas (identidade + toolbar de cronograma); coluna mais larga (360px); título sem quebra letra a letra.
+- **Menu:** removida a entrada **Notas de atualização** (histórico permanece em `CHANGELOG.md` e `releaseNotes.ts` para releases).
+
+### BUG FIX
+
+- **Cronograma por fase:** feedback único ao confirmar (criadas / bloqueadas por conflito); correção de JSX no modal que quebrava o HMR.
+
 ## v1.3.0 (2026-05-15)
 
 ### NOVA FUNÇÃO

@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
 
     const meetingLink = pushed.meetingLink ?? (ev.meeting_link != null ? String(ev.meeting_link) : null)
     const patch = {
+      title: googleTitle,
       google_event_id: pushed.googleEventId,
       google_calendar_id: calendarId,
       google_sync_status: 'synced',

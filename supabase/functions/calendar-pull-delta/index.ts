@@ -135,18 +135,21 @@ Deno.serve(async (req) => {
 
         const { data: existing } = await admin
           .from('events')
-          .select('id, google_updated_at, title, description, meeting_link, recording_link, status')
+          .select(
+            'id, google_updated_at, title, description, meeting_link, recording_link, status, project_id, task_id',
+          )
           .eq('google_event_id', googleEventId)
           .maybeSingle()
 
         if (existing?.id) {
           const remoteMs = existing.google_updated_at ? new Date(String(existing.google_updated_at)).getTime() : 0
           const googleMs = new Date(googleUpdatedAt).getTime()
+          const appOwnsTitle = existing.project_id != null || existing.task_id != null
           if (googleMs > remoteMs) {
             await admin
               .from('events')
               .update({
-                title,
+                ...(appOwnsTitle ? {} : { title }),
                 description,
                 start_time: startIso,
                 end_time: endIso,

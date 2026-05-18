@@ -12,6 +12,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import {
   CalendarCheck,
+  CalendarClock,
   CalendarPlus,
   CheckCircle2,
   ChevronDown,
@@ -32,6 +33,7 @@ import {
   Plus,
   RotateCcw,
   Send,
+  Share2,
   ShieldAlert,
   Snowflake,
   Sparkles,
@@ -49,6 +51,9 @@ import { ProjectCreateModal } from '../components/ProjectCreateModal'
 import { RegisterHoursModal } from '../components/RegisterHoursModal'
 import { TaskScheduleChip } from '../components/TaskScheduleChip'
 import { AgendaEventModal, type AgendaEventModalHandle } from '../components/agenda/AgendaEventModal'
+import { PhaseScheduleExportModal } from '../components/agenda/PhaseScheduleExportModal'
+import { PhaseScheduleLauncherModal } from '../components/agenda/PhaseScheduleLauncherModal'
+import { isPhaseEligibleForScheduleLaunch } from '../lib/scheduleGenerator'
 import { ManualCompleteTaskModal } from '../components/ManualCompleteTaskModal'
 import { ConfirmProjectDeleteModal } from '../components/ConfirmProjectDeleteModal'
 import { AiFormatModal } from '../components/AiFormatModal'
@@ -279,6 +284,8 @@ export function ProjectDetailPage() {
   const [docBusy, setDocBusy] = useState(false)
   const docFileInputRef = useRef<HTMLInputElement>(null)
   const agendaEventModalRef = useRef<AgendaEventModalHandle>(null)
+  const [scheduleLauncherPhase, setScheduleLauncherPhase] = useState<DbPhase | null>(null)
+  const [exportPhase, setExportPhase] = useState<DbPhase | null>(null)
   const [docPendingFiles, setDocPendingFiles] = useState<{ localId: string; file: File }[]>([])
   const [docPendingLinks, setDocPendingLinks] = useState<{ id: string; url: string; label: string }[]>([])
   const [docLinkUrlDraft, setDocLinkUrlDraft] = useState('')
@@ -1304,6 +1311,33 @@ export function ProjectDetailPage() {
               const locked = phase.status === 'bloqueada'
               const ativa = phase.status === 'ativa'
               const concl = phase.status === 'concluida'
+              const eligibleTasks = list.filter(
+                (t) =>
+                  !effectiveTaskIsInformational(t, phase, planBlueprint?.blocks) &&
+                  t.status !== 'concluida' &&
+                  t.status !== 'cancelado',
+              )
+              const scheduledCount = eligibleTasks.filter((t) =>
+                (eventsByTaskId.get(t.id) ?? []).some((e) => e.status === 'agendado'),
+              ).length
+              const scheduleState: 'none' | 'partial' | 'full' =
+                eligibleTasks.length === 0 || scheduledCount === 0
+                  ? 'none'
+                  : scheduledCount >= eligibleTasks.length
+                    ? 'full'
+                    : 'partial'
+              const SchedIcon =
+                scheduleState === 'full'
+                  ? CalendarCheck
+                  : scheduleState === 'partial'
+                    ? CalendarClock
+                    : CalendarPlus
+              const schedTitle =
+                scheduleState === 'full'
+                  ? 'Cronograma completo — clique para relançar'
+                  : scheduleState === 'partial'
+                    ? 'Cronograma parcial — clique para complementar'
+                    : 'Lançar cronograma automático desta fase'
               return (
                 <section
                   key={phase.id}
@@ -1315,12 +1349,14 @@ export function ProjectDetailPage() {
                   style={{ ['--pd-phase-accent' as string]: phase.colorHex || planPhaseAccentHex(phase.orderIndex) }}
                 >
                   <header className="pd-phase__head">
-                    <div className="pd-phase__head-row">
+                    <div className="pd-phase__head-row pd-phase__head-row--primary">
                       <div className={'pd-phase__icon' + (ativa ? ' pd-phase__icon--play' : '')}>
                         {locked ? <Lock {...ic} /> : concl ? <CheckCircle2 {...ic} /> : <Play {...ic} />}
                       </div>
                       <div className="pd-phase__head-main">
-                        <h2 className="pd-phase__title">{phase.name}</h2>
+                        <h2 className="pd-phase__title" title={phase.name}>
+                          {phase.name}
+                        </h2>
                         <div className="pd-phase__head-meta">
                           <span className="pd-phase__stats">{done}/{total} · {pPct}%</span>
                           {locked ? <span className="pd-phase__lock-badge">Bloqueada</span> : null}
@@ -1452,6 +1488,61 @@ export function ProjectDetailPage() {
                         )
                       ) : null}
                     </div>
+                    {canEditAgenda &&
+                    isPhaseEligibleForScheduleLaunch(phase.orderIndex, phase.status, proj.planType) ? (
+                      <div
+                        className="pd-phase__schedule-toolbar"
+                        role="toolbar"
+                        aria-label="Cronograma da fase"
+                      >
+                        <div className="pd-phase__schedule-toolbar-head">
+                          <CalendarClock
+                            {...icSm}
+                            className="pd-phase__schedule-toolbar-ic"
+                            aria-hidden
+                          />
+                          <span className="pd-phase__schedule-toolbar-label">Cronograma</span>
+                          {scheduleState === 'partial' ? (
+                            <span className="pd-phase__schedule-toolbar-badge pd-phase__schedule-toolbar-badge--partial">
+                              Parcial
+                            </span>
+                          ) : null}
+                          {scheduleState === 'full' ? (
+                            <span className="pd-phase__schedule-toolbar-badge pd-phase__schedule-toolbar-badge--full">
+                              Completo
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="pd-phase__schedule-toolbar-actions">
+                          {scheduleState !== 'none' ? (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--xs pd-phase__schedule-btn"
+                              onClick={() => setExportPhase(phase)}
+                              title="Exportar cronograma para WhatsApp"
+                              aria-label="Exportar cronograma para WhatsApp"
+                            >
+                              <Share2 {...icSm} aria-hidden />
+                              <span className="pd-phase__schedule-btn-label">Exportar</span>
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={
+                              'btn btn--ghost btn--xs pd-phase__schedule-btn' +
+                              (scheduleState === 'full' ? ' pd-phase__schedule-btn--full' : '') +
+                              (scheduleState === 'partial' ? ' pd-phase__schedule-btn--partial' : '')
+                            }
+                            onClick={() => setScheduleLauncherPhase(phase)}
+                            title={schedTitle}
+                            aria-label={schedTitle}
+                          >
+                            <SchedIcon {...icSm} aria-hidden />
+                            <span className="pd-phase__schedule-btn-label">Lançar</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </header>
                   <div className="pd-phase__tasks">
                     {list.map((t) => {
@@ -2459,6 +2550,39 @@ export function ProjectDetailPage() {
         analysts={analystsAll}
         canEditAgenda={canEditAgenda}
       />
+      {scheduleLauncherPhase ? (
+        <PhaseScheduleLauncherModal
+          open
+          onClose={() => setScheduleLauncherPhase(null)}
+          project={proj}
+          phase={scheduleLauncherPhase}
+          phaseTasks={tasks.filter((t) => t.phaseId === scheduleLauncherPhase.id)}
+          informationalTaskIds={tasks
+            .filter((t) => t.phaseId === scheduleLauncherPhase.id)
+            .filter((t) =>
+              effectiveTaskIsInformational(t, scheduleLauncherPhase, planBlueprint?.blocks),
+            )
+            .map((t) => t.id)}
+          analysts={analystsAll}
+        />
+      ) : null}
+      {exportPhase ? (
+        <PhaseScheduleExportModal
+          open
+          onClose={() => setExportPhase(null)}
+          project={proj}
+          phase={exportPhase}
+          events={projectEvents
+            .filter(
+              (e) =>
+                e.status === 'agendado' &&
+                e.taskId &&
+                tasks.some((t) => t.phaseId === exportPhase.id && t.id === e.taskId),
+            )
+            .sort((a, b) => a.startTime.localeCompare(b.startTime))}
+          tasks={tasks.filter((t) => t.phaseId === exportPhase.id)}
+        />
+      ) : null}
     </div>
   )
 }

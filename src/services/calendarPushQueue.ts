@@ -239,10 +239,13 @@ export async function pullGoogleCalendarEvents(opts?: {
 }
 
 /** Dispara push Google após o evento já estar na nuvem (não propaga erro). */
-export async function maybeEnqueueGoogleCalendarPush(eventId: string): Promise<void> {
+export async function maybeEnqueueGoogleCalendarPush(
+  eventId: string,
+  opts?: { addMeet?: boolean },
+): Promise<void> {
   if (!isGoogleCalendarSyncEnabled()) return
   try {
-    await syncEventToGoogleCalendar(eventId)
+    await syncEventToGoogleCalendar(eventId, opts)
   } catch (err) {
     console.warn('[google-calendar] Falha ao sincronizar evento com Google.', { eventId, err })
   }

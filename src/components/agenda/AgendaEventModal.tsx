@@ -16,7 +16,7 @@ import { brDateTimeToIso, normalizeBrDateInput, normalizeTimeInput } from '../..
 import { isProjectEligibleForScheduling } from '../../lib/projectStatus'
 import { isSupabaseConfigured } from '../../lib/supabaseClient'
 import { isGoogleCalendarSyncEnabled } from '../../services/calendarPushQueue'
-import { parseEmpresaAssuntoFromTitle } from '../../lib/calendarEventTitle'
+import { formatAgendaDisplayTitle, parseEmpresaAssuntoFromTitle } from '../../lib/calendarEventTitle'
 import { useRegisterUnsavedChanges } from '../../navigation/UnsavedChangesContext'
 import { useUnsavedCloseGuard } from '../../navigation/useUnsavedCloseGuard'
 import { useUiFeedback } from '../../ui/UiFeedbackContext'
@@ -86,6 +86,13 @@ export const AgendaEventModal = forwardRef<AgendaEventModalHandle, Props>(functi
       .filter((t) => t.projectId === modalProjectId && t.status !== 'concluida' && t.status !== 'cancelado')
       .sort((a, b) => compareTaskCode(a.code, b.code) || a.sortOrder - b.sortOrder)
   }, [tasks, modalProjectId])
+
+  const formattedTitlePreview = useMemo(() => {
+    if (!modalOpen) return ''
+    const project = modalProjectId ? projects.find((p) => p.id === modalProjectId) : undefined
+    const task = modalTaskId ? tasks.find((t) => t.id === modalTaskId) : undefined
+    return formatAgendaDisplayTitle({ title, projectId: modalProjectId }, project, task)
+  }, [modalOpen, modalProjectId, modalTaskId, title, projects, tasks])
 
   function resetAgendaEventModal() {
     setAgendaEventSaving(false)
@@ -416,7 +423,7 @@ export const AgendaEventModal = forwardRef<AgendaEventModalHandle, Props>(functi
       setEndTime(toTimeInput(endDt))
       setAnalystId(ev.analystId ?? '')
       setMeetingLink(ev.meetingLink ?? '')
-      setModalProjectId(ev.projectId)
+      setModalProjectId(ev.projectId ?? linkedTask?.projectId ?? null)
       setModalTaskId(ev.taskId)
       setModalOpen(true)
       return zStart
@@ -515,8 +522,13 @@ export const AgendaEventModal = forwardRef<AgendaEventModalHandle, Props>(functi
                 </p>
               ) : null}
               <label className="field agenda-event-form__span2">
-                <span>Título</span>
+                <span>Assunto</span>
                 <input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus={!!editingEventId} />
+                {modalProjectId ? (
+                  <p className="agenda-modal-field-hint muted" style={{ marginTop: '0.35rem' }}>
+                    Na agenda e no Google: <strong>{formattedTitlePreview}</strong>
+                  </p>
+                ) : null}
               </label>
               <label className="field agenda-event-form__span2">
                 <span>Descrição (opcional)</span>

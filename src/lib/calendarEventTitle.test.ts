@@ -3,6 +3,7 @@ import type { DbEvent } from '../db/types'
 import {
   type CalendarTitleProject,
   extractEmpresaFromProject,
+  composeEventStorageTitle,
   formatAgendaDisplayTitle,
   formatGoogleCalendarTitle,
   parseEmpresaAssuntoFromTitle,
@@ -93,6 +94,21 @@ describe('parseEmpresaAssuntoFromTitle', () => {
   })
 })
 
+describe('composeEventStorageTitle', () => {
+  it('monta NOME DO PROJETO - ASSUNTO para salvar e sincronizar', () => {
+    const p = project({
+      projectName: 'G21 SPORTS CONFECÇÕES',
+      razaoSocial: 'MARIEBELLA INDUSTRIA E COMERCIO DE ROUPAS LTDA',
+    })
+    expect(
+      composeEventStorageTitle('Reunião de Alinhamento', p, {
+        code: '0.3',
+        title: '0.3 Reunião de Alinhamento',
+      }),
+    ).toBe('G21 SPORTS CONFECÇÕES - REUNIÃO DE ALINHAMENTO')
+  })
+})
+
 describe('formatAgendaDisplayTitle', () => {
   it('formata tarefa do plano com projeto SANTINI', () => {
     const e = ev({
@@ -139,4 +155,4 @@ describe('formatAgendaDisplayTitle', () => {
     expect(formatAgendaDisplayTitle(e)).toBe('REUNIÃO DE ALINHAMENTO')
   })
 })
-
+

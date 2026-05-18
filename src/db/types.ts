@@ -363,6 +363,11 @@ export interface DbTask {
    * @deprecated Modelo legado: ponteiro para a tarefa-cópia criada a partir desta. Substituído por novos eventos com mesma `taskId`.
    */
   rescheduledToTaskId?: string | null
+  /**
+   * Tipo de sessão para export do cronograma (WhatsApp).
+   * `null` / omitido = inferido pelo título da tarefa.
+   */
+  sessionType?: 'technical' | 'training' | 'handover' | null
   /** Último `updated_at` do Postgres (migração opcional D_domain…). */
   remoteUpdatedAt?: string | null
 }

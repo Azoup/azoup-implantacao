@@ -1,4 +1,4 @@
-/** Classificação das mudanças nas notas de atualização e no changelog. */
+/** Classificação das mudanças no changelog interno (espelho de CHANGELOG.md). */
 export type ReleaseNoteCategory =
   | 'BUG_FIX'
   | 'MELHORIA'
@@ -12,7 +12,7 @@ export type ReleaseNoteItem = {
   text: string
 }
 
-/** Notas exibidas na página Notas de atualização (fonte única; espelhar entradas novas no CHANGELOG.md). */
+/** Bundles por release — fonte interna; espelhar entradas novas no CHANGELOG.md (sem página pública). */
 export type ReleaseNoteBundle = {
   versionDisplay: string
   /** Tag Git ou release (ex.: v1.1.0). */
@@ -31,6 +31,37 @@ export type ReleaseNoteBundle = {
  * **Não** espelha automaticamente cada pedido no Cursor: ver `.cursor/rules/versioning-semver-autobump.mdc` e combine “fechar o dia” / “changelog” quando quiser documentar.
  */
 export const RELEASE_NOTES: ReleaseNoteBundle[] = [
+  {
+    versionDisplay: 'v1.4.0',
+    tag: 'v1.4.0',
+    releasedAt: '2026-05-18T12:00:00-03:00',
+    items: [
+      {
+        category: 'NOVA_FUNCAO',
+        text: '**Projetos — cronograma por fase:** lançamento automático com slots fixos, prévia, limite de 20 dias úteis e bloqueio por conflito de analista.',
+      },
+      {
+        category: 'NOVA_FUNCAO',
+        text: '**Exportação WhatsApp** do cronograma da fase (texto + Meet em treinamento/virada).',
+      },
+      {
+        category: 'NOVA_FUNCAO',
+        text: '**Status do cronograma** no cabeçalho da fase (parcial/completo) e faixa **Cronograma** com ações Exportar / Lançar.',
+      },
+      {
+        category: 'NOVA_FUNCAO',
+        text: '**Google Meet condicional:** instalação/configuração sem Meet; treinamento e virada com Meet no push do Calendar.',
+      },
+      {
+        category: 'MELHORIA',
+        text: '**Cabeçalho da fase** em duas linhas e coluna mais larga; removida a aba **Notas de atualização** do menu (changelog interno mantido).',
+      },
+      {
+        category: 'BUG_FIX',
+        text: '**Lançar cronograma:** resumo de confirmação e correção de erro de JSX no modal.',
+      },
+    ],
+  },
   {
     versionDisplay: 'v1.3.0',
     tag: 'v1.3.0',

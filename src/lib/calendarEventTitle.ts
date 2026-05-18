@@ -138,3 +138,16 @@ export function formatAgendaDisplayTitle(
 /** Alias explícito para push / templates Google Calendar. */
 export const formatGoogleCalendarTitle = formatAgendaDisplayTitle
 
+/** Título completo para gravar em `events.title` e enviar ao Google (`EMPRESA - ASSUNTO`). */
+export function composeEventStorageTitle(
+  subjectInput: string,
+  project?: CalendarTitleProject | null,
+  task?: CalendarTitleTask | null,
+): string {
+  return formatAgendaDisplayTitle(
+    { title: subjectInput.trim() || 'Compromisso', projectId: null },
+    project,
+    task,
+  )
+}
+

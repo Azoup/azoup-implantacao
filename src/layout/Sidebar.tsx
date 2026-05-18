@@ -16,7 +16,6 @@ import {
   ListChecks,
   LogOut,
   Moon,
-  Newspaper,
   Plus,
   ScrollText,
   SlidersHorizontal,
@@ -43,7 +42,6 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, scope: 'dashboard.view' },
-  { to: '/atualizacoes', label: 'Notas de atualização', icon: Newspaper, scope: 'dashboard.view' },
   { to: '/visao-geral', label: 'Visão geral', icon: Columns3, scope: 'overview.view' },
   { to: '/projetos', label: 'Projetos', icon: FolderKanban, scope: 'projects.view' },
   { to: '/implantacao', label: 'Implantação', icon: Footprints, scope: 'projects.view' },

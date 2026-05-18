@@ -10,9 +10,6 @@ export const ResetPasswordPageLazy = lazy(() =>
 export const PlanPresentationsPageLazy = lazy(() =>
   import('../pages/PlanPresentationsPage').then((m) => ({ default: m.PlanPresentationsPage })),
 )
-export const ReleaseNotesPageLazy = lazy(() =>
-  import('../pages/ReleaseNotesPage').then((m) => ({ default: m.ReleaseNotesPage })),
-)
 export const DashboardPageLazy = lazy(() => import('../pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
 export const OverviewPageLazy = lazy(() => import('../pages/OverviewPage').then((m) => ({ default: m.OverviewPage })))
 export const ProjectsPageLazy = lazy(() => import('../pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })))

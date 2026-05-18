@@ -11,13 +11,14 @@ import { dispatchSyncFailure } from '../sync/syncFailure'
 import { addTaskTimeLog } from './timeLogs'
 import { recomputeTaskStatus } from './tasks'
 import { getUserForAudit, writeAuditLog } from './auditLogs'
+import { composeEventStorageTitle } from '../lib/calendarEventTitle'
 import {
   deleteEventFromGoogleCalendar,
   isGoogleCalendarSyncEnabled,
   maybeEnqueueGoogleCalendarPush,
 } from './calendarPushQueue'
 
-type EventInput = {
+export type EventInput = {
   title: string
   description: string
   startTime: string
@@ -27,6 +28,11 @@ type EventInput = {
   taskId: string | null
   analystId: string | null
   meetingLink: string | null
+  /**
+   * Controla criação de Google Meet no push para o Google Calendar.
+   * Omitido = true (comportamento padrão da agenda manual).
+   */
+  addGoogleMeet?: boolean
   executionState?: 'scheduled' | 'in_progress' | 'paused' | 'completed' | null
   outcomeSummary?: string | null
   nextStep?: string | null
@@ -102,8 +108,18 @@ async function validateEventLinks(data: EventInput): Promise<EventInput> {
   }
 }
 
+async function withFormattedStorageTitle(valid: EventInput): Promise<EventInput> {
+  const project = valid.projectId ? await db.projects.get(valid.projectId) : undefined
+  const task = valid.taskId ? await db.tasks.get(valid.taskId) : undefined
+  return {
+    ...valid,
+    title: composeEventStorageTitle(valid.title, project, task),
+  }
+}
+
 export async function createEventValidated(input: EventInput): Promise<EventWriteResult> {
-  const valid = await validateEventLinks(input)
+  const { addGoogleMeet, ...eventPayload } = input
+  const valid = await withFormattedStorageTitle(await validateEventLinks(eventPayload))
   const id = uuid()
   const row: DbEvent = {
     id,
@@ -115,7 +131,9 @@ export async function createEventValidated(input: EventInput): Promise<EventWrit
   if (!isSupabaseConfigured()) return { id, cloudSync: 'local_only' }
   try {
     await syncEventRowToSupabase(row)
-    if (isGoogleCalendarSyncEnabled()) await maybeEnqueueGoogleCalendarPush(id)
+    if (isGoogleCalendarSyncEnabled()) {
+      await maybeEnqueueGoogleCalendarPush(id, { addMeet: addGoogleMeet !== false })
+    }
     return { id, cloudSync: 'synced' }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -323,7 +341,7 @@ export async function rescheduleEvent(input: RescheduleEventInput): Promise<{ ca
 export async function updateEventValidated(eventId: string, input: EventInput): Promise<EventWriteResult> {
   const current = await db.events.get(eventId)
   if (!current) throw new Error('Evento não encontrado.')
-  const valid = await validateEventLinks(input)
+  const valid = await withFormattedStorageTitle(await validateEventLinks(input))
   await db.events.update(eventId, {
     title: valid.title,
     description: valid.description,

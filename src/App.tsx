@@ -26,7 +26,6 @@ import {
   PortalHomePageLazy,
   PortalProjectPageLazy,
   PortalWelcomeFormPageLazy,
-  ReleaseNotesPageLazy,
   ProjectDetailPageLazy,
   ProjectsPageLazy,
   RegisterPageLazy,
@@ -133,14 +132,6 @@ export const appRouter = createBrowserRouter(
           element={
             <RequireScope scope={ROUTE_SCOPE_MAP['/dashboard']}>
               <DashboardPageLazy />
-            </RequireScope>
-          }
-        />
-        <Route
-          path="/atualizacoes"
-          element={
-            <RequireScope scope={ROUTE_SCOPE_MAP['/atualizacoes']}>
-              <ReleaseNotesPageLazy />
             </RequireScope>
           }
         />
