@@ -161,8 +161,7 @@ export function AgendaSidebar({
             </>
           ) : (
             <p className="agenda-google-card__text muted">
-              Sincronização automática exige{' '}
-              <code className="agenda-google-card__code">VITE_GOOGLE_CALENDAR_SYNC=true</code>.
+              Sincronização automática exige Supabase configurado neste ambiente (URL e chave anon no deploy).
             </p>
           )}
         </div>

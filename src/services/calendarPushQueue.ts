@@ -3,8 +3,17 @@ import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
 import { applyRemoteRowFromSupabase, refreshEventsFromSupabase } from '../sync/supabaseDexieBridge'
 import { broadcastDexieSyncHint } from '../sync/crossTabSync'
 
+/**
+ * Google Agenda ativo quando há Supabase (produção Vercel + cloud local).
+ * `VITE_GOOGLE_CALENDAR_SYNC=false` desliga explicitamente.
+ * `true` mantém compatibilidade com `.env.local` antigo.
+ */
 export function isGoogleCalendarSyncEnabled(): boolean {
-  return import.meta.env.VITE_GOOGLE_CALENDAR_SYNC === 'true'
+  if (!isSupabaseConfigured()) return false
+  const raw = import.meta.env.VITE_GOOGLE_CALENDAR_SYNC
+  if (raw === 'false' || raw === '0') return false
+  if (raw === 'true' || raw === '1') return true
+  return true
 }
 
 export type GoogleCalendarListItem = { id: string; summary: string; primary?: boolean }
