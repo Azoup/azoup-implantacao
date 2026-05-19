@@ -1,4 +1,4 @@
-import { addDays, startOfWeek } from 'date-fns'
+import { addDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { isCustomPlanType } from '../constants/customPlan'
@@ -97,10 +97,10 @@ export function nextBusinessDayYmd(ymd: string, blocked?: ReadonlySet<string>): 
   return cur
 }
 
+/** Segunda-feira da semana de `ymd` no fuso {@link CAL_TZ} (independente do TZ do SO/CI). */
 export function mondayOfWeekYmd(ymd: string): string {
-  const z = parseYmdInTz(ymd)
-  const mon = startOfWeek(z, { weekStartsOn: 1 })
-  return formatInTimeZone(mon, CAL_TZ, 'yyyy-MM-dd')
+  const isoDow = Number(formatInTimeZone(parseYmdInTz(ymd), CAL_TZ, 'i'))
+  return addDaysYmd(ymd, -(isoDow - 1))
 }
 
 export function slotToIso(ymd: string, slot: DailySlot): { startTime: string; endTime: string } {
@@ -131,10 +131,13 @@ export function hasSlotConflict(
   })
 }
 
+function ymdOrdinal(ymd: string): number {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return Math.floor(Date.UTC(y, m - 1, d) / 86_400_000)
+}
+
 export function calendarDayDiffYmd(a: string, b: string): number {
-  const ta = parseYmdInTz(a).getTime()
-  const tb = parseYmdInTz(b).getTime()
-  return Math.abs(Math.round((ta - tb) / (24 * 60 * 60 * 1000)))
+  return Math.abs(ymdOrdinal(a) - ymdOrdinal(b))
 }
 
 export function minGapToDates(ymd: string, picked: readonly string[]): number {

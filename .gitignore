@@ -8,4 +8,7 @@ dist
 .env
 .env.local
 .env.*.local
+
+# Cache local do Supabase CLI (project-ref, pooler, versões) — não versionar
+supabase/.temp/
 only_read_old_vyntask/

@@ -6,6 +6,7 @@ import {
   generatePhaseSchedule,
   hasSlotConflict,
   isPhaseEligibleForScheduleLaunch,
+  mondayOfWeekYmd,
   isWeekdayYmd,
   nextBusinessDayYmd,
   countBusinessDaysInclusive,
@@ -13,6 +14,7 @@ import {
   PHASE_SCHEDULE_MAX_BUSINESS_DAYS,
   rankCandidateDays,
   slotToIso,
+  weekdayDatesInWeek,
 } from './scheduleGenerator'
 
 function task(partial: Partial<DbTask> & Pick<DbTask, 'id' | 'code' | 'title'>): DbTask {
@@ -47,6 +49,19 @@ function event(partial: Partial<DbEvent> & Pick<DbEvent, 'startTime' | 'endTime'
     ...partial,
   }
 }
+
+describe('mondayOfWeekYmd', () => {
+  it('segunda 2026-05-18 retorna a mesma data (Brasília, independente do TZ do SO)', () => {
+    expect(mondayOfWeekYmd('2026-05-18')).toBe('2026-05-18')
+    expect(weekdayDatesInWeek(mondayOfWeekYmd('2026-05-18'))).toEqual([
+      '2026-05-18',
+      '2026-05-19',
+      '2026-05-20',
+      '2026-05-21',
+      '2026-05-22',
+    ])
+  })
+})
 
 describe('nextBusinessDayYmd', () => {
   it('avança sábado para segunda', () => {
